@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=kinoz
+GenericName=Media player
+Comment=A calm, fast, offline player for videos, music, images and GIFs
+Exec=kinoz %F
+Icon=kinoz
+Terminal=false
+Categories=AudioVideo;Audio;Video;Player;
+MimeType=video/mp4;video/x-matroska;video/webm;video/x-msvideo;audio/mpeg;audio/flac;audio/x-wav;audio/ogg;image/png;image/jpeg;image/gif;image/webp;

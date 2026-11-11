@@ -1,0 +1,76 @@
+cmake_minimum_required(VERSION 3.21)
+
+# One place to rename the app. Override with -DAPP_NAME=...
+set(APP_NAME "kinoz" CACHE STRING "Display name of the app")
+set(APP_EXE  "kinoz" CACHE STRING "Executable base name")
+
+project(${APP_EXE} VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+
+find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGL OpenGLWidgets Network Concurrent)
+
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.cpp" "${CMAKE_SOURCE_DIR}/src/*.h")
+
+if(WIN32)
+  # libmpv comes from the project-local toolchain (scripts/setup-toolchain.ps1)
+  set(MPV_DIR "${CMAKE_SOURCE_DIR}/.toolchain/mpv")
+  if(NOT EXISTS "${MPV_DIR}/mpv.lib")
+    message(FATAL_ERROR "libmpv not found in ${MPV_DIR}. Run scripts/setup-toolchain.ps1")
+  endif()
+  add_executable(${APP_EXE} WIN32 ${SOURCES} resources/app.rc)
+  target_include_directories(${APP_EXE} PRIVATE "${MPV_DIR}/include")
+  target_link_libraries(${APP_EXE} PRIVATE "${MPV_DIR}/mpv.lib" dwmapi user32 shell32 ole32 shlwapi)
+  target_compile_definitions(${APP_EXE} PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+else()
+  # macOS: brew install mpv      Linux: apt install libmpv-dev      (both ship mpv.pc)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
+  if(APPLE)
+    add_executable(${APP_EXE} MACOSX_BUNDLE ${SOURCES})
+    set_target_properties(${APP_EXE} PROPERTIES
+      MACOSX_BUNDLE_BUNDLE_NAME "${APP_NAME}"
+      MACOSX_BUNDLE_GUI_IDENTIFIER "com.p4inz.kinoz"
+      MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+      MACOSX_BUNDLE_COPYRIGHT "Copyright (C) 2026 Atharva Patil. GNU GPL v3.")
+  else()
+    add_executable(${APP_EXE} ${SOURCES})
+  endif()
+  target_link_libraries(${APP_EXE} PRIVATE PkgConfig::MPV)
+endif()
+
+target_include_directories(${APP_EXE} PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(${APP_EXE} PRIVATE Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Network Qt6::Concurrent)
+target_compile_definitions(${APP_EXE} PRIVATE APP_NAME="${APP_NAME}" APP_VERSION="${PROJECT_VERSION}")
+
+if(MSVC)
+  target_compile_options(${APP_EXE} PRIVATE /utf-8 /permissive- /Zc:__cplusplus /W3 /MP)
+endif()
+
+# Everything lands in <project>/dist/app
+set_target_properties(${APP_EXE} PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/dist/app"
+  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/dist/app"
+  RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_SOURCE_DIR}/dist/app")
+
+# Fonts, keymaps and legal files next to the executable (all platforms)
+add_custom_command(TARGET ${APP_EXE} POST_BUILD
+  COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_SOURCE_DIR}/resources/fonts" "$<TARGET_FILE_DIR:${APP_EXE}>/fonts"
+  COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_SOURCE_DIR}/resources/keymaps" "$<TARGET_FILE_DIR:${APP_EXE}>/keymaps"
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_SOURCE_DIR}/LICENSE" "$<TARGET_FILE_DIR:${APP_EXE}>/LICENSE"
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_SOURCE_DIR}/ADDITIONAL_TERMS.md" "$<TARGET_FILE_DIR:${APP_EXE}>/ADDITIONAL_TERMS.md"
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_SOURCE_DIR}/THIRD_PARTY_NOTICES.md" "$<TARGET_FILE_DIR:${APP_EXE}>/THIRD_PARTY_NOTICES.md"
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_SOURCE_DIR}/PRIVACY.md" "$<TARGET_FILE_DIR:${APP_EXE}>/PRIVACY.md")
+
+if(WIN32)
+  get_filename_component(QT_BIN "${Qt6_DIR}/../../../bin" ABSOLUTE)
+  add_custom_command(TARGET ${APP_EXE} POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${MPV_DIR}/libmpv-2.dll" "$<TARGET_FILE_DIR:${APP_EXE}>"
+    COMMAND "${QT_BIN}/windeployqt.exe" --no-translations --no-system-d3d-compiler --no-opengl-sw
+            --no-quick-import --skip-plugin-types qmltooling,generic,networkinformation
+            "$<TARGET_FILE:${APP_EXE}>"
+    COMMENT "Deploying Qt + libmpv next to the exe")
+endif()

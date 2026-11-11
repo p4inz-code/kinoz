@@ -1,0 +1,154 @@
+name: build
+
+# Builds kinoz for Windows, macOS and Linux on every push / pull request.
+# Pushing a tag like v0.1.0 also publishes a GitHub Release with the installers and SHA-256 checksums.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  QT_VERSION: 6.8.3
+  APP_VERSION: 0.1.0
+  MPV_TAG: '20261111'
+  MPV_ASSET: mpv-dev-x86_64-20261111-git-bcde6b93cc.7z
+  MPV_SHA256: 273c079b11ea5575822f972756f4c9a71149a5c10130353abeb8586738938452
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: win64_msvc2022_64
+          cache: true
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: libmpv (pinned, checksum-verified)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force .toolchain/mpv, .toolchain/dl | Out-Null
+          $url = "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/$env:MPV_TAG/$env:MPV_ASSET"
+          Invoke-WebRequest $url -OutFile ".toolchain/dl/$env:MPV_ASSET"
+          $got = (Get-FileHash ".toolchain/dl/$env:MPV_ASSET" -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $env:MPV_SHA256) { throw "libmpv checksum mismatch: $got" }
+          tar -xf ".toolchain/dl/$env:MPV_ASSET" -C .toolchain/mpv
+          $exports = dumpbin /exports .toolchain/mpv/libmpv-2.dll | ForEach-Object { if ($_ -match '^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]{8}\s+(mpv_\w+)') { $Matches[1] } }
+          "LIBRARY libmpv-2.dll`r`nEXPORTS`r`n" + ($exports -join "`r`n") | Set-Content -Encoding ascii .toolchain/mpv/mpv.def
+          lib /nologo /def:.toolchain/mpv/mpv.def /machine:x64 /out:.toolchain/mpv/mpv.lib
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+
+      - name: Installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\installer.iss
+          $f = Get-ChildItem dist\installer\kinoz-Setup-*.exe | Select-Object -First 1
+          (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower() + "  " + $f.Name | Set-Content "$($f.FullName).sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/installer/*
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: clang_64
+          cache: true
+      - name: Dependencies
+        run: brew install mpv pkg-config dylibbundler
+      - name: Build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j 4
+      - name: Package (.dmg)
+        run: |
+          cd dist/app
+          dylibbundler -od -b -x kinoz.app/Contents/MacOS/kinoz -d kinoz.app/Contents/Frameworks -p @executable_path/../Frameworks
+          macdeployqt kinoz.app -dmg
+          mkdir -p ../out
+          mv kinoz.dmg ../out/kinoz-${APP_VERSION}-macos.dmg
+          cd ../out && shasum -a 256 kinoz-${APP_VERSION}-macos.dmg > kinoz-${APP_VERSION}-macos.dmg.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/out/*
+
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: linux_gcc_64
+          cache: true
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmpv-dev libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0 libfuse2 pkg-config ninja-build
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+      - name: Package (AppImage)
+        run: |
+          mkdir -p tools && cd tools
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20250213-2/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/1-alpha-20250213-2/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x *.AppImage && cd ..
+          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+          cp dist/app/kinoz AppDir/usr/bin/
+          cp -r dist/app/fonts dist/app/keymaps AppDir/usr/bin/
+          cp LICENSE ADDITIONAL_TERMS.md THIRD_PARTY_NOTICES.md PRIVACY.md AppDir/usr/bin/
+          cp packaging/linux/kinoz.desktop AppDir/usr/share/applications/
+          cp packaging/linux/kinoz.png AppDir/usr/share/icons/hicolor/256x256/apps/kinoz.png
+          export QMAKE="$QT_ROOT_DIR/bin/qmake"
+          ./tools/linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt --output appimage \
+            --desktop-file AppDir/usr/share/applications/kinoz.desktop
+          mkdir -p dist/out
+          mv kinoz-*.AppImage dist/out/kinoz-${APP_VERSION}-x86_64.AppImage
+          cd dist/out && sha256sum kinoz-${APP_VERSION}-x86_64.AppImage > kinoz-${APP_VERSION}-x86_64.AppImage.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/out/*
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          body: |
+            Downloads: `kinoz-Setup-*.exe` (Windows), `kinoz-*-macos.dmg` (macOS), `kinoz-*-x86_64.AppImage` (Linux).
+            Each file has a `.sha256` next to it; the in-app updater only installs a file whose checksum matches.
+            macOS and Linux builds are new and not yet tested by hand — see docs/KNOWN_ISSUES.md.
