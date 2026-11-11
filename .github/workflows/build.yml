@@ -60,7 +60,7 @@ jobs:
           $f = Get-ChildItem dist\installer\kinoz-Setup-*.exe | Select-Object -First 1
           (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower() + "  " + $f.Name | Set-Content "$($f.FullName).sha256"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows
           path: dist/installer/*
@@ -88,7 +88,7 @@ jobs:
           mkdir -p ../out
           mv kinoz.dmg ../out/kinoz-${APP_VERSION}-macos.dmg
           cd ../out && shasum -a 256 kinoz-${APP_VERSION}-macos.dmg > kinoz-${APP_VERSION}-macos.dmg.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos
           path: dist/out/*
@@ -128,7 +128,7 @@ jobs:
           mkdir -p dist/out
           mv kinoz-*.AppImage dist/out/kinoz-${APP_VERSION}-x86_64.AppImage
           cd dist/out && sha256sum kinoz-${APP_VERSION}-x86_64.AppImage > kinoz-${APP_VERSION}-x86_64.AppImage.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux
           path: dist/out/*
