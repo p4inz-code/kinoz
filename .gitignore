@@ -1,0 +1,20 @@
+# build + local toolchain (recreated by scripts/setup-toolchain.ps1)
+/.toolchain/
+/build/
+/dist/
+/out/
+# app data written when running from the build folder
+/data/
+**/data/logs/
+# editors / OS
+.vs/
+.vscode/
+*.user
+CMakeUserPresets.json
+Thumbs.db
+.DS_Store
+# stray tool logs
+aqtinstall.log
+*.corrupt
+# private working log
+/docs/SESSION_HISTORY.md
