@@ -1,93 +1,171 @@
-<h1 align="center">kinoz</h1>
-
 <p align="center">
-  <img src="assets/screenshots/home-dark.png" alt="kinoz first-run screen in the dark theme: library sidebar and a drop target" width="100%">
+  <img src="assets/readme/hero.png" alt="kinoz screens arranged like prints on a wall: the dark home screen, a light theme, the Ctrl+K command palette, Settings and About." width="100%">
 </p>
 
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0c6a6e)
-![Status](https://img.shields.io/badge/status-early%20(0.1)-orange)
-![License](https://img.shields.io/badge/license-GPLv3-blue)
+<h1 align="center">kinoz</h1>
+<p align="center"><b>Everything you play, in one calm window.</b><br>A free, open-source, offline media player for videos, music, images and GIFs. Windows, macOS and Linux.</p>
 
-**A calm, fast, offline media player for videos, music, images and GIFs.**
+<p align="center">
+  <a href="https://github.com/p4inz-code/kinoz/releases/latest"><img src="assets/readme/btn-get.svg" alt="Download kinoz, free for Windows, macOS and Linux" width="260"></a>
+  <a href="https://github.com/p4inz-code/kinoz/issues/new/choose"><img src="assets/readme/btn-issues.svg" alt="Report a bug or an idea" width="260"></a>
+  <a href="https://discord.gg/8UKt8s5FbW"><img src="assets/readme/btn-discord.svg" alt="Join the Discord" width="260"></a>
+</p>
 
-kinoz plays almost anything with no codec packs, keeps your library one click away in a sidebar, and gets out of the way while you watch. The whole interface is custom (no OS title bar, menus or dialogs) with a light and a dark theme. No account, no cloud, no telemetry.
+<p align="center">
+  <a href="https://github.com/p4inz-code/kinoz/releases/latest"><img src="https://img.shields.io/github/v/release/p4inz-code/kinoz?style=flat-square&labelColor=14140f&color=4fd1d6&label=release" alt="Latest release"></a>
+  <a href="https://github.com/p4inz-code/kinoz/releases"><img src="https://img.shields.io/github/downloads/p4inz-code/kinoz/total?style=flat-square&labelColor=14140f&color=f2b24d&label=downloads" alt="Downloads"></a>
+  <a href="https://github.com/p4inz-code/kinoz/stargazers"><img src="https://img.shields.io/github/stars/p4inz-code/kinoz?style=flat-square&labelColor=14140f&color=c0a8ff&label=stars" alt="Stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/p4inz-code/kinoz?style=flat-square&labelColor=14140f&color=ff8fb1&label=license" alt="GPLv3 license"></a>
+</p>
 
-> **Status: early (0.1).** The Windows build is the one that has been run and tested. The macOS and Linux builds are produced by CI and **have not been tested on real machines yet**; they may need fixes. See [Known issues](docs/KNOWN_ISSUES.md) for the honest list.
+<p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
----
+You have films in one folder, music in another, a pile of GIFs and screenshots somewhere else, and the player that opens them is slow to start, forgets where you stopped and makes you hunt through a file dialog every time. kinoz is one window for all of it: your folders in a sidebar, thumbnails, a frame preview when you hover the seek bar, and a command palette that finds any file or command in a keystroke.
 
-## Screenshots
-
-These are the app's own screens, rendered by the app itself (first-run state, no media loaded).
+It plays almost anything with no codec packs, because the engine underneath is libmpv and FFmpeg. The whole interface is drawn by kinoz itself: no OS title bar, no OS menus, no OS dialogs, a light and a dark theme, and a real switch that turns every animation off. There is no account, no cloud and no telemetry.
 
 <table>
-  <tr>
-    <td width="50%">
-      <img src="assets/screenshots/home-light.png" alt="Light theme: library sidebar and drop target" width="100%">
-      <p align="center"><em>Light theme</em></p>
-    </td>
-    <td width="50%">
-      <img src="assets/screenshots/palette-dark.png" alt="Command palette searching your library and every command" width="100%">
-      <p align="center"><em><code>Ctrl+K</code>: search your library and every command</em></p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <img src="assets/screenshots/settings-light.png" alt="Settings: theme, accent colour, animations, glass effect, density" width="100%">
-      <p align="center"><em>Settings: theme, accent, animations on/off, glass</em></p>
-    </td>
-    <td width="50%">
-      <img src="assets/screenshots/settings-playback-light.png" alt="Settings: playback options" width="100%">
-      <p align="center"><em>Playback: resume, seek steps, speed, slideshow…</em></p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <img src="assets/screenshots/settings-shortcuts-light.png" alt="Every keyboard shortcut, listed in Settings" width="100%">
-      <p align="center"><em>Every shortcut is listed, and editable</em></p>
-    </td>
-    <td width="50%">
-      <img src="assets/screenshots/about-light.png" alt="About: version, license, credit, updates" width="100%">
-      <p align="center"><em>About: everything in one place</em></p>
-    </td>
-  </tr>
+<tr>
+<td width="50%" align="center">
+<sub>Dark theme</sub><br><br>
+<img src="assets/screenshots/home-dark.png" alt="kinoz in the dark theme: library sidebar and a drop target" width="100%">
+</td>
+<td width="50%" align="center">
+<sub>Light theme</sub><br><br>
+<img src="assets/screenshots/home-light.png" alt="kinoz in the light theme" width="100%">
+</td>
+</tr>
 </table>
+<p align="center"><sub>First-run screens, rendered by the app itself. <code>Ctrl+D</code> switches theme, no restart needed.</sub></p>
 
----
-## What kinoz does
+<details>
+<summary>More screenshots: command palette, Settings, About</summary>
+<br>
 
-- **One player for everything.** Video, audio, images and animated GIFs open in the same window; the stage adapts to what you play. Built on libmpv/FFmpeg, so MKV, MP4, AVI, WebM, HEVC, FLAC, MP3, SRT, ASS and most other formats just work.
-- **A library that stays out of the way.** A sidebar with your folders, thumbnails, list or grid view, a type filter, search, sort and a drag-reorderable queue. Hover the seek bar to see a frame preview. Resume picks up where you left off, per file.
-- **`Ctrl+K` command palette.** Search your whole library and every command from the keyboard.
-- **Playback tools.** Speed 0.25×–4× with pitch correction, A-B loop, sleep timer, aspect ratio, audio and subtitle sync, frame step, subtitle and audio-track menus, subtitle delay and size, picture adjust (brightness, contrast, saturation, gamma, hue), a 10-band equalizer with presets, a loudness normalizer, output-device picker.
-- **Images and GIFs.** Zoom, pan, rotate, and browse a folder with the arrow keys.
-- **Annotate any frame.** Pause or open an image, draw with pen, highlighter, arrow, shapes and text, then export a full-resolution PNG or copy it.
-- **Glass and metal, calmly.** The floating control bar blurs the video behind it; accents are liquid-metal. Light and dark follow your system, six accent colours, and a real **animations off** switch that makes nothing move.
-- **Built for heavy use.** Several independent windows (`Ctrl+N`), a mini always-on-top player, a minimized video keeps its sound but stops decoding the picture, a broken file is skipped instead of stopping the queue, and a built-in `--selftest`.
-- **Familiar keys.** Windows Media Player-style shortcuts, all listed in Settings and editable in a JSON file.
-- **High resolution.** 4K and 8K frames decode and render (tested with synthetic 3840×2160 and 7680×4320 sources); big frames get a larger read-ahead buffer and high-quality scaling.
-- **Hardened.** Plays local files only: no external tools, scripts or playlist references are run; a crash leaves a small dump in the logs folder.
-- **Updates you control.** An optional update check against this repository's Releases, verified with SHA-256, installed only when you press the button.
+<p align="center">
+  <img src="assets/screenshots/palette-dark.png" alt="The Ctrl+K command palette" width="720">
+  <br><sub><code>Ctrl+K</code> searches your whole library and every command.</sub>
+</p>
 
-## What kinoz does *not* do
+<p align="center">
+  <img src="assets/screenshots/settings-light.png" alt="Settings, General: theme, accent colour, animations, glass effect, density" width="720">
+  <br><sub>Settings: theme, six accent colours, animations on or off, glass effect, density.</sub>
+</p>
 
-Being upfront:
+<p align="center">
+  <img src="assets/screenshots/settings-playback-light.png" alt="Settings, Playback: resume, autoplay, starting speed, seek steps, slideshow" width="720">
+  <br><sub>Playback: resume, autoplay, starting speed, seek steps, volume step, controls auto-hide, slideshow.</sub>
+</p>
 
-- No accounts, no cloud sync, no streaming-service integrations, no ads, no telemetry, no crash reporting.
-- No code signing yet, so Windows SmartScreen and macOS Gatekeeper warn on first run. Verify the SHA-256 from the release page.
-- No system "now playing" integration yet (Windows flyout, macOS Now Playing, Linux MPRIS). Media keys do work.
-- No gapless playback yet. A tiny gap can occur between tracks.
-- macOS and Linux are not tested by hand yet (see the status note above).
+<p align="center">
+  <img src="assets/screenshots/settings-shortcuts-light.png" alt="Settings, Shortcuts: every key and mouse action" width="720">
+  <br><sub>Every keyboard shortcut and mouse action is listed, and you can add your own.</sub>
+</p>
 
-## Download
+<p align="center">
+  <img src="assets/screenshots/about-light.png" alt="About: version, license, credit, updates" width="720">
+  <br><sub>About keeps the version, license, credit and update check in one place.</sub>
+</p>
 
-Releases are published on the [Releases](../../releases) page: a Windows installer (`kinoz-Setup-<version>.exe`), a macOS `.dmg` and a Linux `.AppImage`, each with a `.sha256` file. The first release is being prepared.
+</details>
 
-On Windows the installer offers a non-`C:` install folder by default and keeps everything kinoz saves inside the install folder.
+<p align="center">
+  <a href="#download-and-install">Download</a> &nbsp;|&nbsp;
+  <a href="#what-makes-kinoz-different">What is different</a> &nbsp;|&nbsp;
+  <a href="#what-you-get">What you get</a> &nbsp;|&nbsp;
+  <a href="#supported-file-types">File types</a> &nbsp;|&nbsp;
+  <a href="#keyboard-shortcuts">Shortcuts</a> &nbsp;|&nbsp;
+  <a href="#build-from-source">Build from source</a>
+</p>
+
+> **Status: early (0.1).** The Windows build is the one that has been run and tested hardest. The macOS and Linux builds come from CI and have not been tried by hand yet, so they may need fixes. [Known issues](docs/KNOWN_ISSUES.md) is the honest list.
+
+<p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
+
+## Download and install
+
+Pick the file for your system from the [latest release](https://github.com/p4inz-code/kinoz/releases/latest). There is no account, no sign-in and nothing to configure.
+
+| Your system | Download | Notes |
+|---|---|---|
+| Windows | `kinoz-Setup-<version>.exe` | The installer. Start Menu shortcut, an "Open with" entry for media files, and a non-`C:` install folder by default. Everything kinoz saves stays inside the install folder. |
+| macOS, Apple Silicon (M1 and newer) | `kinoz-<version>-macos.dmg` | Open it and drag kinoz into Applications. |
+| Linux | `kinoz-<version>-x86_64.AppImage` | `chmod +x` it and run it. |
+
+Each file has a `.sha256` next to it. The in-app updater (optional) only installs a download whose SHA-256 matches. Your first five minutes: open kinoz, press **Add a folder**, point it at where your media lives, and click anything. Press `Ctrl+K` to search, `?`-style help is in **Settings → Shortcuts**.
+
+<p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
+
+## What makes kinoz different
+
+1. **One player for everything.** Video, audio, images and animated GIFs open in the same window and the stage adapts to what you play: letterboxed video, a cover-art now-playing card for music, a zoom-and-pan viewer for pictures, a looping player for GIFs.
+2. **Real glass, not a screenshot of glass.** The floating control bar blurs the video behind it, live, on the GPU, with a slow liquid-metal sheen and a rim light. Prefer it flat? One switch. Prefer nothing moving at all? **Settings → Animations → Off** removes every fade and glow.
+3. **Your library is one keystroke away.** A sidebar with your folders, thumbnails, list or grid view, a type filter, search and a drag-reorderable queue. `Ctrl+K` searches every file under your folders and every command. Resume continues each video from where you left off.
+4. **Built for heavy use.** It opens and closes instantly (the window appears before the engine finishes starting), keeps working when you click fast, runs several independent windows at once (`Ctrl+N`), and a minimized video keeps its sound while dropping the picture to save CPU. 4K and 8K frames decode and render in the tests.
+5. **Tools you actually reach for.** Annotate any frame or image with a pen, highlighter, arrows, shapes and text and export a full-resolution PNG. A-B loop, sleep timer, aspect ratio, audio and subtitle sync, a 10-band equalizer with presets, picture adjust, speed 0.25×–4× with pitch correction.
+6. **Free, offline and yours.** GPLv3, so it stays free and the credit stays. No account, no telemetry; the only network request it can ever make is the optional update check, and you can switch it off.
+
+<p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
+
+## What you get
+
+| | |
+|---|---|
+| Every kind of media | MKV, MP4, AVI, WebM, HEVC, FLAC, MP3, JPG, PNG, WebP, GIF and many more, with SRT and ASS subtitles. No codec packs. |
+| A library that stays out of the way | Folders, thumbnails (cached on disk), list or grid, type filter, search, sort, queue, resume position per file, recent items. |
+| `Ctrl+K` command palette | Find any file or command from the keyboard. |
+| Seek-bar frame preview | Hover the timeline to see the frame you are about to jump to. |
+| Playback tools | Speed with pitch correction, frame step, A-B loop, sleep timer, aspect ratio, audio and subtitle delay, track menus. |
+| Sound | 10-band equalizer with presets, loudness normalizer, output-device picker. |
+| Picture | Brightness, contrast, saturation, gamma and hue, live. |
+| Images and GIFs | Zoom, pan, rotate, browse a folder with the arrow keys, optional slideshow. |
+| Annotation | Draw on a paused frame or an image, export a full-resolution PNG or copy it. |
+| Windows and modes | Fullscreen, a mini always-on-top player, several independent windows, "Safe fullscreen" if your display blinks. |
+| Look | Light and dark theme, six accent colours, glass effect, compact density, animations System / On / Off. |
+| Settings that explain themselves | Six tabs: General, Playback, Shortcuts, Info (system, graphics, engine, current file, copy diagnostics), About, Legal. |
+| Resilient | A broken or missing file is skipped with a clear message instead of stopping the queue. Plays local files only, with no external tools or scripts run. |
+| Offline | No account, no telemetry. An optional, SHA-256-verified update check is the only network request. |
+
+<p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
+
+## Supported file types
+
+kinoz recognises these in the library and in "Open with". The engine can also play other formats you drop onto it.
+
+| Kind | Extensions |
+|---|---|
+| Video | `mp4` `m4v` `mkv` `avi` `webm` `mov` `wmv` `flv` `ts` `m2ts` `mts` `mpg` `mpeg` `3gp` `ogv` `vob` `divx` `f4v` `asf` `rm` `rmvb` |
+| Audio | `mp3` `flac` `wav` `ogg` `oga` `opus` `m4a` `aac` `wma` `aiff` `aif` `ape` `alac` `mka` `wv` `mpc` `dsf` `ac3` `dts` |
+| Images | `jpg` `jpeg` `png` `bmp` `tif` `tiff` `webp` `ico` `jfif`, and `avif` `heic` `heif` `jxl` where the bundled FFmpeg supports them |
+| Animated | `gif` `apng` |
+| Subtitles | `srt` `ass` `ssa` `vtt` `sub` |
+
+<p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
+
+## Keyboard shortcuts
+
+The full list is in **Settings → Shortcuts**, and you can add your own in `keymap.json`. The ones to know:
+
+| Key | Action | Key | Action |
+|---|---|---|---|
+| `Space` / `Ctrl+P` | Play / pause | `Ctrl+K` | Search and commands |
+| `Left` / `Right` | Back / forward (small step) | `F` / `Alt+Enter` | Fullscreen |
+| `Shift+Left` / `Shift+Right` | Back / forward (large step) | `Ctrl+M` | Mini player |
+| `Up` / `Down` | Volume | `Ctrl+N` | New window |
+| `M` / `F7` | Mute | `Tab` | Show / hide the library |
+| `]` / `[` | Faster / slower | `A` | Annotate this frame |
+| `.` / `,` | Next / previous frame | `B` | A-B loop |
+| `Ctrl+B` / `Ctrl+F` | Previous / next | `Ctrl+E` / `Ctrl+J` | Equalizer / adjust picture |
+| `Ctrl+H` / `Ctrl+T` | Shuffle / repeat | `Ctrl+D` | Switch theme |
+| `Ctrl+Shift+S` | Save this frame as an image | `Ctrl+,` | Settings |
+
+On an image: mouse wheel or `=` / `-` zooms, drag pans, `R` rotates, `0` fits to the window.
+
+<p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
 ## Privacy
 
-kinoz works fully offline. It stores your settings, resume points and thumbnails locally, in its data folder, and sends nothing anywhere. The only network request it can make is the optional update check to `github.com` (no user data, can be turned off in Settings → About). Full details: [PRIVACY.md](PRIVACY.md).
+kinoz works fully offline. Settings, resume points, thumbnails and exports are stored in its data folder on your own computer and nothing is sent anywhere. The only network request it can make is the optional update check to `github.com` (a plain request for the latest release, no user data), which you can turn off in Settings → About. Full details: [PRIVACY.md](PRIVACY.md).
 
 ## Build from source
 
@@ -104,21 +182,17 @@ scripts\release.ps1                                                    # builds 
 
 **Linux:** `sudo apt install qt6-base-dev libgl-dev libmpv-dev pkg-config cmake`, then `cmake -B build && cmake --build build`
 
-More in [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+More in [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). A built-in self-test (`kinoz --selftest <file>`) drives every control and checks the result.
 
 ## Documentation
 
-- [Known issues](docs/KNOWN_ISSUES.md)
-- [Changelog](CHANGELOG.md)
-- [Roadmap](ROADMAP.md)
-- [Design notes](docs/DESIGN.md) and [performance notes](docs/PERFORMANCE.md)
-- [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [Support](SUPPORT.md) · [Contributing](CONTRIBUTING.md)
+[Known issues](docs/KNOWN_ISSUES.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md) · [Architecture](docs/ARCHITECTURE.md) · [Design notes](docs/DESIGN.md) · [Performance notes](docs/PERFORMANCE.md) · [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [Support](SUPPORT.md) · [Contributing](CONTRIBUTING.md)
 
-## Support & feedback
+## Support and feedback
 
 - Bugs and ideas: [open an issue](../../issues/new/choose)
 - Chat: [Discord](https://discord.gg/8UKt8s5FbW)
-- Security problems: see [SECURITY.md](SECURITY.md) (please report privately)
+- Security problems: see [SECURITY.md](SECURITY.md) and report privately
 
 ## License and credit
 

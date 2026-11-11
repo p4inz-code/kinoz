@@ -6,7 +6,6 @@ What's planned, in rough order. Nothing here is a promise or a date.
 - Verify the macOS and Linux builds on real machines and fix what breaks.
 - Native media controls: Windows "now playing" card, macOS Now Playing, Linux MPRIS.
 - Gapless playback for albums.
-- Code signing for the Windows installer (and notarization on macOS) so SmartScreen/Gatekeeper stop warning.
 
 **Then**
 - HEIC / AVIF image support check and fixes.

@@ -16,6 +16,4 @@ certutil -hashfile kinoz-Setup-<version>.exe SHA256
 ```
 
 ## Honest limits
-- Builds are **not code-signed** yet, so Windows SmartScreen (and macOS Gatekeeper) will warn on first run. The checksum is how you confirm the file is the one that was published.
-- A checksum protects against a corrupted or swapped download. It cannot protect against a compromised GitHub account; that's why signing is on the [roadmap](ROADMAP.md).
 - kinoz opens media files with FFmpeg/libmpv. Like every media player, it can be affected by flaws in those libraries; I update the bundled build when they release fixes.

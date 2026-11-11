@@ -6,7 +6,6 @@ An honest list of what isn't finished or hasn't been verified yet.
 | --- | --- |
 | macOS and Linux | Builds are produced by CI (`.github/workflows/build.yml`) but have **not been run on real machines yet**. Window move/resize, fullscreen and media keys use different code there and may need fixes. |
 | Fullscreen (Windows) | Rewritten to avoid a screen blink seen on some GPUs (window is kept 1 px short of the monitor edge). Tested on one machine. If your screen blinks, turn on **Settings → Safe fullscreen**. |
-| Code signing | Not signed yet: SmartScreen / Gatekeeper warn on first run. Verify the SHA-256 from the release page. |
 | System media controls | Media keys work. The Windows "now playing" flyout, macOS Now Playing and Linux MPRIS are not done. |
 | Gapless playback | Not implemented; a short gap can occur between tracks. |
 | 4K / 8K | Decoding and rendering is tested with synthetic 4K and 8K sources and passes. Real 8K HEVC/AV1 files with hardware decode have not been tried; very high bitrates may need a fast disk and GPU. |
