@@ -49,6 +49,8 @@ public:
     void speedStep(int dir);
     void setVolume(double v);
     void volumeStep(int dir);
+    void setStopAfterCurrent(bool on) { m_stopAfterCurrent = on; }
+    bool stopAfterCurrent() const { return m_stopAfterCurrent; }
     void toggleMute();
 
     // pictures
@@ -105,6 +107,7 @@ private:
     QTimer m_resumeTimer;
     QStringList m_history;
     int m_failStreak = 0;
+    bool m_stopAfterCurrent = false;
     QHash<QString, int> m_color;
     double m_zoom = 0, m_panX = 0, m_panY = 0;
     int m_rot = 0;

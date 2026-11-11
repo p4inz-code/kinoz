@@ -151,7 +151,7 @@ void PlayerController::load(const QString& path) {
     if (m_history.isEmpty() || m_history.last() != path) m_history << path;
     if (m_history.size() > 200) m_history.removeFirst();
     double start = -1;
-    if (m_kind == MediaKind::Video || m_kind == MediaKind::Audio) {
+    if ((m_kind == MediaKind::Video || m_kind == MediaKind::Audio) && m_set->flag("resume", true)) {
         const QJsonObject r = m_resume->get(key(path)).toObject();
         const double pos = r.value("pos").toDouble(), dur = r.value("dur").toDouble();
         if (pos > 10 && (dur <= 0 || pos < dur - 12)) start = pos;
@@ -166,6 +166,11 @@ void PlayerController::load(const QString& path) {
 void PlayerController::onFileLoaded() {
     applyEq();
     for (auto it = m_color.begin(); it != m_color.end(); ++it) m_mpv->setPropInt(it.key().toUtf8().constData(), it.value());
+    if (m_kind == MediaKind::Video || m_kind == MediaKind::Audio) {
+        const double ds = m_set->num("defaultSpeed", 1.0);
+        if (ds >= 0.25 && ds <= 4.0) m_mpv->setSpeed(ds);
+    }
+    m_failStreak = 0;
     if (m_set->flag("normalize", false)) m_mpv->setProp("replaygain", QStringLiteral("track"));
     else m_mpv->setProp("replaygain", QStringLiteral("no"));
     emit pathChanged();
@@ -216,6 +221,8 @@ void PlayerController::prev() {
 void PlayerController::onEof() {
     if (m_kind != MediaKind::Video && m_kind != MediaKind::Audio) return;
     if (m_repeat == RepeatOne) { m_mpv->seek(0, true); m_mpv->setPause(false); return; }
+    if (m_stopAfterCurrent) { m_stopAfterCurrent = false; m_mpv->setPause(true); emit message(tr("Sleep timer: stopped at the end of the file")); return; }
+    if (!m_set->flag("autoplayNext", true)) return;
     const int i = pickNext(+1);
     if (i >= 0) playIndex(i);
     else {
@@ -242,7 +249,11 @@ void PlayerController::speedStep(int dir) {
     setSpeed(steps[idx]);
 }
 void PlayerController::setVolume(double v) { v = qBound(0.0, v, 130.0); m_mpv->setVolume(v); m_mpv->setMute(false); m_set->set("volume", v); }
-void PlayerController::volumeStep(int dir) { setVolume(m_mpv->volume() + 5 * dir); emit message(tr("Volume %1%").arg(int(qBound(0.0, m_mpv->volume() + 5 * dir, 130.0)))); }
+void PlayerController::volumeStep(int dir) {
+    const int step = qBound(1, int(m_set->num("volStep", 5)), 20);
+    setVolume(m_mpv->volume() + step * dir);
+    emit message(tr("Volume %1%").arg(int(m_mpv->volume())));
+}
 void PlayerController::toggleMute() { m_mpv->setMute(!m_mpv->muted()); }
 
 // ---------- picture view ----------
