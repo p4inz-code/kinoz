@@ -41,7 +41,8 @@ jobs:
           Invoke-WebRequest $url -OutFile ".toolchain/dl/$env:MPV_ASSET"
           $got = (Get-FileHash ".toolchain/dl/$env:MPV_ASSET" -Algorithm SHA256).Hash.ToLower()
           if ($got -ne $env:MPV_SHA256) { throw "libmpv checksum mismatch: $got" }
-          tar -xf ".toolchain/dl/$env:MPV_ASSET" -C .toolchain/mpv
+          7z x ".toolchain/dl/$env:MPV_ASSET" -o".toolchain/mpv" -y | Out-Null
+          if (-not (Test-Path .toolchain/mpv/include/mpv/client.h)) { Get-ChildItem .toolchain/mpv -Recurse | Select-Object -First 30 FullName; throw "libmpv headers missing after extraction" }
           $exports = dumpbin /exports .toolchain/mpv/libmpv-2.dll | ForEach-Object { if ($_ -match '^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]{8}\s+(mpv_\w+)') { $Matches[1] } }
           "LIBRARY libmpv-2.dll`r`nEXPORTS`r`n" + ($exports -join "`r`n") | Set-Content -Encoding ascii .toolchain/mpv/mpv.def
           lib /nologo /def:.toolchain/mpv/mpv.def /machine:x64 /out:.toolchain/mpv/mpv.lib
@@ -66,7 +67,7 @@ jobs:
           path: dist/installer/*
 
   macos:
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: jurplel/install-qt-action@v4
@@ -113,8 +114,8 @@ jobs:
       - name: Package (AppImage)
         run: |
           mkdir -p tools && cd tools
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20250213-2/linuxdeploy-x86_64.AppImage
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/1-alpha-20250213-2/linuxdeploy-plugin-qt-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
           chmod +x *.AppImage && cd ..
           mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
           cp dist/app/kinoz AppDir/usr/bin/
