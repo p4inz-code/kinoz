@@ -11,6 +11,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
+if(APPLE)
+  # The legacy AGL OpenGL framework no longer exists in current macOS SDKs; stop Qt's OpenGL helper from linking it.
+  set(__opengl_agl_fw_path "" CACHE INTERNAL "legacy AGL framework is gone")
+endif()
+
 find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGL OpenGLWidgets Network Concurrent)
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.cpp" "${CMAKE_SOURCE_DIR}/src/*.h")
@@ -68,7 +73,7 @@ if(APPLE)
     endforeach()
     set_property(TARGET ${tgt} PROPERTY ${prop} "${out}")
   endfunction()
-  foreach(t PkgConfig::MPV Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Gui Qt6::Widgets Qt6::Core)
+  foreach(t PkgConfig::MPV WrapOpenGL::WrapOpenGL Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Gui Qt6::Widgets Qt6::Core)
     kinoz_strip_agl(${t} INTERFACE_LINK_LIBRARIES)
     kinoz_strip_agl(${t} INTERFACE_LINK_OPTIONS)
   endforeach()

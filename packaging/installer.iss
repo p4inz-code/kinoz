@@ -1,4 +1,4 @@
-﻿; Inno Setup script â€” builds the kinoz Setup.exe: a short, dark, branded wizard (welcome, folder, install, finish).
+; Inno Setup script â€” builds the kinoz Setup.exe: a short, dark, branded wizard (welcome, folder, install, finish).
 ;   Run: scripts\release.ps1
 #define AppName "kinoz"
 #define AppExe "kinoz.exe"
@@ -95,6 +95,92 @@ Root: HKA; Subkey: "Software\Classes\kinoz.Media\shell\open\command"; ValueType:
 #emit Ext("gif")
 #emit Ext("bmp")
 #emit Ext("webp")
+
+; right-click menu: 'Play with kinoz' on media files and 'Open folder in kinoz' on folders (removed again on uninstall)
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mp4\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mp4\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mp4\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mkv\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mkv\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mkv\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.avi\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.avi\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.avi\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.webm\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.webm\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.webm\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mov\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mov\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mov\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.wmv\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.wmv\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.wmv\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.m4v\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.m4v\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.m4v\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.flv\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.flv\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.flv\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpg\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpg\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpg\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpeg\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpeg\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpeg\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.ts\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.ts\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.ts\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.m2ts\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.m2ts\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.m2ts\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.3gp\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.3gp\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.3gp\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mp3\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mp3\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mp3\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.flac\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.flac\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.flac\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.wav\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.wav\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.wav\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.ogg\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.ogg\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.ogg\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.opus\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.opus\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.opus\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.m4a\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.m4a\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.m4a\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.aac\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.aac\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.aac\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.wma\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.wma\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.wma\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.jpg\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.jpg\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.jpg\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.jpeg\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.jpeg\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.jpeg\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.png\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.png\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.png\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.gif\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.gif\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.gif\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.bmp\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.bmp\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.bmp\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.webp\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Play with kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.webp\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.webp\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\Directory\shell\kinoz"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Open folder in kinoz"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\Directory\shell\kinoz"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\Directory\shell\kinoz\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
 
 [Run]
 Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installing the Visual C++ runtime..."; Check: NeedsVCRuntime; Flags: waituntilterminated
