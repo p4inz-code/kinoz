@@ -1,4 +1,5 @@
-; Inno Setup script — builds the normal Windows "Setup.exe" installer.   Run: scripts\release.ps1
+﻿; Inno Setup script â€” builds the kinoz Setup.exe: a short, dark, branded wizard (welcome, folder, install, finish).
+;   Run: scripts\release.ps1
 #define AppName "kinoz"
 #define AppExe "kinoz.exe"
 #define AppVer "0.1.0"
@@ -17,14 +18,20 @@ VersionInfoVersion={#AppVer}
 DefaultDirName={code:DefaultInstallDir}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
-LicenseFile=..\LICENSE
+DisableReadyPage=yes
+DisableDirPage=no
+ShowLanguageDialog=no
 OutputDir=..\dist\installer
 OutputBaseFilename=kinoz-Setup-{#AppVer}
 SetupIconFile=..\resources\app.ico
 UninstallDisplayIcon={app}\{#AppExe}
 Compression=lzma2/fast
 SolidCompression=yes
-WizardStyle=modern
+; look: modern wizard, always dark, with kinoz artwork instead of the grey Windows panels
+WizardStyle=modern dynamic
+WizardImageFile=wizard\side-100.png,wizard\side-150.png,wizard\side-200.png
+WizardSmallImageFile=wizard\small-100.png,wizard\small-150.png,wizard\small-200.png
+WizardSizePercent=100
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
@@ -36,9 +43,18 @@ UsePreviousAppDir=yes
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
-[Tasks]
-Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Shortcuts:"
-Name: "openwith"; Description: "Add {#AppName} to the ""Open with"" menu for video, audio, image and GIF files"; GroupDescription: "File types:"
+[Messages]
+SetupWindowTitle=%1
+WelcomeLabel1=Welcome to kinoz
+WelcomeLabel2=A calm, fast, offline player for videos, music, images and GIFs.%n%nThis installs kinoz {#AppVer}. It is free software under the GNU GPL v3, made by Atharva Patil, P4inz Interactive Labs.
+SelectDirDesc=Where should kinoz live?
+SelectDirLabel3=kinoz and everything it saves will stay inside this folder.
+SelectDirBrowseLabel=Click Next to continue, or Browse to pick another folder.
+InstallingLabel=Installing kinozâ€¦
+FinishedHeadingLabel=kinoz is ready
+FinishedLabelNoIcons=Everything is in place. Drop a folder onto kinoz and press play.
+FinishedLabel=Everything is in place. Drop a folder onto kinoz and press play.
+ClickFinish=Click Finish to close this window.
 
 [Files]
 Source: "..\dist\app\*"; DestDir: "{app}"; Excludes: "data\*,*.pdb,*.ilk,vc_redist.x64.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -47,15 +63,15 @@ Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Registry]
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#AppName}"; Tasks: openwith; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\shell\open\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""; Tasks: openwith
-Root: HKA; Subkey: "Software\Classes\kinoz.Media"; ValueType: string; ValueData: "{#AppName} media file"; Tasks: openwith; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\kinoz.Media\DefaultIcon"; ValueType: string; ValueData: "{app}\{#AppExe},0"; Tasks: openwith
-Root: HKA; Subkey: "Software\Classes\kinoz.Media\shell\open\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""; Tasks: openwith
-#define Ext(E) "Root: HKA; Subkey: ""Software\Classes\." + E + "\OpenWithProgids""; ValueType: string; ValueName: ""kinoz.Media""; ValueData: """"; Tasks: openwith; Flags: uninsdeletevalue"
+; adds kinoz to the "Open with" list of media files (it does not take over your default player)
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#AppName}"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\shell\open\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\kinoz.Media"; ValueType: string; ValueData: "{#AppName} media file"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\kinoz.Media\DefaultIcon"; ValueType: string; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\kinoz.Media\shell\open\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
+#define Ext(E) "Root: HKA; Subkey: ""Software\Classes\." + E + "\OpenWithProgids""; ValueType: string; ValueName: ""kinoz.Media""; ValueData: """"; Flags: uninsdeletevalue"
 #emit Ext("mp4")
 #emit Ext("mkv")
 #emit Ext("avi")
@@ -82,7 +98,7 @@ Root: HKA; Subkey: "Software\Classes\kinoz.Media\shell\open\command"; ValueType:
 
 [Run]
 Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installing the Visual C++ runtime..."; Check: NeedsVCRuntime; Flags: waituntilterminated
-Filename: "{app}\{#AppExe}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExe}"; Description: "Open kinoz"; Flags: nowait postinstall skipifsilent
 
 [Code]
 function GetDriveTypeW(lpRootPathName: String): Cardinal;
@@ -107,3 +123,4 @@ var Installed: Cardinal;
 begin
   Result := not (RegQueryDWordValue(HKLM, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', 'Installed', Installed) and (Installed = 1));
 end;
+
