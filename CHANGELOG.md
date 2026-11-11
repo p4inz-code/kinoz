@@ -25,6 +25,13 @@ First version. Windows build is the one that has been run and tested; the macOS 
 **Tools**
 - Annotate a frame or image (pen, highlighter, arrow, shapes, text) and export a full-resolution PNG, or copy it.
 
+**Settings and polish**
+- Settings: General (theme, six accent colours, animations System/On/Off, glass, density, hardware decoding, safe fullscreen), Playback (resume, autoplay, queue folder, normalize, starting speed, seek steps, volume step, controls auto-hide, slideshow), Shortcuts (every key and mouse action, with a keymap.json editor), Info (system, graphics, engine, current file, formats, storage, copy diagnostics), About, Legal.
+- A-B loop, sleep timer, aspect ratio, audio and subtitle sync, show in folder, copy path.
+- Open/close fades and soft menu animations (all removed when animations are off).
+- 4K and 8K handling: larger read-ahead for big frames and high-quality downscaling.
+- Hardening: no external tools or scripts, no playlist references, crash dumps for diagnosis.
+
 **Everyday**
 - Several independent windows (`Ctrl+N`); a minimized video keeps playing sound without decoding the picture.
 - Errors are shown plainly; a broken file is skipped instead of stopping the queue.

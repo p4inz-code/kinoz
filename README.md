@@ -18,7 +18,7 @@ kinoz plays almost anything with no codec packs, keeps your library one click aw
 
 ## Screenshots
 
-These are the app's own screens, rendered by the app itself (the first-run state, with no media loaded).
+These are the app's own screens, rendered by the app itself (first-run state, no media loaded).
 
 <table>
   <tr>
@@ -33,29 +33,40 @@ These are the app's own screens, rendered by the app itself (the first-run state
   </tr>
   <tr>
     <td width="50%">
-      <img src="assets/screenshots/settings-light.png" alt="Settings" width="100%">
-      <p align="center"><em>Settings</em></p>
+      <img src="assets/screenshots/settings-light.png" alt="Settings: theme, accent colour, animations, glass effect, density" width="100%">
+      <p align="center"><em>Settings: theme, accent, animations on/off, glass</em></p>
     </td>
     <td width="50%">
-      <img src="assets/screenshots/about-light.png" alt="About: version, engine, license, credit, updates" width="100%">
+      <img src="assets/screenshots/settings-playback-light.png" alt="Settings: playback options" width="100%">
+      <p align="center"><em>Playback: resume, seek steps, speed, slideshow…</em></p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="assets/screenshots/settings-shortcuts-light.png" alt="Every keyboard shortcut, listed in Settings" width="100%">
+      <p align="center"><em>Every shortcut is listed, and editable</em></p>
+    </td>
+    <td width="50%">
+      <img src="assets/screenshots/about-light.png" alt="About: version, license, credit, updates" width="100%">
       <p align="center"><em>About: everything in one place</em></p>
     </td>
   </tr>
 </table>
 
 ---
-
 ## What kinoz does
 
 - **One player for everything.** Video, audio, images and animated GIFs open in the same window; the stage adapts to what you play. Built on libmpv/FFmpeg, so MKV, MP4, AVI, WebM, HEVC, FLAC, MP3, SRT, ASS and most other formats just work.
 - **A library that stays out of the way.** A sidebar with your folders, thumbnails, list or grid view, a type filter, search, sort and a drag-reorderable queue. Hover the seek bar to see a frame preview. Resume picks up where you left off, per file.
 - **`Ctrl+K` command palette.** Search your whole library and every command from the keyboard.
-- **Playback tools.** Speed 0.25×–4× with pitch correction, frame step, subtitle and audio-track menus, subtitle delay and size, picture adjust (brightness, contrast, saturation, gamma, hue), a 10-band equalizer with presets, a loudness normalizer, output-device picker.
+- **Playback tools.** Speed 0.25×–4× with pitch correction, A-B loop, sleep timer, aspect ratio, audio and subtitle sync, frame step, subtitle and audio-track menus, subtitle delay and size, picture adjust (brightness, contrast, saturation, gamma, hue), a 10-band equalizer with presets, a loudness normalizer, output-device picker.
 - **Images and GIFs.** Zoom, pan, rotate, and browse a folder with the arrow keys.
 - **Annotate any frame.** Pause or open an image, draw with pen, highlighter, arrow, shapes and text, then export a full-resolution PNG or copy it.
-- **Glass and metal, calmly.** The floating control bar blurs the video behind it; accents are liquid-metal. Light and dark follow your system, or pick one.
+- **Glass and metal, calmly.** The floating control bar blurs the video behind it; accents are liquid-metal. Light and dark follow your system, six accent colours, and a real **animations off** switch that makes nothing move.
 - **Built for heavy use.** Several independent windows (`Ctrl+N`), a mini always-on-top player, a minimized video keeps its sound but stops decoding the picture, a broken file is skipped instead of stopping the queue, and a built-in `--selftest`.
-- **Familiar keys.** Windows Media Player-style shortcuts, editable in a JSON file.
+- **Familiar keys.** Windows Media Player-style shortcuts, all listed in Settings and editable in a JSON file.
+- **High resolution.** 4K and 8K frames decode and render (tested with synthetic 3840×2160 and 7680×4320 sources); big frames get a larger read-ahead buffer and high-quality scaling.
+- **Hardened.** Plays local files only: no external tools, scripts or playlist references are run; a crash leaves a small dump in the logs folder.
 - **Updates you control.** An optional update check against this repository's Releases, verified with SHA-256, installed only when you press the button.
 
 ## What kinoz does *not* do

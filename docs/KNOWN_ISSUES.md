@@ -9,6 +9,7 @@ An honest list of what isn't finished or hasn't been verified yet.
 | Code signing | Not signed yet: SmartScreen / Gatekeeper warn on first run. Verify the SHA-256 from the release page. |
 | System media controls | Media keys work. The Windows "now playing" flyout, macOS Now Playing and Linux MPRIS are not done. |
 | Gapless playback | Not implemented; a short gap can occur between tracks. |
+| 4K / 8K | Decoding and rendering is tested with synthetic 4K and 8K sources and passes. Real 8K HEVC/AV1 files with hardware decode have not been tried; very high bitrates may need a fast disk and GPU. |
 | HEIC / AVIF images | Depends on the bundled FFmpeg build; not tested. |
 | Memory | Around 280 MB per window while playing 1080p. A minimized video drops its picture decoding to save CPU. |
 | Audio without a cover | Shows an icon thumbnail. |
