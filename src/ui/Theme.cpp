@@ -4,6 +4,9 @@
 #include <QFontDatabase>
 #include <QGuiApplication>
 #include <QStyleHints>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 Theme& Theme::i() {
     static Theme t;
@@ -21,6 +24,33 @@ Theme::Theme() {
 void Theme::setMode(Mode m) {
     m_mode = m;
     apply();
+}
+
+int Theme::accentCount() { return 6; }
+
+QColor Theme::accentSample(int i, bool dark) {
+    static const char* light[] = {"#0c6a6e", "#1f5fbf", "#6a4bb5", "#b4375f", "#9a5b00", "#1b7344"};
+    static const char* darkc[] = {"#4fd1d6", "#7fb0ff", "#c0a8ff", "#ff8fb1", "#f2b24d", "#5ed39a"};
+    i = qBound(0, i, 5);
+    return QColor(dark ? darkc[i] : light[i]);
+}
+
+void Theme::setAccentIndex(int i) { m_accent = qBound(0, i, 5); apply(); }
+
+void Theme::setMotionMode(int m) {
+    m_motionMode = m;
+    if (m == 1) m_reduceMotion = false;
+    else if (m == 2) m_reduceMotion = true;
+    else {
+#ifdef Q_OS_WIN
+        BOOL on = TRUE;
+        SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &on, 0);
+        m_reduceMotion = !on;
+#else
+        m_reduceMotion = false;
+#endif
+    }
+    emit changed();
 }
 
 void Theme::setCompact(bool c) {
@@ -46,11 +76,19 @@ void Theme::apply() {
         p.accent = "#4fd1d6";   p.onAccent = "#04282a";  p.accentSubtle = "#123134";
         p.danger = "#ff8a80";   p.scrim = QColor(0, 0, 0, 140);    p.shadow = QColor(0, 0, 0, 128);
     }
+    {   // accent colour (user choice): derive the soft tint and the text-on-accent colour from it
+        const QColor a = accentSample(m_accent, dark);
+        if (m_accent != 0) {
+            p.accent = a;
+            p.accentSubtle = QColor::fromRgbF(a.redF() * 0.16 + p.bg.redF() * 0.84, a.greenF() * 0.16 + p.bg.greenF() * 0.84, a.blueF() * 0.16 + p.bg.blueF() * 0.84);
+            p.onAccent = a.lightnessF() > 0.55 ? QColor("#08141a") : QColor("#ffffff");
+        }
+    }
     p.stage = QColor("#000000");
     p.overlay = QColor(20, 20, 15, 214);
     p.overlayText = QColor("#edebe2");
     p.overlayMuted = QColor(237, 235, 226, 150);
-    p.overlayAccent = QColor("#4fd1d6");
+    p.overlayAccent = accentSample(m_accent, true);
     m_pal = p;
     emit changed();
 }

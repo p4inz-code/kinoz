@@ -4,6 +4,7 @@
 #include <QScrollBar>
 #include <QVariantAnimation>
 #include <QWidget>
+#include <functional>
 
 // ---- IconButton: flat, custom-painted, animated hover ----
 class IconButton : public QAbstractButton {
@@ -141,6 +142,21 @@ private:
     int m_hover = -1;
     int m_w = 200;
     static constexpr int kPad = 14;   // shadow margin
+};
+
+// ---- FadeCover: full-window veil used for the open / close animation ----
+class FadeCover : public QWidget {
+    Q_OBJECT
+public:
+    explicit FadeCover(QWidget* parent);
+    void run(qreal from, qreal to, int ms, std::function<void()> done = {});
+    qreal level() const { return m_op; }
+protected:
+    void paintEvent(QPaintEvent*) override;
+private:
+    qreal m_op = 1.0;
+    QVariantAnimation m_anim;
+    std::function<void()> m_done;
 };
 
 // ---- Toast: transient one-line message ----

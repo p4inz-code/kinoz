@@ -31,6 +31,7 @@ public:
     void move(int dir);
     int rowHeight() const { return m_rowH; }
     void setRowHeight(int h) { m_rowH = h; update(); }
+    void setShowIcons(bool s) { m_icons = s; update(); }
     void setEmptyText(const QString& t) { m_empty = t; update(); }
     int contentHeight() const;
 signals:
@@ -46,6 +47,7 @@ private:
     void ensureVisible(int i);
     QVector<Row> m_rows;
     int m_cur = -1, m_hover = -1, m_rowH = 46, m_scroll = 0;
+    bool m_icons = true;
     QString m_empty;
 };
 
@@ -93,40 +95,6 @@ private:
     IconButton* m_up;
     TextButton *m_ok, *m_cancel;
     QString m_err;
-};
-
-// ---------------- Settings ----------------
-class Updater;
-class QTextBrowser;
-class SettingsPage : public QWidget {
-    Q_OBJECT
-public:
-    SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, Updater* updater, const QHash<QString, QString>& info, QWidget* parent = nullptr);
-signals:
-    void changed(const QString& key);
-    void clearThumbs();
-    void clearResume();
-    void closeRequested();
-protected:
-    void paintEvent(QPaintEvent*) override;
-    void resizeEvent(QResizeEvent*) override;
-private:
-    void buildGeneral();
-    void buildAbout();
-    void refreshUpdate();
-    JsonStore* m_set;
-    Updater* m_up;
-    QHash<QString, QString> m_info;
-    QVector<QWidget*> m_about;
-    TextButton *m_updBtn = nullptr;
-    QTextBrowser* m_legal = nullptr;
-    QString m_updStatus;
-    QHash<QString, QString> m_keys;
-    Segmented* m_tabs;
-    QVector<QWidget*> m_general;
-    int m_page = 0;
-    IconButton* m_close;
-    QVector<QPair<QString, QString>> m_keyRows;
 };
 
 // ---------------- Command palette (Ctrl+K) ----------------

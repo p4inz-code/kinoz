@@ -65,16 +65,18 @@ void RowList::paintEvent(QPaintEvent*) {
             if (r.header) { p.setPen(c.muted); p.setFont(Theme::i().font(11, QFont::DemiBold)); p.drawText(rc.adjusted(8, 8, 0, 0), Qt::AlignLeft | Qt::AlignVCenter, r.title.toUpper()); }
             else {
                 if (i == m_cur || i == m_hover) { p.setPen(Qt::NoPen); p.setBrush(i == m_cur ? c.accentSubtle : c.surface); p.drawRoundedRect(rc, 8, 8); }
-                drawIcon(&p, r.icon, QRectF(rc.left() + 12, rc.center().y() - 10, 20, 20), i == m_cur ? c.accent : c.muted, 1.6);
+                if (m_icons) drawIcon(&p, r.icon, QRectF(rc.left() + 12, rc.center().y() - 10, 20, 20), i == m_cur ? c.accent : c.muted, 1.6);
+                const qreal tx0 = m_icons ? 44 : 12;
                 p.setPen(c.text); p.setFont(Theme::i().font(14, QFont::Medium));
-                const qreal tw = rc.width() - 56 - (r.hint.isEmpty() ? 0 : 90);
-                if (r.subtitle.isEmpty()) p.drawText(QRectF(rc.left() + 44, rc.top(), tw, rc.height()), Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(p.font()).elidedText(r.title, Qt::ElideMiddle, int(tw)));
+                const qreal hw = r.hint.isEmpty() ? 0 : qMin<qreal>(rc.width() * 0.55, QFontMetrics(Theme::i().font(12)).horizontalAdvance(r.hint) + 28);
+                const qreal tw = rc.width() - tx0 - 12 - hw;
+                if (r.subtitle.isEmpty()) p.drawText(QRectF(rc.left() + tx0, rc.top(), tw, rc.height()), Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(p.font()).elidedText(r.title, Qt::ElideMiddle, int(tw)));
                 else {
-                    p.drawText(QRectF(rc.left() + 44, rc.top() + 4, tw, 20), Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(p.font()).elidedText(r.title, Qt::ElideMiddle, int(tw)));
+                    p.drawText(QRectF(rc.left() + tx0, rc.top() + 4, tw, 20), Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(p.font()).elidedText(r.title, Qt::ElideMiddle, int(tw)));
                     p.setPen(c.muted); p.setFont(Theme::i().font(12));
-                    p.drawText(QRectF(rc.left() + 44, rc.top() + 23, tw, 16), Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(p.font()).elidedText(r.subtitle, Qt::ElideMiddle, int(tw)));
+                    p.drawText(QRectF(rc.left() + tx0, rc.top() + 23, tw, 16), Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(p.font()).elidedText(r.subtitle, Qt::ElideMiddle, int(tw)));
                 }
-                if (!r.hint.isEmpty()) { p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(QRectF(rc.right() - 96, rc.top(), 84, rc.height()), Qt::AlignVCenter | Qt::AlignRight, r.hint); }
+                if (!r.hint.isEmpty()) { p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(QRectF(rc.right() - hw - 4, rc.top(), hw - 4, rc.height()), Qt::AlignVCenter | Qt::AlignRight, QFontMetrics(p.font()).elidedText(r.hint, Qt::ElideLeft, int(hw - 8))); }
             }
         }
         y += h;
@@ -93,7 +95,6 @@ void RowList::wheelEvent(QWheelEvent* e) { m_scroll = qBound(0, m_scroll - e->an
 Sheet::Sheet(QWidget* parent) : QWidget(parent) {
     hide();
     setFocusPolicy(Qt::StrongFocus);
-    m_anim.setDuration(Theme::i().animMs(160));
     m_anim.setEasingCurve(QEasingCurve::OutCubic);
     connect(&m_anim, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) {
         m_op = v.toReal(); update();
@@ -110,14 +111,14 @@ QRectF Sheet::cardRect() const {
 void Sheet::openSheet() {
     setGeometry(parentWidget()->rect());
     raise(); show(); setFocus();
-    m_anim.stop(); m_anim.setStartValue(0.0); m_anim.setEndValue(1.0);
+    m_anim.stop(); m_anim.setDuration(Theme::i().animMs(200)); m_anim.setStartValue(0.0); m_anim.setEndValue(1.0);
     if (m_anim.duration() == 0) { m_op = 1; update(); } else m_anim.start();
     if (m_content) m_content->move(cardRect().topLeft().toPoint());
 }
 void Sheet::closeSheet() {
     if (m_closing) return;
     m_closing = true;
-    m_anim.stop(); m_anim.setStartValue(m_op); m_anim.setEndValue(0.0);
+    m_anim.stop(); m_anim.setDuration(Theme::i().animMs(140)); m_anim.setStartValue(m_op); m_anim.setEndValue(0.0);
     if (m_anim.duration() == 0) { hide(); m_closing = false; emit closed(); deleteLater(); } else m_anim.start();
 }
 void Sheet::paintEvent(QPaintEvent*) {
@@ -199,208 +200,6 @@ void FolderPicker::paintEvent(QPaintEvent*) {
     p.drawText(QRectF(58, 12, width() - 74, 36), Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(p.font()).elidedText(t, Qt::ElideMiddle, width() - 74));
     p.setPen(c.border); p.drawLine(0, 58, width(), 58); p.drawLine(0, height() - 62, width(), height() - 62);
     if (!m_err.isEmpty()) { p.setPen(c.danger); p.setFont(Theme::i().font(13)); p.drawText(QRectF(16, height() - 52, width() / 2.0, 36), Qt::AlignVCenter, m_err); }
-}
-
-// ============================================================ Settings
-static QString actionLabel(const QString& id) {
-    static const QHash<QString, QString> m{
-        {"playpause", "Play / pause"}, {"stop", "Stop"}, {"next", "Next"}, {"prev", "Previous"}, {"seekfwd", "Forward 5 s"}, {"seekback", "Back 5 s"},
-        {"seekfwd30", "Forward 30 s"}, {"seekback30", "Back 30 s"}, {"seekfwd10", "Forward 10 s"}, {"seekback10", "Back 10 s"}, {"volup", "Volume up"}, {"voldown", "Volume down"},
-        {"mute", "Mute"}, {"fullscreen", "Fullscreen"}, {"escape", "Exit fullscreen / mini"}, {"shuffle", "Shuffle"}, {"repeat", "Repeat"}, {"speedup", "Faster"}, {"speeddown", "Slower"},
-        {"speedreset", "Normal speed"}, {"framestep", "Next frame"}, {"framestepback", "Previous frame"}, {"sidebar", "Library sidebar"}, {"palette", "Search & commands"},
-        {"mini", "Mini player"}, {"pin", "Always on top"}, {"eq", "Equalizer"}, {"adjust", "Adjust picture"}, {"annotate", "Annotate frame"}, {"screenshot", "Save frame"},
-        {"openfolder", "Open folder"}, {"settings", "Settings"}, {"theme", "Switch theme"}, {"rotate", "Rotate image"}, {"zoomin", "Zoom in"}, {"zoomout", "Zoom out"},
-        {"zoomreset", "Fit to window"}, {"subdelayminus", "Subtitles earlier"}, {"subdelayplus", "Subtitles later"}, {"subcycle", "Next subtitle track"}, {"quit", "Quit"}};
-    return m.value(id, id);
-}
-
-SettingsPage::SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, Updater* updater, const QHash<QString, QString>& info, QWidget* parent)
-    : QWidget(parent), m_set(set), m_up(updater), m_info(info), m_keys(keys) {
-    m_tabs = new Segmented({tr("General"), tr("Shortcuts"), tr("About"), tr("Legal")}, this);
-    m_close = new IconButton(Icon::Close, this, 32);
-    connect(m_close, &QAbstractButton::clicked, this, &SettingsPage::closeRequested);
-    connect(m_tabs, &Segmented::currentChanged, this, [this](int i) {
-        m_page = i;
-        for (auto* w : m_general) w->setVisible(i == 0);
-        for (auto* w : m_about) w->setVisible(i == 2);
-        if (m_legal) m_legal->setVisible(i == 3);
-        update();
-    });
-    buildAbout();
-    QMap<QString, QStringList> byAction;
-    for (auto it = m_keys.begin(); it != m_keys.end(); ++it) byAction[it.value()] << it.key();
-    for (auto it = byAction.begin(); it != byAction.end(); ++it) { QStringList k = it.value(); k.sort(); m_keyRows.push_back({actionLabel(it.key()), k.join("  ·  ")}); }
-    buildGeneral();
-}
-
-void SettingsPage::buildAbout() {
-    m_updBtn = new TextButton(tr("Check for updates"), this, true);
-    connect(m_updBtn, &QAbstractButton::clicked, this, [this] {
-        switch (m_up->state()) {
-        case Updater::Available: m_up->download(); break;
-        case Updater::Ready: m_up->installAndQuit(); break;
-        case Updater::Downloading: break;
-        default: m_up->checkNow(true); break;
-        }
-    });
-    auto* src = new TextButton(tr("Source code"), this);
-    connect(src, &QAbstractButton::clicked, this, [] { QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/p4inz-code/kinoz"))); });
-    auto* lic = new TextButton(tr("License"), this);
-    connect(lic, &QAbstractButton::clicked, this, [this] { m_tabs->setCurrent(3); m_page = 3; for (auto* w : m_about) w->hide(); if (m_legal) m_legal->show(); update(); });
-    auto* rel = new TextButton(tr("Release notes"), this);
-    connect(rel, &QAbstractButton::clicked, this, [] { QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/p4inz-code/kinoz/releases"))); });
-    auto* auto_ = new Switch(this);
-    auto_->setChecked(m_set->flag("autoUpdate", true));
-    connect(auto_, &QAbstractButton::toggled, this, [this](bool on) { m_set->set("autoUpdate", on); });
-    m_about = {m_updBtn, src, lic, rel, auto_};
-    for (auto* w : m_about) w->hide();
-
-    m_legal = new QTextBrowser(this);
-    m_legal->setOpenExternalLinks(true);
-    m_legal->setFrameShape(QFrame::NoFrame);
-    m_legal->setVerticalScrollBar(new ScrollBar(Qt::Vertical, m_legal));
-    m_legal->hide();
-    auto styleLegal = [this] {
-        const auto& c = pal();
-        m_legal->setStyleSheet(QStringLiteral("QTextBrowser{background:transparent;color:%1;border:none;selection-background-color:%2;selection-color:%3;}").arg(c.text.name(), c.accent.name(), c.onAccent.name()));
-        m_legal->setFont(Theme::i().font(14));
-        const QString h = QStringLiteral("<style>a{color:%1;text-decoration:none} h3{font-size:16px;margin:18px 0 6px 0} p,li{line-height:150%} .m{color:%2}</style>").arg(c.accent.name(), c.muted.name());
-        m_legal->setHtml(h + tr(
-            "<h3>License</h3><p>kinoz is free software, released under the <b>GNU General Public License v3</b> (GPLv3). You can use it for anything, "
-            "study it, share it and change it. If you share it or a modified version, the result must stay under the same license, its source must be available, "
-            "and the credit below must be kept. The full text is in the <b>LICENSE</b> file next to the program and at "
-            "<a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">gnu.org/licenses/gpl-3.0</a>.</p>"
-            "<h3>Credit &amp; additional terms</h3><p>Created by <b>Atharva Patil</b>, P4inz Interactive Labs "
-            "(<a href=\"https://github.com/p4inz-code\">github.com/p4inz-code</a>). Copyright © 2026 Atharva Patil.<br>"
-            "As allowed by GPLv3 section 7, these additional terms apply: keep the author attribution and copyright notices; "
-            "mark modified versions as modified and do not present them as the original; do not use the name “kinoz” for a modified version without permission. "
-            "See <b>ADDITIONAL_TERMS.md</b>.</p>"
-            "<h3>No warranty</h3><p>kinoz is provided “as is”, without warranty of any kind, to the extent permitted by law (GPLv3 sections 15–17).</p>"
-            "<h3>Privacy</h3><p>kinoz works fully offline. It has no accounts, no analytics and no crash reporting. Your files, folders and playback history stay on your computer, in the data folder. "
-            "The only network request it can make is the <b>update check</b> to github.com (a plain request for the latest release; nothing about you or your files is sent). "
-            "You can turn it off under About → “Check for updates automatically”. Details: <b>PRIVACY.md</b>.</p>"
-            "<h3>Built with</h3><ul>"
-            "<li><b>mpv / libmpv</b> and <b>FFmpeg</b> — playback engine (GPL/LGPL)</li>"
-            "<li><b>Qt 6</b> — user interface (LGPL v3, dynamically linked)</li>"
-            "<li><b>Atkinson Hyperlegible Next</b> and <b>Familjen Grotesk</b> — fonts (SIL Open Font License 1.1)</li></ul>"
-            "<p class=\"m\">Full notices: <b>THIRD_PARTY_NOTICES.md</b>. kinoz is an independent project and is not affiliated with mpv, FFmpeg or Qt.</p>"
-            "<h3>Source code</h3><p><a href=\"https://github.com/p4inz-code/kinoz\">github.com/p4inz-code/kinoz</a></p>"));
-    };
-    connect(&Theme::i(), &Theme::changed, this, styleLegal);
-    styleLegal();
-    connect(m_up, &Updater::stateChanged, this, &SettingsPage::refreshUpdate);
-    connect(m_up, &Updater::progress, this, [this](qint64, qint64) { refreshUpdate(); });
-    refreshUpdate();
-}
-
-void SettingsPage::refreshUpdate() {
-    switch (m_up->state()) {
-    case Updater::Checking: m_updBtn->setText(tr("Checking…")); m_updStatus = m_up->info(); break;
-    case Updater::Available: m_updBtn->setText(m_up->releasePage().isValid() && m_up->info().contains(tr("release page")) ? tr("Open release page") : tr("Update to %1").arg(m_up->latest())); m_updStatus = m_up->info(); break;
-    case Updater::Downloading: {
-        const int pct = m_up->total() > 0 ? int(100 * m_up->received() / m_up->total()) : 0;
-        m_updBtn->setText(tr("Downloading… %1%").arg(pct)); m_updStatus = m_up->info(); break; }
-    case Updater::Ready: m_updBtn->setText(tr("Install and restart")); m_updStatus = m_up->info(); break;
-    case Updater::Failed: m_updBtn->setText(tr("Try again")); m_updStatus = m_up->error(); break;
-    case Updater::UpToDate: m_updBtn->setText(tr("Check again")); m_updStatus = m_up->info(); break;
-    default: m_updBtn->setText(tr("Check for updates")); m_updStatus.clear(); break;
-    }
-    m_updBtn->resize(m_updBtn->sizeHint());
-    update();
-}
-
-void SettingsPage::buildGeneral() {
-    auto* theme = new Segmented({tr("System"), tr("Light"), tr("Dark")}, this); theme->setCurrent(int(m_set->num("theme", 0)));
-    connect(theme, &Segmented::currentChanged, this, [this](int i) { m_set->set("theme", i); emit changed("theme"); });
-    auto* dens = new Segmented({tr("Comfortable"), tr("Compact")}, this); dens->setCurrent(m_set->flag("compact") ? 1 : 0);
-    connect(dens, &Segmented::currentChanged, this, [this](int i) { m_set->set("compact", i == 1); emit changed("compact"); });
-    auto sw = [this](const QString& key, bool def) { auto* s = new Switch(this); s->setChecked(m_set->flag(key, def)); connect(s, &QAbstractButton::toggled, this, [this, key](bool on) { m_set->set(key, on); emit changed(key); }); return s; };
-    auto* b1 = new TextButton(tr("Open data folder"), this);
-    connect(b1, &QAbstractButton::clicked, this, [] { QDesktopServices::openUrl(QUrl::fromLocalFile(Paths::dataDir())); });
-    auto* b2 = new TextButton(tr("Clear thumbnails"), this); connect(b2, &QAbstractButton::clicked, this, &SettingsPage::clearThumbs);
-    auto* b3 = new TextButton(tr("Clear resume history"), this); connect(b3, &QAbstractButton::clicked, this, &SettingsPage::clearResume);
-    m_general = {theme, dens, sw("reduceMotion", false), sw("hwdec", true), sw("siblings", true), sw("fsSafe", false), sw("normalize", false), b1, b2, b3};
-    for (auto* w : m_general) w->show();
-}
-
-void SettingsPage::resizeEvent(QResizeEvent*) {
-    m_tabs->setGeometry(24, 64, m_tabs->sizeHint().width(), 30);
-    m_close->move(width() - 16 - 32, 14);
-    if (m_legal) m_legal->setGeometry(24, 116, width() - 48, height() - 132);
-    if (m_about.size() == 5) {
-        int x = 24; const int y = 504;
-        m_updBtn->resize(m_updBtn->sizeHint()); m_updBtn->move(x, y); x += m_updBtn->width() + 10;
-        for (int i = 1; i <= 3; ++i) { const QSize s = m_about[i]->sizeHint(); m_about[i]->setGeometry(x, y, s.width(), s.height()); x += s.width() + 10; }
-        m_about[4]->move(width() - 28 - 38, 564);
-    }
-    if (m_general.size() < 10) return;
-    const int right = width() - 28;
-    int y = 118;
-    for (int i = 0; i < 7; ++i) { QWidget* w = m_general[i]; const QSize s = w->sizeHint().isValid() ? w->sizeHint() : QSize(100, 30); w->setGeometry(right - s.width(), y + (56 - s.height()) / 2, s.width(), s.height()); y += 56; }
-    y += 6;
-    int x = 24;
-    for (int i = 7; i < 10; ++i) { const QSize s = m_general[i]->sizeHint(); m_general[i]->setGeometry(x, y, s.width(), s.height()); x += s.width() + 10; }
-}
-
-void SettingsPage::paintEvent(QPaintEvent*) {
-    QPainter p(this);
-    p.setRenderHint(QPainter::Antialiasing);
-    const auto& c = pal();
-    p.setPen(c.text); p.setFont(Theme::i().font(22, QFont::DemiBold, true));
-    p.drawText(QRectF(24, 14, 300, 40), Qt::AlignVCenter, tr("Settings"));
-    p.setPen(c.border); p.drawLine(24, 104, width() - 24, 104);
-    if (m_page == 0) {
-        struct R { const char* t; const char* d; };
-        const R rows[] = {{"Theme", "Match Windows, or pick light or dark"}, {"Density", "Row and control size in lists"}, {"Reduce motion", "Turn off animations"},
-                          {"Hardware decoding", "Use the GPU for video (restart to apply)"}, {"Queue the whole folder", "Opening one file lines up its siblings"}, {"Safe fullscreen", "Keep the taskbar visible (try this if your screen blinks)"}, {"Normalize loudness", "Even out quiet and loud tracks"}};
-        int y = 118;
-        for (const auto& r : rows) {
-            p.setPen(c.text); p.setFont(Theme::i().font(15, QFont::Medium)); p.drawText(QRectF(24, y + 6, width() / 2.0, 22), Qt::AlignVCenter, tr(r.t));
-            p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(QRectF(24, y + 28, width() / 2.0, 20), Qt::AlignVCenter, tr(r.d));
-            y += 56;
-        }
-        p.setPen(c.muted); p.setFont(Theme::i().font(12));
-        p.drawText(QRectF(24, y + 56, width() - 48, 40), Qt::AlignTop | Qt::TextWordWrap, tr("Everything this app saves — settings, thumbnails, resume points, exports — lives in the data folder next to the program. Nothing goes to your C: drive."));
-    } else if (m_page == 1) {
-        int y = 118; const int colW = (width() - 48) / 2;
-        p.setFont(Theme::i().font(13));
-        const int perCol = (height() - 140) / 26;
-        for (int i = 0; i < m_keyRows.size(); ++i) {
-            const int col = i / perCol, row = i % perCol;
-            if (col > 1) break;
-            const int x = 24 + col * colW;
-            p.setPen(c.text); p.drawText(QRectF(x, y + row * 26, colW * 0.55, 24), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(m_keyRows[i].first, Qt::ElideRight, int(colW * 0.55)));
-            p.setPen(c.muted); p.drawText(QRectF(x + colW * 0.55, y + row * 26, colW * 0.42, 24), Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(p.font()).elidedText(m_keyRows[i].second, Qt::ElideRight, int(colW * 0.42)));
-        }
-    } else if (m_page == 2) {
-        p.setPen(c.text); p.setFont(Theme::i().font(30, QFont::DemiBold, true)); p.drawText(QRectF(24, 118, width() - 48, 42), Qt::AlignVCenter, QStringLiteral(APP_NAME));
-        p.setPen(c.muted); p.setFont(Theme::i().font(14));
-        p.drawText(QRectF(24, 160, width() - 48, 24), Qt::AlignVCenter, tr("A calm, fast, offline player for videos, music, images and GIFs."));
-        struct Row { QString k, v; };
-        const QVector<Row> rows = {
-            {tr("Version"), QStringLiteral(APP_VERSION)},
-            {tr("Playback engine"), m_info.value("mpv", "mpv") + (m_info.value("ffmpeg").isEmpty() ? QString() : QStringLiteral("  ·  ") + m_info.value("ffmpeg"))},
-            {tr("Interface"), QStringLiteral("Qt ") + m_info.value("qt")},
-            {tr("Built"), m_info.value("build")},
-            {tr("License"), tr("GNU GPL v3 — free software, credit required")},
-            {tr("Data folder"), QDir::toNativeSeparators(Paths::dataDir())},
-        };
-        int y = 200;
-        for (const auto& r : rows) {
-            p.setFont(Theme::i().font(13)); p.setPen(c.muted); p.drawText(QRectF(24, y, 130, 24), Qt::AlignVCenter, r.k);
-            p.setPen(c.text); p.drawText(QRectF(160, y, width() - 184, 24), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(r.v, Qt::ElideMiddle, width() - 184));
-            y += 26;
-        }
-        p.setPen(c.border); p.drawLine(24, y + 8, width() - 24, y + 8);
-        p.setPen(c.text); p.setFont(Theme::i().font(14, QFont::Medium));
-        p.drawText(QRectF(24, y + 18, width() - 48, 22), Qt::AlignVCenter, tr("Created by Atharva Patil · P4inz Interactive Labs"));
-        p.setPen(c.muted); p.setFont(Theme::i().font(13));
-        p.drawText(QRectF(24, y + 42, width() - 48, 22), Qt::AlignVCenter, tr("github.com/p4inz-code  ·  Copyright © 2026 Atharva Patil"));
-        p.drawText(QRectF(24, y + 66, width() - 48, 40), Qt::AlignTop | Qt::TextWordWrap, tr("Free and open source. Anyone may use and change it; versions they share must stay free and keep this credit."));
-        if (!m_updStatus.isEmpty()) { p.setPen(m_up->state() == Updater::Failed ? c.danger : c.muted); p.drawText(QRectF(24, 474, width() - 48, 22), Qt::AlignVCenter, m_updStatus); }
-        p.setPen(c.text); p.setFont(Theme::i().font(14, QFont::Medium)); p.drawText(QRectF(24, 560, width() - 120, 26), Qt::AlignVCenter, tr("Check for updates automatically"));
-        p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(QRectF(24, 584, width() - 80, 20), Qt::AlignVCenter, tr("Once a day, asks github.com for the newest version. Sends nothing about you."));
-    }
 }
 
 // ============================================================ CommandPalette
@@ -540,7 +339,7 @@ SidePanel::SidePanel(PlayerController* ctl, JsonStore* set, QWidget* parent) : Q
     connect(m_close, &QAbstractButton::clicked, this, [this] { slideOut(); emit closedByUser(); });
     m_eqTimer = new QTimer(this); m_eqTimer->setSingleShot(true); m_eqTimer->setInterval(120);
     connect(m_eqTimer, &QTimer::timeout, this, [this] { m_ctl->applyEq(); });
-    m_anim.setDuration(Theme::i().animMs(200)); m_anim.setEasingCurve(QEasingCurve::OutCubic);
+    m_anim.setEasingCurve(QEasingCurve::OutCubic);
     connect(&m_anim, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) { m_x = v.toReal(); move(parentWidget()->width() - int(kWidth * (1.0 - m_x)), 0); if (m_x >= 0.999 && !m_open) hide(); });
     build();
 }
@@ -627,14 +426,14 @@ void SidePanel::showPage(const QString& page) {
     layoutPage();
     m_open = true;
     raise(); show();
-    m_anim.stop(); m_anim.setStartValue(m_x); m_anim.setEndValue(0.0);
+    m_anim.stop(); m_anim.setDuration(Theme::i().animMs(220)); m_anim.setStartValue(m_x); m_anim.setEndValue(0.0);
     if (m_anim.duration() == 0) { m_x = 0; move(parentWidget()->width() - kWidth, 0); } else m_anim.start();
     update();
 }
 
 void SidePanel::slideOut() {
     m_open = false;
-    m_anim.stop(); m_anim.setStartValue(m_x); m_anim.setEndValue(1.0);
+    m_anim.stop(); m_anim.setDuration(Theme::i().animMs(180)); m_anim.setStartValue(m_x); m_anim.setEndValue(1.0);
     if (m_anim.duration() == 0) { m_x = 1; hide(); } else m_anim.start();
 }
 

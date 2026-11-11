@@ -20,8 +20,16 @@ IconButton::IconButton(Icon ic, QWidget* parent, int size) : QAbstractButton(par
     connect(&m_anim, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) { m_hover = v.toReal(); update(); });
     connect(&Theme::i(), &Theme::changed, this, qOverload<>(&QWidget::update));
 }
-void IconButton::enterEvent(QEnterEvent*) { m_anim.stop(); m_anim.setStartValue(m_hover); m_anim.setEndValue(1.0); m_anim.start(); }
-void IconButton::leaveEvent(QEvent*) { m_anim.stop(); m_anim.setStartValue(m_hover); m_anim.setEndValue(0.0); m_anim.start(); }
+void IconButton::enterEvent(QEnterEvent*) {
+    m_anim.stop(); m_anim.setDuration(Theme::i().animMs(120));
+    if (m_anim.duration() == 0) { m_hover = 1; update(); return; }
+    m_anim.setStartValue(m_hover); m_anim.setEndValue(1.0); m_anim.start();
+}
+void IconButton::leaveEvent(QEvent*) {
+    m_anim.stop(); m_anim.setDuration(Theme::i().animMs(120));
+    if (m_anim.duration() == 0) { m_hover = 0; update(); return; }
+    m_anim.setStartValue(m_hover); m_anim.setEndValue(0.0); m_anim.start();
+}
 void IconButton::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
@@ -121,7 +129,11 @@ Switch::Switch(QWidget* parent) : QAbstractButton(parent) {
     setFixedSize(38, 22);
     m_anim.setDuration(Theme::i().animMs(140));
     connect(&m_anim, &QVariantAnimation::valueChanged, this, qOverload<>(&QWidget::update));
-    connect(this, &QAbstractButton::toggled, this, [this](bool on) { m_anim.stop(); m_anim.setStartValue(on ? 0.0 : 1.0); m_anim.setEndValue(on ? 1.0 : 0.0); m_anim.start(); });
+    connect(this, &QAbstractButton::toggled, this, [this](bool on) {
+        m_anim.stop(); m_anim.setDuration(Theme::i().animMs(140));
+        if (m_anim.duration() == 0) { update(); return; }
+        m_anim.setStartValue(on ? 0.0 : 1.0); m_anim.setEndValue(on ? 1.0 : 0.0); m_anim.start();
+    });
 }
 void Switch::paintEvent(QPaintEvent*) {
     QPainter p(this);
@@ -229,7 +241,17 @@ void PopupMenu::popup(const QPoint& g) {
     if (pos.y() + height() > avail.bottom()) pos.setY(avail.bottom() - height());
     pos.setX(qMax(avail.left(), pos.x())); pos.setY(qMax(avail.top(), pos.y()));
     move(pos);
-    show();
+    // macOS-style appearance: a soft fade with a small rise (skipped when animations are off)
+    const int ms = Theme::i().animMs(130);
+    if (ms > 0) {
+        setWindowOpacity(0.0);
+        auto* a = new QVariantAnimation(this);
+        a->setDuration(ms); a->setStartValue(0.0); a->setEndValue(1.0); a->setEasingCurve(QEasingCurve::OutCubic);
+        connect(a, &QVariantAnimation::valueChanged, this, [this, pos](const QVariant& v) { const qreal t = v.toReal(); setWindowOpacity(t); move(pos + QPoint(0, int((1.0 - t) * 8))); });
+        connect(a, &QVariantAnimation::finished, a, &QObject::deleteLater);
+        show();
+        a->start();
+    } else show();
     setFocus();
 }
 void PopupMenu::popupAbove(const QRect& a) {
@@ -282,9 +304,12 @@ Toast::Toast(QWidget* parent) : QWidget(parent) {
     setAttribute(Qt::WA_TransparentForMouseEvents);
     hide();
     m_timer = new QTimer(this); m_timer->setSingleShot(true);
-    m_anim.setDuration(Theme::i().animMs(160));
     connect(&m_anim, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) { m_op = v.toReal(); update(); if (m_op <= 0.01 && m_anim.endValue().toReal() == 0.0) hide(); });
-    connect(m_timer, &QTimer::timeout, this, [this] { m_anim.stop(); m_anim.setStartValue(m_op); m_anim.setEndValue(0.0); m_anim.start(); });
+    connect(m_timer, &QTimer::timeout, this, [this] {
+        m_anim.stop(); m_anim.setDuration(Theme::i().animMs(200));
+        if (m_anim.duration() == 0) { m_op = 0; hide(); return; }
+        m_anim.setStartValue(m_op); m_anim.setEndValue(0.0); m_anim.start();
+    });
 }
 void Toast::show(const QString& text, int ms, bool error) {
     m_text = text; m_error = error;
@@ -293,16 +318,44 @@ void Toast::show(const QString& text, int ms, bool error) {
     resize(w, 40);
     move((parentWidget()->width() - w) / 2, parentWidget()->height() - 150);
     raise(); QWidget::show();
-    m_anim.stop(); m_anim.setStartValue(m_op); m_anim.setEndValue(1.0); m_anim.start();
+    m_anim.stop(); m_anim.setDuration(Theme::i().animMs(180));
+    if (m_anim.duration() == 0) { m_op = 1; update(); } else { m_anim.setStartValue(m_op); m_anim.setEndValue(1.0); m_anim.start(); }
     m_timer->start(ms);
 }
 void Toast::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
     p.setOpacity(m_op);
+    p.translate(0, (1.0 - m_op) * 8);                       // rises a few pixels as it fades in
     p.setPen(QPen(QColor(255, 255, 255, 36), 1)); p.setBrush(pal().overlay);
     p.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 10, 10);
     if (m_error) { p.setPen(Qt::NoPen); p.setBrush(QColor("#ff6b61")); p.drawRoundedRect(QRectF(0, 0, 4, height()), 2, 2); }
     p.setPen(pal().overlayText); p.setFont(Theme::i().font(14, QFont::Medium));
     p.drawText(rect().adjusted(m_error ? 10 : 0, 0, -6, 0), Qt::AlignCenter, QFontMetrics(p.font()).elidedText(m_text, Qt::ElideRight, width() - 30));
+}
+
+// ================= FadeCover =================
+FadeCover::FadeCover(QWidget* parent) : QWidget(parent) {
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_anim.setEasingCurve(QEasingCurve::OutCubic);
+    connect(&m_anim, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) { m_op = v.toReal(); update(); });
+    connect(&m_anim, &QVariantAnimation::finished, this, [this] {
+        if (m_op <= 0.001) hide();
+        if (m_done) { auto d = m_done; m_done = nullptr; d(); }
+    });
+}
+void FadeCover::run(qreal from, qreal to, int ms, std::function<void()> done) {
+    m_anim.stop();
+    m_done = std::move(done);
+    ms = Theme::i().animMs(ms);
+    m_op = from;
+    if (ms <= 0) { m_op = to; if (to <= 0.001) hide(); update(); if (m_done) { auto d = m_done; m_done = nullptr; d(); } return; }
+    setGeometry(parentWidget()->rect());
+    raise(); show();
+    m_anim.setDuration(ms); m_anim.setStartValue(from); m_anim.setEndValue(to); m_anim.start();
+}
+void FadeCover::paintEvent(QPaintEvent*) {
+    QPainter p(this);
+    QColor c = pal().bg; c.setAlphaF(qBound(0.0, m_op, 1.0));
+    p.fillRect(rect(), c);
 }

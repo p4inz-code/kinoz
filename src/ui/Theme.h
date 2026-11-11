@@ -26,6 +26,15 @@ public:
     bool compact() const { return m_compact; }
     bool reduceMotion() const { return m_reduceMotion; }
     void setReduceMotion(bool r) { m_reduceMotion = r; }
+    // 0 = follow the system "animation effects" setting, 1 = animations on, 2 = animations off
+    void setMotionMode(int m);
+    int motionMode() const { return m_motionMode; }
+    void setAccentIndex(int i);
+    int accentIndex() const { return m_accent; }
+    static int accentCount();
+    static QColor accentSample(int i, bool dark);
+    void setGlass(bool g) { m_glass = g; emit changed(); }
+    bool glass() const { return m_glass; }
 
     void loadFonts();
     QFont font(qreal px, int weight = QFont::Normal, bool heading = false) const;
@@ -43,6 +52,9 @@ private:
     Palette m_pal;
     bool m_compact = false;
     bool m_reduceMotion = false;
+    bool m_glass = true;
+    int m_motionMode = 0;
+    int m_accent = 0;
     QString m_body = QStringLiteral("Segoe UI");
     QString m_head = QStringLiteral("Segoe UI");
 };
