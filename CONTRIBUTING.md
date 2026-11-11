@@ -17,3 +17,5 @@ Contributions are welcome — kinoz is free software and stays that way.
 
 ## Code style
 C++20, Qt idioms, no `using namespace`, small functions, comments explain *why*. Keep the UI fully custom (no native OS widgets) and keep the UI thread free of blocking work.
+
+The 4K/8K decode checks are heavy, so they only run with KINOZ_TEST_HIRES=1.

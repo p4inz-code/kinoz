@@ -1097,9 +1097,11 @@ void MainWindow::runSelfTest() {
     S("seek step reset", [this] { m_set->set("seekSmall", 5); }, [] { return true; }, 100);
     S("sleep timer set and cleared", [this] { setSleepTimer(15); }, [this] { return m_sleep.isActive(); }, 200);
     S("sleep timer off", [this] { setSleepTimer(0); }, [this] { return !m_sleep.isActive(); }, 200);
-    S("4K frame decodes and renders", [this] { m_mpv->setPause(false); m_mpv->loadFile("av://lavfi:testsrc2=size=3840x2160:rate=30"); }, [this] { return m_mpv->videoW() == 3840 && m_mpv->videoH() == 2160 && !m_mpv->paused(); }, 2500);
-    S("8K frame decodes and renders", [this] { m_mpv->loadFile("av://lavfi:testsrc2=size=7680x4320:rate=24"); }, [this] { return m_mpv->videoW() == 7680 && m_mpv->videoH() == 4320; }, 3000);
-    S("recovers after 8K (loads a normal file)", [this] { m_ctl->playIndex(0); }, [this] { return m_ctl->hasMedia() && m_mpv->videoW() > 0 && m_mpv->videoW() < 3000; }, 1500);
+    if (qEnvironmentVariableIsSet("KINOZ_TEST_HIRES")) {      // heavy GPU/CPU stress: only when explicitly asked for
+        S("4K frame decodes and renders", [this] { m_mpv->setPause(false); m_mpv->loadFile("av://lavfi:testsrc2=size=3840x2160:rate=30"); }, [this] { return m_mpv->videoW() == 3840 && m_mpv->videoH() == 2160 && !m_mpv->paused(); }, 2500);
+        S("8K frame decodes and renders", [this] { m_mpv->loadFile("av://lavfi:testsrc2=size=7680x4320:rate=24"); }, [this] { return m_mpv->videoW() == 7680 && m_mpv->videoH() == 4320; }, 3000);
+        S("recovers after 8K (loads a normal file)", [this] { m_ctl->playIndex(0); }, [this] { return m_ctl->hasMedia() && m_mpv->videoW() > 0 && m_mpv->videoW() < 3000; }, 1500);
+    }
     S("rapid next x30", [this] { for (int i = 0; i < 30; ++i) m_ctl->next(); }, [this] { return m_ctl->hasMedia(); }, 1200);
     auto idx = std::make_shared<int>(0);
     auto fails = std::make_shared<int>(0);
