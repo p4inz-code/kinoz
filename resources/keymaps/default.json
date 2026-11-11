@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "Windows 11 Media Player + modern",
   "keys": {
     "Space": "playpause",
@@ -37,6 +37,7 @@
     "Ctrl+Shift+P": "palette",
     "Ctrl+M": "mini",
     "Ctrl+N": "newwindow",
+    "B": "abloop",
     "Ctrl+Shift+T": "pin",
     "Ctrl+E": "eq",
     "Ctrl+J": "adjust",

@@ -23,6 +23,7 @@ class PreviewService;
 class ThumbService;
 class LibraryIndex;
 class Updater;
+class FadeCover;
 
 class MainWindow : public QWidget {
     Q_OBJECT
@@ -80,6 +81,13 @@ private:
     bool captionInSidebar(const QPoint& p) const;
     bool pointerOverChrome() const;
     void applyDwmFrame(bool on);
+    QString diagnosticsText() const;
+    void applySetting(const QString& key);
+    void applyHideDelay();
+    void restartSlideshow();
+    void setSleepTimer(int minutes);
+    void showSleepMenu();
+    void showAspectMenu();
     void setTopmost(bool on);
 
     QStringList m_pendingOpen;
@@ -117,6 +125,10 @@ private:
     bool m_wasMax = false;
     bool m_glassOn = false;
     bool m_vidOff = false;
+    bool m_closing = false;
+    double m_seekRef = 0;
+    FadeCover* m_cover = nullptr;
+    QTimer m_slide, m_sleep;
     quint64 m_fsStyle = 0;
     int m_fsRestoreX = 0, m_fsRestoreY = 0, m_fsRestoreW = 0, m_fsRestoreH = 0;
     QPoint m_lastMouse;

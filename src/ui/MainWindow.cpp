@@ -10,6 +10,12 @@
 #include "ui/Annotator.h"
 #include "ui/ControlBar.h"
 #include "ui/Overlays.h"
+#include "ui/SettingsPage.h"
+#include <QClipboard>
+#include <QLocale>
+#include <QSysInfo>
+#include <QTextBrowser>
+#include <QThread>
 #include "ui/Sidebar.h"
 #include "ui/Stages.h"
 #include "ui/Theme.h"
@@ -65,8 +71,10 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
     setMinimumSize(420, 260);
     setAttribute(Qt::WA_OpaquePaintEvent);
     Theme::i().setMode(Theme::Mode(int(m_set->num("theme", 0))));
-    Theme::i().setCompact(m_set->flag("compact", false));
-    Theme::i().setReduceMotion(m_set->flag("reduceMotion", false));
+    Theme::i().setCompact(m_set->num("compact", 0) > 0);
+    Theme::i().setMotionMode(int(m_set->num("motion", 0)));
+    Theme::i().setAccentIndex(int(m_set->num("accent", 0)));
+    Theme::i().setGlass(m_set->flag("glass", true));
     applyAppPalette();
     connect(&Theme::i(), &Theme::changed, this, [this] { applyAppPalette(); update(); });
 
@@ -87,7 +95,6 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
     m_sidebarOpen = m_set->flag("sidebarOpen", true);
     m_sidebarW = qBound(260, int(m_set->num("sidebarW", 320)), 480);
     m_sideT = m_sidebarOpen ? 1.0 : 0.0;
-    m_sideAnim.setDuration(Theme::i().animMs(220));
     m_sideAnim.setEasingCurve(QEasingCurve::OutCubic);
     connect(&m_sideAnim, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) { m_sideT = v.toReal(); layoutAll(); });
 
@@ -110,8 +117,13 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
     m_wasMax = qEnvironmentVariableIsSet("KINOZ_OFFSCREEN") ? false : g["max"].toBool();
 
     m_idle.setSingleShot(true);
-    m_idle.setInterval(2600);
+    applyHideDelay();
     connect(&m_idle, &QTimer::timeout, this, &MainWindow::idleTick);
+    m_slide.setSingleShot(true);
+    connect(&m_slide, &QTimer::timeout, this, [this] { if (m_ctl->kind() == MediaKind::Image) m_ctl->next(); });
+    connect(m_ctl, &PlayerController::pathChanged, this, &MainWindow::restartSlideshow);
+    m_sleep.setSingleShot(true);
+    connect(&m_sleep, &QTimer::timeout, this, [this] { m_ctl->pause(); notify(tr("Sleep timer: paused")); });
     m_stateTimer.setInterval(100);
     connect(&m_stateTimer, &QTimer::timeout, this, [this] { m_bar->setPosition(m_mpv->position(), m_mpv->duration()); });
     m_stateTimer.start();
@@ -155,6 +167,8 @@ void MainWindow::buildUi() {
     m_annot = new Annotator(m_ctl, m_content);
     m_toast = new Toast(m_content);
     m_palette = new CommandPalette(m_ctl, m_index, this);
+    m_cover = new FadeCover(this);          // veil for the open/close animation
+    m_cover->setGeometry(rect());
     m_bar->hide();
 
     connect(m_video, &VideoWidget::glassReady, this, [this](bool ok) { m_glassOn = ok; updateGlass(); });
@@ -290,7 +304,7 @@ void MainWindow::refreshChrome() {
 void MainWindow::updateGlass() {
     if (!m_video || !m_glassOn) return;
     const MediaKind k = m_ctl->kind();
-    const bool over = m_ctl->hasMedia() && !(k == MediaKind::Audio && !m_mpv->hasCover()) && !m_annot->active();
+    const bool over = Theme::i().glass() && m_ctl->hasMedia() && !(k == MediaKind::Audio && !m_mpv->hasCover()) && !m_annot->active();
     m_bar->setGlass(over); m_top->setGlass(over && m_top->overVideo());
     QVector<VideoWidget::Glass> g;
     if (over) {
@@ -316,6 +330,7 @@ bool MainWindow::pointerOverChrome() const {
 
 void MainWindow::idleTick() {
     if (!m_ctl->hasMedia() || m_annot->active()) return;
+    if (int(m_set->num("hideDelay", 3)) == 0) { m_idle.start(); return; }       // "Never hide"
     const MediaKind k = m_ctl->kind();
     const bool keep = k == MediaKind::Audio || m_mpv->paused() || m_bar->busy() || m_top->busy() || pointerOverChrome() || m_palette->isOpen() || m_panel->isOpen();
     if (keep) { m_idle.start(); return; }
@@ -407,6 +422,12 @@ void MainWindow::saveGeometryNow() {
 }
 
 void MainWindow::closeEvent(QCloseEvent* e) {
+    if (!m_closing && Theme::i().animMs(1) > 0 && isVisible() && !isMinimized()) {
+        m_closing = true;                    // soft fade-out first, then really close
+        e->ignore();
+        m_cover->run(0.0, 1.0, 140, [this] { close(); });
+        return;
+    }
     if (m_full) exitFullscreen();
 #ifdef Q_OS_WIN
 #ifdef Q_OS_WIN
@@ -460,6 +481,7 @@ void MainWindow::showEvent(QShowEvent* e) {
 #endif
     setGeometry(m_normalGeo);                                  // frame change can shift the window: re-apply
     if (m_wasMax) QTimer::singleShot(0, this, [this] { showMaximized(); });
+    QTimer::singleShot(0, this, [this] { m_cover->run(1.0, 0.0, 300); });   // gentle fade-in on launch
 }
 
 #ifndef Q_OS_WIN
@@ -564,10 +586,27 @@ void MainWindow::doAction(const QString& id) {
     else if (id == "stop") m_ctl->stop();
     else if (id == "next") m_ctl->next();
     else if (id == "prev") m_ctl->prev();
-    else if (id == "seekfwd") seek(5);
-    else if (id == "seekback") seek(-5);
-    else if (id == "seekfwd30") seek(30);
-    else if (id == "seekback30") seek(-30);
+    else if (id == "seekfwd") seek(m_set->num("seekSmall", 5));
+    else if (id == "seekback") seek(-m_set->num("seekSmall", 5));
+    else if (id == "seekfwd30") seek(m_set->num("seekLarge", 30));
+    else if (id == "seekback30") seek(-m_set->num("seekLarge", 30));
+    else if (id == "abloop") {
+        m_mpv->command({QStringLiteral("ab-loop")});
+        QTimer::singleShot(150, this, [this] {
+            const bool a = m_mpv->getProp("ab-loop-a").toString() != "no", b = m_mpv->getProp("ab-loop-b").toString() != "no";
+            notify(!a ? tr("A-B loop cleared") : !b ? tr("Loop start (A) set — press again for the end (B)") : tr("Looping between A and B — press again to clear"));
+        });
+    }
+    else if (id == "sleep") showSleepMenu();
+    else if (id == "aspect") showAspectMenu();
+    else if (id == "reveal") { if (m_ctl->hasMedia()) {
+#ifdef Q_OS_WIN
+        QProcess::startDetached(QStringLiteral("explorer.exe"), {QStringLiteral("/select,"), QDir::toNativeSeparators(m_ctl->path())});
+#else
+        QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(m_ctl->path()).absolutePath()));
+#endif
+    } }
+    else if (id == "copypath") { if (m_ctl->hasMedia()) { QGuiApplication::clipboard()->setText(QDir::toNativeSeparators(m_ctl->path())); notify(tr("Path copied")); } }
     else if (id == "seekfwd10") seek(10);
     else if (id == "seekback10") seek(-10);
     else if (id == "volup") m_ctl->volumeStep(1);
@@ -710,6 +749,7 @@ void MainWindow::setSidebarOpen(bool open, bool animate) {
     m_sidebarOpen = open;
     m_set->set("sidebarOpen", open);
     m_sideAnim.stop();
+    m_sideAnim.setDuration(Theme::i().animMs(240));
     if (animate && m_sideAnim.duration() > 0 && !m_full && !m_mini) {
         m_sideAnim.setStartValue(m_sideT); m_sideAnim.setEndValue(open ? 1.0 : 0.0); m_sideAnim.start();
     } else { m_sideT = open ? 1.0 : 0.0; layoutAll(); }
@@ -738,23 +778,116 @@ void MainWindow::screenshotFrame() {
     else notify(tr("Couldn't capture this frame"), true);
 }
 
+QString MainWindow::diagnosticsText() const {
+    auto prop = [this](const char* n) { return m_mpv->getProp(n); };
+    QStringList L;
+    L << "## kinoz";
+    L << QStringLiteral("Version: ") + QStringLiteral(APP_VERSION);
+    L << QStringLiteral("Built: ") + QStringLiteral(__DATE__ " " __TIME__);
+    L << QStringLiteral("Data folder: ") + QDir::toNativeSeparators(Paths::dataDir());
+    L << QStringLiteral("Log file: ") + QDir::toNativeSeparators(Paths::logsDir() + "/app.log");
+    L << "## System";
+    L << QStringLiteral("Operating system: ") + QSysInfo::prettyProductName() + " (" + QSysInfo::kernelVersion() + ")";
+    L << QStringLiteral("CPU: ") + QSysInfo::currentCpuArchitecture() + ", " + QString::number(QThread::idealThreadCount()) + " threads";
+    if (QScreen* s = screen()) L << QStringLiteral("Display: %1×%2 at %3 Hz, scale %4×").arg(s->size().width()).arg(s->size().height()).arg(s->refreshRate(), 0, 'f', 0).arg(devicePixelRatioF());
+    L << QStringLiteral("Graphics: ") + m_video->rendererInfo();
+    L << QStringLiteral("Glass effect: ") + (m_video->glassOk() ? "available" : "not available");
+    L << "## Playback engine";
+    L << QStringLiteral("mpv: ") + prop("mpv-version").toString();
+    L << QStringLiteral("FFmpeg: ") + prop("ffmpeg-version").toString();
+    L << QStringLiteral("Interface: Qt ") + QString::fromLatin1(qVersion());
+    L << QStringLiteral("Hardware decoding: ") + (m_set->flag("hwdec", true) ? QStringLiteral("on (%1)").arg(prop("hwdec-current").toString().isEmpty() ? QStringLiteral("not in use for this file") : prop("hwdec-current").toString()) : QStringLiteral("off"));
+    if (m_ctl->hasMedia()) {
+        L << "## Current media";
+        L << QStringLiteral("File: ") + QDir::toNativeSeparators(m_ctl->path());
+        const QVariantMap vp = prop("video-params").toMap();
+        if (m_mpv->videoW() > 0) L << QStringLiteral("Picture: %1×%2, %3").arg(m_mpv->videoW()).arg(m_mpv->videoH()).arg(vp.value("pixelformat").toString());
+        const QString vc = prop("video-codec").toString(), ac = prop("audio-codec-name").toString();
+        if (!vc.isEmpty()) L << QStringLiteral("Video codec: ") + vc;
+        if (!ac.isEmpty()) L << QStringLiteral("Audio codec: ") + ac;
+        const double fps = prop("container-fps").toDouble();
+        if (fps > 0) L << QStringLiteral("Frame rate: %1 fps").arg(fps, 0, 'f', 2);
+        const qint64 sz = prop("file-size").toLongLong();
+        if (sz > 0) L << QStringLiteral("Size: ") + QLocale().formattedDataSize(sz);
+        if (m_mpv->duration() > 0) L << QStringLiteral("Duration: %1 s").arg(m_mpv->duration(), 0, 'f', 1);
+    }
+    L << "## Supported formats";
+    auto join = [](const QSet<QString>& s) { QStringList l = s.values(); l.sort(); return l.join(", "); };
+    L << QStringLiteral("Video: ") + join(Media::videoExt());
+    L << QStringLiteral("Audio: ") + join(Media::audioExt());
+    L << QStringLiteral("Images: ") + join(Media::imageExt());
+    L << QStringLiteral("Animated: ") + join(Media::gifExt());
+    L << QStringLiteral("Subtitles: ") + join(Media::subtitleExt());
+    L << "## Storage";
+    qint64 bytes = 0; int n = 0;
+    for (const QFileInfo& f : QDir(Paths::thumbsDir()).entryInfoList({"*.jpg"}, QDir::Files)) { bytes += f.size(); ++n; }
+    L << QStringLiteral("Thumbnails: %1 files, %2").arg(n).arg(QLocale().formattedDataSize(bytes));
+    L << QStringLiteral("Exports: ") + QDir::toNativeSeparators(Paths::exportsDir());
+    return L.join('\n');
+}
+
+void MainWindow::applySetting(const QString& key) {
+    if (key == "theme") Theme::i().setMode(Theme::Mode(int(m_set->num("theme", 0))));
+    else if (key == "accent") Theme::i().setAccentIndex(int(m_set->num("accent", 0)));
+    else if (key == "motion") Theme::i().setMotionMode(int(m_set->num("motion", 0)));
+    else if (key == "compact") Theme::i().setCompact(m_set->num("compact", 0) > 0);
+    else if (key == "glass") { Theme::i().setGlass(m_set->flag("glass", true)); updateGlass(); }
+    else if (key == "hideDelay") { applyHideDelay(); poke(); }
+    else if (key == "slideshow") restartSlideshow();
+    else if (key == "normalize") m_ctl->applyEq();
+    else if (key == "hwdec") notify(tr("Restart the player to apply hardware decoding"));
+}
+
+void MainWindow::applyHideDelay() {
+    const int s = int(m_set->num("hideDelay", 3));
+    m_idle.setInterval(qMax(1, s) * 1000);
+}
+
+void MainWindow::restartSlideshow() {
+    m_slide.stop();
+    const int s = int(m_set->num("slideshow", 0));
+    if (s > 0 && m_ctl->kind() == MediaKind::Image) m_slide.start(s * 1000);
+}
+
+void MainWindow::setSleepTimer(int minutes) {
+    m_sleep.stop();
+    m_ctl->setStopAfterCurrent(minutes < 0);
+    if (minutes > 0) m_sleep.start(minutes * 60 * 1000);
+    notify(minutes == 0 ? tr("Sleep timer off") : minutes < 0 ? tr("Will stop at the end of this file") : tr("Sleep timer: %1 min").arg(minutes));
+}
+
+void MainWindow::showSleepMenu() {
+    auto* m = new PopupMenu(this);
+    m->addHeader(tr("Sleep timer"));
+    const bool on = m_sleep.isActive() || m_ctl->stopAfterCurrent();
+    m->addItem("0", tr("Off"), !on);
+    for (int mins : {15, 30, 45, 60, 90}) m->addItem(QString::number(mins), tr("%1 minutes").arg(mins), m_sleep.isActive() && m_sleep.interval() == mins * 60000);
+    m->addItem("-1", tr("At the end of this file"), m_ctl->stopAfterCurrent());
+    connect(m, &PopupMenu::triggered, this, [this](const QString& id) { setSleepTimer(id.toInt()); });
+    m->popupAbove(m_bar->isVisible() ? m_bar->buttonRect("more") : QRect(QCursor::pos(), QSize(1, 1)));
+}
+
+void MainWindow::showAspectMenu() {
+    auto* m = new PopupMenu(this);
+    m->addHeader(tr("Aspect ratio"));
+    const QString cur = m_mpv->getProp("video-aspect-override").toString();
+    const bool fill = m_mpv->getProp("panscan").toDouble() > 0.5;
+    m->addItem("-1", tr("Original"), cur == "-1" && !fill);
+    for (const char* a : {"16:9", "4:3", "21:9", "1:1"}) m->addItem(QString::fromLatin1(a), QString::fromLatin1(a), cur == a && !fill);
+    m->addItem("fill", tr("Fill the window (crop)"), fill);
+    connect(m, &PopupMenu::triggered, this, [this](const QString& id) {
+        if (id == "fill") { m_mpv->setProp("video-aspect-override", QStringLiteral("-1")); m_mpv->setProp("panscan", 1.0); }
+        else { m_mpv->setProp("panscan", 0.0); m_mpv->setProp("video-aspect-override", id); }
+    });
+    m->popupAbove(m_bar->isVisible() ? m_bar->buttonRect("more") : QRect(QCursor::pos(), QSize(1, 1)));
+}
+
 void MainWindow::openSettings() {
     auto* sh = new Sheet(this);
-    QHash<QString, QString> info;
-    info["mpv"] = m_mpv->getProp("mpv-version").toString();
-    info["ffmpeg"] = m_mpv->getProp("ffmpeg-version").toString();
-    info["qt"] = QString::fromLatin1(qVersion());
-    info["build"] = QStringLiteral(__DATE__);
-    auto* pg = new SettingsPage(m_set, m_keys, m_updater, info);
+    auto* pg = new SettingsPage(m_set, m_keys, m_updater, diagnosticsText());
     sh->setContent(pg, QSize(660, 650));
     connect(pg, &SettingsPage::closeRequested, sh, &Sheet::closeSheet);
-    connect(pg, &SettingsPage::changed, this, [this](const QString& key) {
-        if (key == "theme") Theme::i().setMode(Theme::Mode(int(m_set->num("theme", 0))));
-        else if (key == "compact") Theme::i().setCompact(m_set->flag("compact"));
-        else if (key == "reduceMotion") Theme::i().setReduceMotion(m_set->flag("reduceMotion"));
-        else if (key == "normalize") m_ctl->applyEq();
-        else if (key == "hwdec") notify(tr("Restart the player to apply hardware decoding"));
-    });
+    connect(pg, &SettingsPage::changed, this, [this](const QString& key) { applySetting(key); });
     connect(pg, &SettingsPage::clearThumbs, this, [this] {
         int n = 0;
         for (const QFileInfo& f : QDir(Paths::thumbsDir()).entryInfoList({"*.jpg"}, QDir::Files)) n += QFile::remove(f.absoluteFilePath());
@@ -789,11 +922,15 @@ void MainWindow::showMoreMenu() {
     m->addItem("newwindow", tr("New window"), false, "Ctrl+N");
     m->addSeparator();
     if (has && k != MediaKind::Image) m->addItem("speed", tr("Playback speed…"));
+    if (has && (k == MediaKind::Video || k == MediaKind::Audio)) m->addItem("abloop", tr("A-B loop"), false, "B");
+    if (has && (k == MediaKind::Video || k == MediaKind::Audio)) m->addItem("sleep", tr("Sleep timer…"));
+    if (has && (k == MediaKind::Video || k == MediaKind::Gif)) m->addItem("aspect", tr("Aspect ratio…"));
     if (k == MediaKind::Video) m->addItem("tracks", tr("Audio & subtitles…"));
     if (k == MediaKind::Video || k == MediaKind::Gif) m->addItem("adjust", tr("Adjust picture…"), m_panel->isOpen() && m_panel->page() == "adjust", "Ctrl+J");
     m->addItem("eq", tr("Equalizer…"), m_panel->isOpen() && m_panel->page() == "eq", "Ctrl+E");
     if (has && k != MediaKind::Audio) { m->addItem("annotate", tr("Annotate frame"), false, "A"); m->addItem("screenshot", tr("Save frame as image"), false, "Ctrl+Shift+S"); }
     m->addSeparator();
+    if (has) { m->addItem("reveal", tr("Show in folder")); m->addItem("copypath", tr("Copy file path")); m->addSeparator(); }
     m->addItem("sidebar", tr("Library sidebar"), m_sidebarOpen, "Tab");
     m->addItem("pin", tr("Always on top"), m_pinned);
     m->addItem("theme", tr("Switch theme"), false, "Ctrl+D");
@@ -833,6 +970,8 @@ void MainWindow::showTracksMenu() {
     for (const auto& t : subs) { const auto tm = t.toMap(); m->addItem(QStringLiteral("s%1").arg(tm["id"].toInt()), label(tm), tm["selected"].toBool()); }
     if (subs.isEmpty()) m->addItem("none", tr("No subtitle tracks in this file"), false, {}, false);
     m->addSeparator();
+    m->addItem("audioearlier", tr("Audio earlier (sync)"));
+    m->addItem("audiolater", tr("Audio later (sync)"));
     m->addItem("subminus", tr("Subtitles earlier"), false, "Z");
     m->addItem("subplus", tr("Subtitles later"), false, "X");
     m->addItem("subsmaller", tr("Smaller text"));
@@ -840,6 +979,8 @@ void MainWindow::showTracksMenu() {
     connect(m, &PopupMenu::triggered, this, [this](const QString& id) {
         if (id.startsWith('a')) m_ctl->selectTrack("audio", id.mid(1).toInt());
         else if (id.startsWith('s') && id.size() > 1 && id[1].isDigit()) m_ctl->selectTrack("sub", id.mid(1).toInt());
+        else if (id == "audioearlier") { const double d = m_mpv->getProp("audio-delay").toDouble() - 0.1; m_mpv->setProp("audio-delay", d); notify(tr("Audio delay %1 s").arg(d, 0, 'f', 1)); }
+        else if (id == "audiolater") { const double d = m_mpv->getProp("audio-delay").toDouble() + 0.1; m_mpv->setProp("audio-delay", d); notify(tr("Audio delay %1 s").arg(d, 0, 'f', 1)); }
         else if (id == "subminus") doAction("subdelayminus");
         else if (id == "subplus") doAction("subdelayplus");
         else if (id == "subsmaller") m_ctl->setSubScale(m_mpv->getProp("sub-scale").toDouble() - 0.1);
@@ -939,6 +1080,26 @@ void MainWindow::runSelfTest() {
     S("annotate ends", [this] { doAction("escape"); }, [this] { return !m_annot->active(); });
     S("error: missing file reports", [this] { m_ctl->play("Z:/definitely/not/here.mp4"); }, [] { return true; }, 500);
     S("still alive after error", [] {}, [this] { return m_mpv->isReady(); }, 300);
+    S("hardening: no external tools or scripts", [] {}, [this] {
+        auto off = [this](const char* o) { const QVariant v = m_mpv->getProp(o); return v.toString() == "no" || v.toString() == "false" || (v.typeId() == QMetaType::Bool && !v.toBool()); };
+        return off("options/ytdl") && off("options/load-scripts"); }, 200);
+    S("settings: shortcuts, info, playback pages", [this] { doAction("settings"); }, [this] {
+        auto* pg = findChild<SettingsPage*>(); if (!pg) return false;
+        auto* list = pg->findChild<RowList*>(); const auto views = pg->findChildren<QTextBrowser*>();
+        return bool(list) && list->rows().size() > 40 && views.size() >= 2; }, 700);
+    S("settings: close", [this] { for (auto* s : findChildren<Sheet*>()) s->closeSheet(); }, [this] { return findChildren<Sheet*>().isEmpty() || !findChildren<Sheet*>().first()->isVisible(); }, 700);
+    S("animations off really removes motion", [this] { m_set->set("motion", 2); applySetting("motion"); }, [] { return Theme::i().reduceMotion() && Theme::i().animMs(200) == 0; }, 300);
+    S("animations back on", [this] { m_set->set("motion", 1); applySetting("motion"); }, [] { return !Theme::i().reduceMotion() && Theme::i().animMs(200) == 200; }, 300);
+    S("accent colour changes live", [this] { m_set->set("accent", 3); applySetting("accent"); }, [] { return Theme::i().accentIndex() == 3; }, 300);
+    S("accent reset", [this] { m_set->set("accent", 0); applySetting("accent"); }, [] { return Theme::i().accentIndex() == 0; }, 300);
+    S("seek step setting is honoured", [this] { m_set->set("seekSmall", 10); m_mpv->seek(1, true); }, [this] { return true; }, 600);
+    S("seek +10 from setting", [this] { const double before = m_mpv->position(); m_seekRef = before; doAction("seekfwd"); }, [this] { return m_mpv->position() >= m_seekRef + 8.0 || m_mpv->duration() < m_seekRef + 12; }, 800);
+    S("seek step reset", [this] { m_set->set("seekSmall", 5); }, [] { return true; }, 100);
+    S("sleep timer set and cleared", [this] { setSleepTimer(15); }, [this] { return m_sleep.isActive(); }, 200);
+    S("sleep timer off", [this] { setSleepTimer(0); }, [this] { return !m_sleep.isActive(); }, 200);
+    S("4K frame decodes and renders", [this] { m_mpv->setPause(false); m_mpv->loadFile("av://lavfi:testsrc2=size=3840x2160:rate=30"); }, [this] { return m_mpv->videoW() == 3840 && m_mpv->videoH() == 2160 && !m_mpv->paused(); }, 2500);
+    S("8K frame decodes and renders", [this] { m_mpv->loadFile("av://lavfi:testsrc2=size=7680x4320:rate=24"); }, [this] { return m_mpv->videoW() == 7680 && m_mpv->videoH() == 4320; }, 3000);
+    S("recovers after 8K (loads a normal file)", [this] { m_ctl->playIndex(0); }, [this] { return m_ctl->hasMedia() && m_mpv->videoW() > 0 && m_mpv->videoW() < 3000; }, 1500);
     S("rapid next x30", [this] { for (int i = 0; i < 30; ++i) m_ctl->next(); }, [this] { return m_ctl->hasMedia(); }, 1200);
     auto idx = std::make_shared<int>(0);
     auto fails = std::make_shared<int>(0);
@@ -975,11 +1136,17 @@ void MainWindow::runShots(const QString& dir) {
     steps->push_back({500, [snap] { snap("home-light"); }});
     steps->push_back({100, [this] { doAction("settings"); }});
     steps->push_back({800, [snap] { snap("settings-light"); }});
+    steps->push_back({100, [page] { page(1); }});
+    steps->push_back({400, [snap] { snap("settings-playback-light"); }});
     steps->push_back({100, [page] { page(2); }});
-    steps->push_back({500, [snap] { snap("about-light"); }});
+    steps->push_back({400, [snap] { snap("settings-shortcuts-light"); }});
     steps->push_back({100, [page] { page(3); }});
-    steps->push_back({500, [snap] { snap("legal-light"); }});
-    steps->push_back({100, [this, page] { Theme::i().setMode(Theme::Mode::Dark); page(2); }});
+    steps->push_back({400, [snap] { snap("settings-info-light"); }});
+    steps->push_back({100, [page] { page(4); }});
+    steps->push_back({400, [snap] { snap("about-light"); }});
+    steps->push_back({100, [page] { page(5); }});
+    steps->push_back({400, [snap] { snap("legal-light"); }});
+    steps->push_back({100, [this, page] { Theme::i().setMode(Theme::Mode::Dark); page(4); }});
     steps->push_back({500, [snap] { snap("about-dark"); }});
     steps->push_back({100, [this] { for (auto* s : findChildren<Sheet*>()) s->closeSheet(); }});
     steps->push_back({700, [this] { doAction("palette"); }});

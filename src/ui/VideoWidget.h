@@ -20,6 +20,7 @@ public:
     ~VideoWidget() override;
     void setGlass(const QVector<Glass>& g);
     bool glassOk() const { return m_glassOk; }
+    QString rendererInfo() const { return m_glInfo; }
     void setPointer(const QPointF& normalized) { m_pointer = normalized; }
 
 signals:
@@ -56,6 +57,7 @@ private:
     // glass
     QVector<Glass> m_glass;
     bool m_glassOk = false;
+    QString m_glInfo;
     GLuint m_vao = 0, m_blurProg = 0, m_compProg = 0;
     GLuint m_tex[2] = {0, 0}, m_fbo[2] = {0, 0};
     int m_texW = 0, m_texH = 0;

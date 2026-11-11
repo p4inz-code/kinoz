@@ -1,9 +1,10 @@
-﻿#include "ui/VideoWidget.h"
+#include "ui/VideoWidget.h"
 #include "core/player/MpvPlayer.h"
 #include "ui/Theme.h"
 #include <mpv/render_gl.h>
 #include <QMouseEvent>
 #include <QOpenGLContext>
+#include <QOpenGLFunctions>
 #include <QWheelEvent>
 #include <QtMath>
 
@@ -137,6 +138,9 @@ void VideoWidget::setGlass(const QVector<Glass>& g) {
 void VideoWidget::initializeGL() {
     m_glReady = true;
     m_glassOk = initGlass();
+    if (auto* f = QOpenGLContext::currentContext()->functions()) {
+        m_glInfo = QString::fromLatin1(reinterpret_cast<const char*>(f->glGetString(GL_RENDERER))) + QStringLiteral(", OpenGL ") + QString::fromLatin1(reinterpret_cast<const char*>(f->glGetString(GL_VERSION)));
+    }
     emit glassReady(m_glassOk);
     if (m_player->isReady()) createContext();
     connect(this, &QOpenGLWidget::frameSwapped, this, [this] { if (m_ctx) mpv_render_context_report_swap(m_ctx); });
