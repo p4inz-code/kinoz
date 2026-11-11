@@ -169,7 +169,10 @@ void Updater::download() {
     req.setTransferTimeout(30000);
     m_reply = net()->get(req);
     connect(m_reply, &QNetworkReply::readyRead, this, [this] { if (m_reply && m_out) m_out->write(m_reply->readAll()); });
-    connect(m_reply, &QNetworkReply::downloadProgress, this, [this](qint64 got, qint64 tot) { m_received = got; m_total = tot; emit progress(got, tot); });
+    connect(m_reply, &QNetworkReply::downloadProgress, this, [this](qint64 got, qint64 tot) {
+        m_received = got; m_total = tot; emit progress(got, tot);
+        if ((tot > 600ll * 1024 * 1024 || got > 600ll * 1024 * 1024) && m_reply) m_reply->abort();   // sanity cap: an installer is never this big
+    });
     connect(m_reply, &QNetworkReply::finished, this, &Updater::onDownloaded);
 }
 

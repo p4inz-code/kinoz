@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QStringList>
 #include <QVector>
+#include <atomic>
 
 // In-memory name index of every media file under the user's "places", used by the Ctrl+K palette.
 class LibraryIndex : public QObject {
@@ -18,6 +19,6 @@ signals:
     void updated();
 private:
     QVector<Entry> m_entries;
-    quint64 m_gen = 0;
+    std::atomic<quint64> m_gen{0};
     bool m_busy = false;
 };

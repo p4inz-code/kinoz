@@ -13,6 +13,20 @@
 #include <QLocalSocket>
 #include <QSurfaceFormat>
 #include <QTextStream>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <dbghelp.h>
+static wchar_t g_dumpPath[MAX_PATH] = {};
+static LONG WINAPI crashFilter(EXCEPTION_POINTERS* ep) {
+    HANDLE f = CreateFileW(g_dumpPath, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f != INVALID_HANDLE_VALUE) {
+        MINIDUMP_EXCEPTION_INFORMATION mei{GetCurrentThreadId(), ep, FALSE};
+        MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), f, MiniDumpNormal, &mei, nullptr, nullptr);
+        CloseHandle(f);
+    }
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+#endif
 
 static QString pipeName() {
     return QStringLiteral("kinoz-") + QString::fromLatin1(QCryptographicHash::hash(QCoreApplication::applicationDirPath().toUtf8(), QCryptographicHash::Sha1).toHex().left(12));
@@ -44,6 +58,11 @@ int main(int argc, char** argv) {
     QFile log(Paths::logsDir() + QStringLiteral("/app.log"));
     if (log.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) { g_log = &log; qInstallMessageHandler(logHandler); }
 
+#ifdef Q_OS_WIN
+    // If the app ever crashes, leave a small dump in the logs folder so the problem can be found and fixed.
+    QDir::toNativeSeparators(Paths::logsDir() + QStringLiteral("/crash.dmp")).toWCharArray(g_dumpPath);
+    SetUnhandledExceptionFilter(crashFilter);
+#endif
     QStringList args;
     const QStringList all = app.arguments();
     for (int i = 1; i < all.size(); ++i) {

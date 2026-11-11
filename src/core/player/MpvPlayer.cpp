@@ -70,6 +70,17 @@ void MpvPlayer::initAsync(bool hwdec) {
         opt("audio-pitch-correction", "yes");
         opt("screenshot-format", "png");
         opt("audio-client-name", APP_NAME);
+        // --- hardening: this player only plays local files; never run external tools or scripts ---
+        opt("ytdl", "no");
+        opt("load-scripts", "no");
+        opt("load-unsafe-playlists", "no");
+        opt("access-references", "no");
+        opt("network-timeout", "10");
+        opt("cookies", "no");
+        // --- picture quality for high resolutions (4K/8K downscaled to the window) ---
+        opt("scale", "spline36"); opt("cscale", "spline36"); opt("dscale", "mitchell");
+        opt("correct-downscaling", "yes"); opt("linear-downscaling", "yes"); opt("sigmoid-upscaling", "yes");
+        opt("vd-lavc-threads", "0"); opt("vd-lavc-dr", "yes");
         if (qEnvironmentVariableIsSet("KINOZ_SILENT")) opt("ao", "null");
         const QByteArray cache = Paths::cacheDir().toUtf8();
         opt("gpu-shader-cache-dir", cache.constData());
@@ -187,7 +198,13 @@ void MpvPlayer::handleProp(mpv_event_property* ep) {
         emit tracksChanged();
     }
     else if (!std::strcmp(n, "media-title")) { m_mediaTitle = ep->format == MPV_FORMAT_STRING ? QString::fromUtf8(*static_cast<char**>(ep->data)) : QString(); emit metadataChanged(); }
-    else if (!std::strcmp(n, "width") && isI()) { m_w = int(*static_cast<int64_t*>(ep->data)); emit videoSizeChanged(); }
+    else if (!std::strcmp(n, "width") && isI()) {
+        m_w = int(*static_cast<int64_t*>(ep->data));
+        // big frames need a bigger demuxer window to stay smooth; shrink again for small ones
+        if (m_w >= 3000 && !m_hiRes) { m_hiRes = true; setProp("demuxer-max-bytes", QStringLiteral("192MiB")); }
+        else if (m_w > 0 && m_w < 3000 && m_hiRes) { m_hiRes = false; setProp("demuxer-max-bytes", QStringLiteral("64MiB")); }
+        emit videoSizeChanged();
+    }
     else if (!std::strcmp(n, "height") && isI()) { m_h2 = int(*static_cast<int64_t*>(ep->data)); emit videoSizeChanged(); }
     else if (!std::strcmp(n, "dwidth") && isI()) { m_dw = int(*static_cast<int64_t*>(ep->data)); emit videoSizeChanged(); }
     else if (!std::strcmp(n, "dheight") && isI()) { m_dh = int(*static_cast<int64_t*>(ep->data)); emit videoSizeChanged(); }

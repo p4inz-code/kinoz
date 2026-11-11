@@ -94,6 +94,7 @@ private:
     QVariantList m_tracks;
     QString m_mediaTitle, m_path;
 
+    bool m_hiRes = false;
     bool m_seekInFlight = false, m_seekPending = false, m_pendingExact = false;
     double m_pendingSeek = 0;
 };
