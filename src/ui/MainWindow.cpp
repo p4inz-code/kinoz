@@ -648,6 +648,7 @@ void MainWindow::doAction(const QString& id) {
     else if (id == "openfolder") openPicker(true);
     else if (id == "openfile") openPicker(false);
     else if (id == "settings") openSettings();
+    else if (id == "doctor") { if (!QProcess::startDetached(QCoreApplication::applicationFilePath(), {QStringLiteral("--doctor")})) notify(tr("Couldn't open the Doctor"), true); }
     else if (id == "annotate") startAnnotate();
     else if (id == "newwindow") { if (!QProcess::startDetached(QCoreApplication::applicationFilePath(), {QStringLiteral("--new")})) notify(tr("Couldn't open a new window"), true); }
     else if (id == "queue") { setSidebarOpen(true); m_side->showQueue(true); }

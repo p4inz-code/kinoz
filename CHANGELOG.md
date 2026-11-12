@@ -5,6 +5,12 @@ All notable changes. Dates are release dates.
 ## 0.1.0 — first public build (unreleased)
 First version. Windows build is the one that has been run and tested; the macOS and Linux builds are produced by CI and have **not** been tested by hand yet (see [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)).
 
+**Setup**
+- Custom setup window drawn by the app itself (Install, Update/Reinstall, Repair, Remove), light and dark.
+- Setup files are verified against a SHA-256 manifest; copy keeps the old files aside and rolls back on any failure; checks free space and refuses system folders. Log at `%TEMP%\kinoz-setup.log`.
+- Built-in Doctor (`kinoz.exe --doctor`, also in the command palette): verifies program files, runtime, shortcut, Apps entry, right-click entries, data folder, settings files, disk space, and fixes what it can.
+- Remove with one switch to delete all data too (settings, resume points, thumbnails, logs, exported frames). Your own media is never touched. Silent flags: `--uninstall --silent [--delete-data]`.
+
 **Playback**
 - Plays video, audio, images and animated GIFs in one window (libmpv + FFmpeg, no codec packs).
 - Speed 0.25×–4× with pitch correction, frame step, resume position per file, subtitle and audio-track menus, subtitle delay and size.

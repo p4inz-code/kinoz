@@ -216,7 +216,10 @@ const Cmd kCmds[] = {
     {"theme", "Switch theme", "Ctrl+D", Icon::Moon, "dark light"}, {"settings", "Settings", "Ctrl+,", Icon::Settings, "preferences options"},
     {"speedup", "Faster", "]", Icon::Speed, "speed"}, {"speeddown", "Slower", "[", Icon::Speed, "speed"}, {"speedreset", "Normal speed", "Backspace", Icon::Speed, "speed 1x"},
     {"framestep", "Next frame", ".", Icon::Next, "step"}, {"framestepback", "Previous frame", ",", Icon::Prev, "step"}, {"rotate", "Rotate image", "R", Icon::Redo, "turn"},
-    {"zoomreset", "Fit to window", "0", Icon::Search, "zoom reset"}, {"subcycle", "Next subtitle track", "V", Icon::Subtitles, "captions cc"}, {"quit", "Quit", "Ctrl+Q", Icon::Close, "exit close"}};
+#ifdef Q_OS_WIN
+    {"doctor", "Doctor: check and repair kinoz", "", Icon::Settings, "repair fix health uninstall setup"},
+#endif
+    {"zoomreset", "Fit to window", "0", Icon::Search, "zoom reset"},{"subcycle", "Next subtitle track", "V", Icon::Subtitles, "captions cc"}, {"quit", "Quit", "Ctrl+Q", Icon::Close, "exit close"}};
 }
 
 CommandPalette::CommandPalette(PlayerController* ctl, LibraryIndex* idx, QWidget* parent) : QWidget(parent), m_ctl(ctl), m_idx(idx) {

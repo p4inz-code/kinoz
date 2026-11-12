@@ -1,5 +1,6 @@
 #include "core/JsonStore.h"
 #include "core/Paths.h"
+#include "installer/Installer.h"
 #include "ui/MainWindow.h"
 #include "ui/Theme.h"
 
@@ -53,6 +54,7 @@ int main(int argc, char** argv) {
     app.setApplicationName(QStringLiteral(APP_NAME));
     app.setOrganizationName(QStringLiteral("local"));
     app.setQuitOnLastWindowClosed(true);
+    if (Installer::wanted(app.arguments())) return Installer::run(app.arguments());      // our own setup wizard
     Paths::ensure();
 
     QFile log(Paths::logsDir() + QStringLiteral("/app.log"));

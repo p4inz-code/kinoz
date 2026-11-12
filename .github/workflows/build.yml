@@ -57,6 +57,7 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup -y --no-progress
+          .\scripts\make-payload.ps1
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\installer.iss
           $f = Get-ChildItem dist\installer\kinoz-Setup-*.exe | Select-Object -First 1
           (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower() + "  " + $f.Name | Set-Content "$($f.FullName).sha256"

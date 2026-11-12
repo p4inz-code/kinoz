@@ -88,7 +88,7 @@ Pick the file for your system from the [latest release](https://github.com/p4inz
 
 | Your system | Download | Notes |
 |---|---|---|
-| Windows | `kinoz-Setup-<version>.exe` | The installer. Start Menu shortcut, an "Open with" entry for media files, and a non-`C:` install folder by default. Everything kinoz saves stays inside the install folder. |
+| Windows | `kinoz-Setup-<version>.exe` | The installer, drawn by kinoz itself (no stock wizard). Per-user, no administrator rights, non-`C:` folder by default. Right-click "Play with kinoz", "Open with", Start Menu shortcut. Checks every file against a SHA-256 list before copying, rolls back on failure, and has a built-in **Doctor** (check and repair) and a one-switch **Remove kinoz + all my data**. Everything kinoz saves stays inside the install folder. |
 | macOS, Apple Silicon (M1 and newer) | `kinoz-<version>-macos.dmg` | Open it and drag kinoz into Applications. |
 | Linux | `kinoz-<version>-x86_64.AppImage` | `chmod +x` it and run it. |
 
