@@ -95,9 +95,9 @@ void RowList::wheelEvent(QWheelEvent* e) { m_scroll = qBound(0, m_scroll - e->an
 Sheet::Sheet(QWidget* parent) : QWidget(parent) {
     hide();
     setFocusPolicy(Qt::StrongFocus);
-    m_anim.setEasingCurve(QEasingCurve::OutCubic);
+    m_anim.setEasingCurve(Theme::easeMac());
     connect(&m_anim, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) {
-        m_op = v.toReal(); update();
+        m_op = qBound(0.0, v.toReal(), 1.0); update();
         if (m_content) m_content->move(cardRect().topLeft().toPoint());
         if (m_closing && m_op <= 0.001) { hide(); m_closing = false; emit closed(); deleteLater(); }
     });
@@ -106,19 +106,19 @@ void Sheet::setContent(QWidget* w, const QSize& s) { m_content = w; m_size = s; 
 QRectF Sheet::cardRect() const {
     const QSize s(qMin(m_size.width(), width() - 32), qMin(m_size.height(), height() - 32));
     if (m_content && m_content->size() != s) m_content->resize(s);
-    return QRectF((width() - s.width()) / 2.0, (height() - s.height()) / 2.0 + (1.0 - m_op) * 14, s.width(), s.height());
+    return QRectF((width() - s.width()) / 2.0, (height() - s.height()) / 2.0 + (1.0 - m_op) * 22, s.width(), s.height());
 }
 void Sheet::openSheet() {
     setGeometry(parentWidget()->rect());
     raise(); show(); setFocus();
-    m_anim.stop(); m_anim.setDuration(Theme::i().animMs(200)); m_anim.setStartValue(0.0); m_anim.setEndValue(1.0);
+    m_anim.stop(); m_anim.setDuration(Theme::i().animMs(320)); m_anim.setStartValue(0.0); m_anim.setEndValue(1.0);
     if (m_anim.duration() == 0) { m_op = 1; update(); } else m_anim.start();
     if (m_content) m_content->move(cardRect().topLeft().toPoint());
 }
 void Sheet::closeSheet() {
     if (m_closing) return;
     m_closing = true;
-    m_anim.stop(); m_anim.setDuration(Theme::i().animMs(140)); m_anim.setStartValue(m_op); m_anim.setEndValue(0.0);
+    m_anim.stop(); m_anim.setDuration(Theme::i().animMs(200)); m_anim.setStartValue(m_op); m_anim.setEndValue(0.0);
     if (m_anim.duration() == 0) { hide(); m_closing = false; emit closed(); deleteLater(); } else m_anim.start();
 }
 void Sheet::paintEvent(QPaintEvent*) {
@@ -343,7 +343,7 @@ SidePanel::SidePanel(PlayerController* ctl, JsonStore* set, QWidget* parent) : Q
     connect(m_close, &QAbstractButton::clicked, this, [this] { slideOut(); emit closedByUser(); });
     m_eqTimer = new QTimer(this); m_eqTimer->setSingleShot(true); m_eqTimer->setInterval(120);
     connect(m_eqTimer, &QTimer::timeout, this, [this] { m_ctl->applyEq(); });
-    m_anim.setEasingCurve(QEasingCurve::OutCubic);
+    m_anim.setEasingCurve(Theme::easeMac());
     connect(&m_anim, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) { m_x = v.toReal(); move(parentWidget()->width() - int(kWidth * (1.0 - m_x)), 0); if (m_x >= 0.999 && !m_open) hide(); });
     build();
 }

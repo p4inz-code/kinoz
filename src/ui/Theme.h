@@ -1,7 +1,9 @@
 #pragma once
 #include <QColor>
+#include <QEasingCurve>
 #include <QFont>
 #include <QObject>
+#include <QPointF>
 
 struct Palette {
     QColor bg, surface, sunken, raised, border, borderStrong;
@@ -41,6 +43,10 @@ public:
     qreal radius() const { return 8; }
     int rowH() const { return m_compact ? 28 : 34; }
     int animMs(int ms) const { return m_reduceMotion ? 0 : ms; }
+    // Motion curves. easeMac is Apple's standard "fast in, long soft landing" curve (cubic-bezier .32,.72,0,1);
+    // easeSpring overshoots slightly and settles, for toggles and small controls.
+    static QEasingCurve easeMac() { QEasingCurve c(QEasingCurve::BezierSpline); c.addCubicBezierSegment(QPointF(0.32, 0.72), QPointF(0.0, 1.0), QPointF(1.0, 1.0)); return c; }
+    static QEasingCurve easeSpring() { QEasingCurve c(QEasingCurve::BezierSpline); c.addCubicBezierSegment(QPointF(0.34, 1.45), QPointF(0.64, 1.0), QPointF(1.0, 1.0)); return c; }
 
 signals:
     void changed();

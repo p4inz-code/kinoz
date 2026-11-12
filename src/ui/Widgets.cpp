@@ -8,6 +8,13 @@
 #include <QScreen>
 #include <QTimer>
 #include <QWheelEvent>
+#include <cmath>
+
+// Buttons shrink a touch while held, like a physical key (no timer: it follows the pointer press exactly).
+static void pressScale(QPainter& p, const QRectF& r, bool down, qreal s = 0.95) {
+    if (!down) return;
+    p.translate(r.center()); p.scale(s, s); p.translate(-r.center());
+}
 
 static QColor withA(QColor c, qreal a) { c.setAlphaF(a); return c; }
 
@@ -38,6 +45,7 @@ void IconButton::paintEvent(QPaintEvent*) {
     QColor fg = (m_active || isChecked()) ? (m_overlay ? c.overlayAccent : c.accent) : base;
     if (!isEnabled()) fg.setAlphaF(0.35);
     const QRectF r = QRectF(rect()).adjusted(1, 1, -1, -1);
+    pressScale(p, r, isDown() && Theme::i().animMs(1) > 0, 0.92);
     QColor bg = m_overlay ? QColor(255, 255, 255) : c.text;
     if (isDown()) bg.setAlphaF(0.18); else bg.setAlphaF(0.10 * m_hover);
     p.setPen(Qt::NoPen);
@@ -64,6 +72,7 @@ void TextButton::paintEvent(QPaintEvent*) {
     p.setRenderHint(QPainter::Antialiasing);
     const auto& c = pal();
     const QRectF r = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+    pressScale(p, r, isDown() && Theme::i().animMs(1) > 0, 0.97);
     QColor fg = c.text, bg = Qt::transparent;
     if (m_primary) { bg = m_danger ? c.danger : c.accent; fg = c.onAccent; if (m_hot || isDown()) bg = bg.lighter(m_hot ? 112 : 95); }
     else { bg = m_hot ? c.surface : Qt::transparent; if (isDown()) bg = c.sunken; if (m_danger) fg = c.danger; }
@@ -127,10 +136,11 @@ Switch::Switch(QWidget* parent) : QAbstractButton(parent) {
     setCheckable(true);
     setCursor(Qt::PointingHandCursor);
     setFixedSize(38, 22);
-    m_anim.setDuration(Theme::i().animMs(140));
+    m_anim.setEasingCurve(Theme::easeSpring());              // the knob overshoots a hair and settles
+    m_anim.setDuration(Theme::i().animMs(260));
     connect(&m_anim, &QVariantAnimation::valueChanged, this, qOverload<>(&QWidget::update));
     connect(this, &QAbstractButton::toggled, this, [this](bool on) {
-        m_anim.stop(); m_anim.setDuration(Theme::i().animMs(140));
+        m_anim.stop(); m_anim.setDuration(Theme::i().animMs(260));
         if (m_anim.duration() == 0) { update(); return; }
         m_anim.setStartValue(on ? 0.0 : 1.0); m_anim.setEndValue(on ? 1.0 : 0.0); m_anim.start();
     });
@@ -139,18 +149,42 @@ void Switch::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
     const auto& c = pal();
-    const qreal t = m_anim.state() == QAbstractAnimation::Running ? m_anim.currentValue().toReal() : (isChecked() ? 1.0 : 0.0);
-    QColor bg = QColor::fromRgbF(c.border.redF() + (c.accent.redF() - c.border.redF()) * t, c.border.greenF() + (c.accent.greenF() - c.border.greenF()) * t, c.border.blueF() + (c.accent.blueF() - c.border.blueF()) * t);
+    const bool running = m_anim.state() == QAbstractAnimation::Running;  // (Switch)
+    const qreal t = running ? m_anim.currentValue().toReal() : (isChecked() ? 1.0 : 0.0);     // may overshoot 1 for the knob
+    const qreal tc = qBound(0.0, t, 1.0);
+    QColor bg = QColor::fromRgbF(c.border.redF() + (c.accent.redF() - c.border.redF()) * tc, c.border.greenF() + (c.accent.greenF() - c.border.greenF()) * tc, c.border.blueF() + (c.accent.blueF() - c.border.blueF()) * tc);
     p.setPen(Qt::NoPen); p.setBrush(bg);
     p.drawRoundedRect(rect().adjusted(1, 1, -1, -1), 10, 10);
-    p.setBrush(t > 0.5 ? c.onAccent : c.raised);
-    p.drawEllipse(QPointF(11 + 16 * t, 11), 7.5, 7.5);
+    p.setBrush(tc > 0.5 ? c.onAccent : c.raised);
+    const qreal stretch = running ? 2.5 * std::sin(qBound(0.0, tc, 1.0) * 3.14159265) : (isDown() ? 2.5 : 0.0);   // the knob stretches while it travels, like on macOS
+    const qreal cx = 11 + 16 * t;
+    p.drawRoundedRect(QRectF(cx - 7.5 - stretch / 2, 3.5, 15 + stretch, 15), 7.5, 7.5);
 }
 
 // ================= Segmented =================
 Segmented::Segmented(const QStringList& labels, QWidget* parent) : QWidget(parent), m_labels(labels) {
     setCursor(Qt::PointingHandCursor);
+    m_slide.setStartValue(0.0); m_slide.setEndValue(1.0); m_slide.setEasingCurve(Theme::easeMac());
+    connect(&m_slide, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) { m_t = v.toReal(); update(); });
     connect(&Theme::i(), &Theme::changed, this, qOverload<>(&QWidget::update));
+    m_fromR = segRect(0);
+}
+QRectF Segmented::segRect(int i) const {
+    QFontMetrics fm(Theme::i().font(13, QFont::Medium));
+    qreal x = 4;
+    for (int k = 0; k < m_labels.size(); ++k) {
+        const qreal w = fm.horizontalAdvance(m_labels[k]) + 26;
+        if (k == i) return QRectF(x, 3, w, height() - 6);
+        x += w;
+    }
+    return {};
+}
+void Segmented::slideTo(int i) {
+    const QRectF cur = m_slide.state() == QAbstractAnimation::Running ? QRectF(m_fromR.left() + (segRect(m_cur).left() - m_fromR.left()) * m_t, 3, m_fromR.width() + (segRect(m_cur).width() - m_fromR.width()) * m_t, height() - 6) : segRect(m_cur);
+    m_fromR = cur;
+    m_cur = i; m_t = 0.0;
+    m_slide.stop(); m_slide.setDuration(Theme::i().animMs(320));
+    if (m_slide.duration() == 0) { m_t = 1.0; m_fromR = segRect(i); update(); } else m_slide.start();
 }
 QSize Segmented::sizeHint() const {
     QFontMetrics fm(Theme::i().font(13, QFont::Medium));
@@ -167,10 +201,15 @@ void Segmented::paintEvent(QPaintEvent*) {
     p.setFont(Theme::i().font(13, QFont::Medium));
     QFontMetrics fm(p.font());
     qreal x = 4;
+    {   // the selection pill, mid-glide when the choice just changed
+        const QRectF to = segRect(m_cur);
+        const qreal t = qBound(0.0, m_t, 1.2);
+        const QRectF pill(m_fromR.left() + (to.left() - m_fromR.left()) * t, 3, m_fromR.width() + (to.width() - m_fromR.width()) * t, height() - 6);
+        p.setBrush(c.raised); p.setPen(QPen(c.border, 1)); p.drawRoundedRect(pill, 6, 6);
+    }
     for (int i = 0; i < m_labels.size(); ++i) {
         const qreal w = fm.horizontalAdvance(m_labels[i]) + 26;
         const QRectF r(x, 3, w, height() - 6);
-        if (i == m_cur) { p.setBrush(c.raised); p.setPen(QPen(c.border, 1)); p.drawRoundedRect(r, 6, 6); }
         p.setPen(i == m_cur ? c.text : c.muted);
         p.drawText(r, Qt::AlignCenter, m_labels[i]);
         x += w;
@@ -181,7 +220,7 @@ void Segmented::mousePressEvent(QMouseEvent* e) {
     qreal x = 4;
     for (int i = 0; i < m_labels.size(); ++i) {
         const qreal w = fm.horizontalAdvance(m_labels[i]) + 26;
-        if (e->position().x() >= x && e->position().x() < x + w) { if (i != m_cur) { m_cur = i; update(); emit currentChanged(i); } return; }
+        if (e->position().x() >= x && e->position().x() < x + w) { if (i != m_cur) { slideTo(i); emit currentChanged(i); } return; }
         x += w;
     }
 }
@@ -242,11 +281,11 @@ void PopupMenu::popup(const QPoint& g) {
     pos.setX(qMax(avail.left(), pos.x())); pos.setY(qMax(avail.top(), pos.y()));
     move(pos);
     // macOS-style appearance: a soft fade with a small rise (skipped when animations are off)
-    const int ms = Theme::i().animMs(130);
+    const int ms = Theme::i().animMs(190);
     if (ms > 0) {
         setWindowOpacity(0.0);
         auto* a = new QVariantAnimation(this);
-        a->setDuration(ms); a->setStartValue(0.0); a->setEndValue(1.0); a->setEasingCurve(QEasingCurve::OutCubic);
+        a->setDuration(ms); a->setStartValue(0.0); a->setEndValue(1.0); a->setEasingCurve(Theme::easeMac());
         connect(a, &QVariantAnimation::valueChanged, this, [this, pos](const QVariant& v) { const qreal t = v.toReal(); setWindowOpacity(t); move(pos + QPoint(0, int((1.0 - t) * 8))); });
         connect(a, &QVariantAnimation::finished, a, &QObject::deleteLater);
         show();

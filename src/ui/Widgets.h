@@ -87,7 +87,7 @@ class Segmented : public QWidget {
     Q_OBJECT
 public:
     explicit Segmented(const QStringList& labels, QWidget* parent = nullptr);
-    void setCurrent(int i) { m_cur = i; update(); }
+    void setCurrent(int i) { if (i == m_cur) return; m_cur = i; m_t = 1.0; m_slide.stop(); m_fromR = segRect(i); update(); }
     int current() const { return m_cur; }
     QSize sizeHint() const override;
 signals:
@@ -96,8 +96,13 @@ protected:
     void paintEvent(QPaintEvent*) override;
     void mousePressEvent(QMouseEvent*) override;
 private:
+    QRectF segRect(int i) const;
+    void slideTo(int i);
     QStringList m_labels;
     int m_cur = 0;
+    QVariantAnimation m_slide;       // the selection pill glides to the new option
+    QRectF m_fromR;
+    qreal m_t = 1.0;
 };
 
 // ---- Thin, themed scroll bar ----

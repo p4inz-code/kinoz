@@ -96,7 +96,7 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
     m_sidebarOpen = m_set->flag("sidebarOpen", true);
     m_sidebarW = qBound(260, int(m_set->num("sidebarW", 320)), 480);
     m_sideT = m_sidebarOpen ? 1.0 : 0.0;
-    m_sideAnim.setEasingCurve(QEasingCurve::OutCubic);
+    m_sideAnim.setEasingCurve(Theme::easeMac());
     connect(&m_sideAnim, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) { m_sideT = v.toReal(); layoutAll(); });
 
     // geometry: restore, clamp onto a real screen
@@ -757,7 +757,7 @@ void MainWindow::setSidebarOpen(bool open, bool animate) {
     m_sidebarOpen = open;
     m_set->set("sidebarOpen", open);
     m_sideAnim.stop();
-    m_sideAnim.setDuration(Theme::i().animMs(240));
+    m_sideAnim.setDuration(Theme::i().animMs(320));
     if (animate && m_sideAnim.duration() > 0 && !m_full && !m_mini) {
         m_sideAnim.setStartValue(m_sideT); m_sideAnim.setEndValue(open ? 1.0 : 0.0); m_sideAnim.start();
     } else { m_sideT = open ? 1.0 : 0.0; layoutAll(); }

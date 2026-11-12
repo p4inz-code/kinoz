@@ -15,6 +15,9 @@ First version. Windows build is the one that has been run and tested; the macOS 
 - Settings → Default player, the palette command "Make kinoz my default player", and a button on setup's last page. On Windows kinoz is registered under Settings → Default apps and its page opens there; Linux uses `xdg-mime`; macOS shows the Get Info steps.
 - `` ` `` (backtick) toggles the library sidebar, as well as `Tab`.
 
+**Motion**
+- Apple's standard easing curve on sheets, menus, the sidebar and the side panel (longer, softer landings); switches use a springy knob that stretches as it travels; segmented controls glide their selection pill; buttons shrink slightly while pressed. All of it is off with Animations → Off.
+
 **Fixes**
 - Closing kinoz no longer ends with a crash inside libmpv (the video widget is now freed before the player core).
 - Setup only ever removes what it installed: files listed in its manifest (plus `data` if you chose to delete data). A folder without kinoz's file list is refused, and unrelated files in a shared folder are left alone.
