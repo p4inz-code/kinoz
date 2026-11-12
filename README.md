@@ -20,28 +20,23 @@
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
-You have films in one folder, music in another, a pile of GIFs and screenshots somewhere else, and the player that opens them is slow, forgets where you stopped and makes you hunt through a file dialog. kinoz is one window for all of it.
+kinoz is a media player for what's already on your computer: films in one folder, music in another, GIFs and screenshots somewhere else. It plays all of it in one window, so you don't need a video player, a music app and an image viewer.
 
-- **Plays almost anything** with no codec packs: video, music, images and GIFs, in one window (libmpv + FFmpeg).
-- **Fast when you click fast.** Click through a folder or hammer Next and only the last file opens. About 0.3 s from click to picture.
-- **Skim and clean up.** `Y` keep, `N` reject, `U` next unseen, `Delete` to the Recycle Bin, watched marks on every file.
-- **Music too.** Artists, albums, songs, saved playlists, and the now-playing card on Windows.
-- **Looks the same everywhere.** Custom interface, light and dark, a real animations-off switch. No OS title bar, menus or dialogs.
-- **Free, offline, no account, no telemetry.** GPLv3, with credit kept.
+It plays almost anything without codec packs, because the engine underneath is libmpv and FFmpeg. The interface is drawn by kinoz itself, so there's no OS title bar, no OS menus and no OS dialogs, and it looks the same on Windows, macOS and Linux. There's a light and a dark theme, and a switch that turns every animation off. No account, no cloud, no telemetry.
+
+The thing I care about most is speed when you click around. Click through a folder or hammer Next and only the last file opens. In the benchmark, 150 rapid clicks opened 2 files and the interface never froze for more than 25 ms. A file shows its picture about 0.3 seconds after you click it.
 
 ## Get kinoz
 
-| Your system | Download | Install |
-|---|---|---|
-| **Windows 11** (10 should work) | [`kinoz-Setup-<version>.exe`](https://github.com/p4inz-code/kinoz/releases/latest) | Run it. Per-user, no administrator rights, installs outside `C:` by default. |
-| **macOS** (Apple Silicon) | [`kinoz-<version>-macos.dmg`](https://github.com/p4inz-code/kinoz/releases/latest) | Open it, drag kinoz to Applications. |
-| **Linux** (x86-64) | [`kinoz-<version>-x86_64.AppImage`](https://github.com/p4inz-code/kinoz/releases/latest) | `chmod +x` it and run it. |
+Take the file for your system from the [latest release](https://github.com/p4inz-code/kinoz/releases/latest). Each one has a `.sha256` file next to it.
 
-Every file has a `.sha256` next to it. [Updates and uninstalling](#updates-and-uninstall) are one click, and [making kinoz your default player](#make-kinoz-your-default-player) is one button.
+- Windows 11 (10 should work): `kinoz-Setup-<version>.exe`. Run it. It installs for your user only, needs no administrator rights, and picks a drive other than `C:` by default.
+- macOS on Apple Silicon: `kinoz-<version>-macos.dmg`. Open it and drag kinoz to Applications.
+- Linux on x86-64: `kinoz-<version>-x86_64.AppImage`. Run `chmod +x` on it, then run it.
 
-> **Status: 0.2, usable every day on Windows.** Windows is tested hardest (an automated self-test of 94 checks and a speed benchmark). The macOS and Linux builds come from CI and have **not** been run on real machines yet, so expect rough edges there. The honest list of what is missing is in [Known issues](docs/KNOWN_ISSUES.md) and the [roadmap](ROADMAP.md).
+> **Status: 0.2, usable every day on Windows.** Windows is the one I test hardest, with an automated self-test of 94 checks and a speed benchmark. The macOS and Linux builds come from CI and have not been run on real machines yet, so expect rough edges there. What's missing is listed honestly in [Known issues](docs/KNOWN_ISSUES.md) and the [roadmap](ROADMAP.md).
 >
-> **On macOS or Linux?** You are the testers. [Open an issue](https://github.com/p4inz-code/kinoz/issues/new/choose) and say what worked and what did not: moving and resizing the window, fullscreen, media keys, opening your files.
+> If you're on macOS or Linux, you're the testers. [Open an issue](https://github.com/p4inz-code/kinoz/issues/new/choose) and tell me what worked and what didn't: moving and resizing the window, fullscreen, media keys, opening your files.
 
 <table>
 <tr>
@@ -50,7 +45,7 @@ Every file has a `.sha256` next to it. [Updates and uninstalling](#updates-and-u
 <img src="assets/screenshots/home-dark.png" alt="kinoz in the dark theme with the library sidebar and a video playing" width="100%">
 </td>
 <td width="50%" align="center">
-<sub>Skim fast: keep, reject, watched progress</sub><br><br>
+<sub>Keep and reject marks, watched progress</sub><br><br>
 <img src="assets/screenshots/library-marks-light.png" alt="Library with a keep mark, a reject mark, watched-progress bars and unseen dots" width="100%">
 </td>
 </tr>
@@ -77,12 +72,12 @@ Every file has a `.sha256` next to it. [Updates and uninstalling](#updates-and-u
 
 <p align="center">
   <img src="assets/screenshots/queue-light.png" alt="The queue with the save-as-playlist button" width="720">
-  <br><sub>The queue: drag to reorder, save it as a playlist, clear it.</sub>
+  <br><sub>The queue. Drag to reorder, save it as a playlist, or clear it.</sub>
 </p>
 
 <p align="center">
   <img src="assets/screenshots/setup-maintenance-light.png" alt="kinoz setup: Update, Repair, Remove" width="720">
-  <br><sub>The Windows setup is drawn by kinoz itself: Install, Update, Repair (the Doctor), and Remove with an optional delete-all-my-data switch.</sub>
+  <br><sub>The Windows setup is drawn by kinoz itself. It can install, update, repair (the Doctor) and remove, with an optional switch to delete all your data.</sub>
 </p>
 
 <p align="center">
@@ -97,12 +92,12 @@ Every file has a `.sha256` next to it. [Updates and uninstalling](#updates-and-u
 
 <p align="center">
   <img src="assets/screenshots/settings-light.png" alt="Settings, General: theme, accent colour, animations, glass effect, density" width="720">
-  <br><sub>Settings: theme, six accent colours, animations on or off, glass effect, density.</sub>
+  <br><sub>Settings, General: theme, six accent colours, animations on or off, glass effect, density.</sub>
 </p>
 
 <p align="center">
   <img src="assets/screenshots/settings-playback-light.png" alt="Settings, Playback: resume, autoplay, starting speed, seek steps, slideshow" width="720">
-  <br><sub>Playback: resume, autoplay, starting speed, seek steps, volume step, controls auto-hide, slideshow.</sub>
+  <br><sub>Settings, Playback: resume, autoplay, starting speed, seek steps, volume step, controls auto-hide, slideshow.</sub>
 </p>
 
 <p align="center">
@@ -112,15 +107,15 @@ Every file has a `.sha256` next to it. [Updates and uninstalling](#updates-and-u
 
 <p align="center">
   <img src="assets/screenshots/about-light.png" alt="About: version, license, credit, updates" width="720">
-  <br><sub>About keeps the version, license, credit and update check in one place.</sub>
+  <br><sub>About holds the version, license, credit and update settings.</sub>
 </p>
 
 </details>
 
 <p align="center">
   <a href="#get-kinoz">Download</a> &nbsp;|&nbsp;
-  <a href="#a-one-minute-tour">Tour</a> &nbsp;|&nbsp;
-  <a href="#make-kinoz-your-default-player">Default player</a> &nbsp;|&nbsp;
+  <a href="#a-short-tour">Tour</a> &nbsp;|&nbsp;
+  <a href="#making-kinoz-your-default-player">Default player</a> &nbsp;|&nbsp;
   <a href="#compared-with-the-default-apps">Compared with the defaults</a> &nbsp;|&nbsp;
   <a href="#what-you-get">What you get</a> &nbsp;|&nbsp;
   <a href="#keyboard-shortcuts">Shortcuts</a> &nbsp;|&nbsp;
@@ -131,114 +126,81 @@ Every file has a `.sha256` next to it. [Updates and uninstalling](#updates-and-u
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
-## A one-minute tour
+## A short tour
 
-1. **Add a folder.** Click the **+** in the sidebar and pick where your media lives. Thumbnails appear.
-2. **Play and skim.** Click a file. Click through the list fast; only the last one opens. Hover the seek bar for an instant frame preview.
-3. **Decide.** `Y` keeps a file, `N` marks it to reject, `U` jumps to the next one you have not seen. `Delete` moves the current file to the Recycle Bin (it asks first), and `Ctrl+K` then "Delete all rejected files" clears the pile.
-4. **Find anything.** `Ctrl+K` searches every file under your folders and every command.
-5. **Music.** The **Music** tab shows artists, albums and songs read from your files' tags. Save the queue as a playlist from the **Queue** tab.
-6. **Make it yours.** `Ctrl+D` flips light and dark. **Settings, Animations, Off** stops all motion. **Settings, General, Default player** makes kinoz open your files.
+Press the **+** in the sidebar and pick the folder where your media lives. Thumbnails appear. Click a file to play it, and click through the list as fast as you like. Hover the seek bar to see the frame you're about to jump to.
 
-## Why people switch
+When you're sorting through a folder, `Y` keeps a file, `N` marks it to reject, and `U` jumps to the next one you haven't seen. `Delete` moves the current file to the Recycle Bin, and it asks first. Once you've marked a pile, `Ctrl+K` and "Delete all rejected files" clears it.
 
-1. **One player for everything.** Video, audio, images and GIFs share a window, and the stage adapts: letterboxed video, a cover-art card for music, a zoom-and-pan viewer for pictures, a looping player for GIFs.
-2. **Built for people who click fast.** In the benchmark 150 rapid clicks opened 2 files and the interface never froze for more than 25 ms. The next file is pre-read, the seek-bar preview never waits, and memory stays around 255 MB. `kinoz --bench <video>` reproduces the numbers on your machine.
-3. **Real glass, and an off switch for everything.** The control bar blurs the video behind it, live on the GPU. Prefer it flat, or nothing moving at all? One switch each.
-4. **Your library, one keystroke away.** Folders in a sidebar, list or grid, filter, search, a drag-reorderable queue, and resume from where you stopped.
-5. **Tools you reach for.** Annotate any frame or image and export a full-resolution PNG. A-B loop, sleep timer, aspect ratio, audio and subtitle sync, a 10-band equalizer, picture adjust, speed 0.25x to 4x with pitch correction.
-6. **Honest and safe.** No account, no telemetry; the only network request is the optional update check. It never runs as administrator, and deleting always asks and goes to the Recycle Bin.
+`Ctrl+K` also searches every file under your folders and every command. The **Music** tab shows artists, albums and songs read from your files' tags, and the **Queue** tab can save what's playing as a playlist. `Ctrl+D` flips between light and dark, **Settings → Animations → Off** stops all motion, and **Settings → General → Default player** makes kinoz open your files.
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
-## Make kinoz your default player
+## Making kinoz your default player
 
-No program may silently take over your file types, and kinoz doesn't try. It does the part that is allowed and makes the rest one click:
+No program can quietly take over your file types, and kinoz doesn't try. It does the part that's allowed and makes the rest one click.
 
-| System | How |
-|---|---|
-| **Windows** | **Settings → General → Default player → Make default** (or `Ctrl+K`, "Make kinoz my default player"). kinoz registers itself and opens its page in Windows **Settings → Apps → Default apps**, where you pick it for video, music and pictures. The installer's last page has the same button. |
-| **macOS** | Select a video in Finder, press `Cmd+I`, set **Open with** to kinoz, then click **Change All**. |
-| **Linux** | The same menu entry runs `xdg-mime` for the common video, audio and image types. |
+On Windows, go to **Settings → General → Default player → Make default**, or press `Ctrl+K` and choose "Make kinoz my default player". kinoz registers itself and opens its page in Windows **Settings → Apps → Default apps**, where you pick it for video, music and pictures. The last page of the installer has the same button. On macOS, select a video in Finder, press `Cmd+I`, set **Open with** to kinoz and click **Change All**. On Linux, the same menu entry runs `xdg-mime` for the common video, audio and image types.
 
-Right-click entries ("Play with kinoz", "Open folder in kinoz") and the "Open with" list are added by the Windows setup. To undo any of it, **Settings → General → Uninstall…** removes kinoz, its entries and, if you choose, all of its data.
+The Windows setup also adds "Play with kinoz" and "Open folder in kinoz" to the right-click menu, and kinoz to the "Open with" list. **Settings → General → Uninstall…** removes all of it.
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
 ## Compared with the default apps
 
-Every system ships players for video, music and pictures. They are fine at the basics and good at what the vendor sells (stores, cloud libraries, casting). kinoz is for the rest: your own files, played well, with one app and one look everywhere. This compares kinoz with the apps you get out of the box. They change between versions and distributions, so treat it as a guide, and [corrections are welcome](https://github.com/p4inz-code/kinoz/issues/new/choose).
+Every system ships players for video, music and pictures. They're fine for the basics and strong at what the vendor sells: stores, cloud libraries, casting. kinoz is for your own files, played well, in one app that looks the same everywhere. These apps change between versions and distributions, so read this as a guide. [Corrections are welcome](https://github.com/p4inz-code/kinoz/issues/new/choose).
 
 ### Windows 11
 
-| Default app | What it is for | Where kinoz differs |
-|---|---|---|
-| **Media Player** (replaced Groove Music) | Music library, playlists, and video in one app | Plays almost any file with no extra codec downloads; skim tools for folders of videos (keep, reject, next unseen); frame preview on the seek bar; per-file resume; one window for video, music, images and GIFs; no Microsoft account |
-| **Movies & TV** | Video playback and the Microsoft store | Local files only, so no store or DRM video; plays MKV, AVI, WebM, FLAC and similar directly; equalizer, picture adjust, A-B loop, frame step, annotate any frame |
-| **Photos** | Pictures, albums, cloud sync | Opens images and GIFs next to your videos with zoom, pan and a slideshow; no cloud sync and no photo editing |
-| **Snipping Tool** (frame grabs) | Screenshots | Save any video frame at full resolution, or draw on it first, from the player itself |
+Media Player replaced Groove Music and covers your music library, playlists and video. kinoz plays almost any file without extra codec downloads, adds the skim tools (keep, reject, next unseen), shows a frame preview on the seek bar, remembers where you stopped in each file, and needs no Microsoft account.
 
-**The Windows apps do better at:** syncing with a Microsoft account, store purchases and DRM streaming, casting, and CD ripping and burning.
+Movies & TV is video playback plus the Microsoft store. kinoz plays local files only, so there's no store or DRM video, but it opens MKV, AVI, WebM, FLAC and similar files directly and adds an equalizer, picture adjust, A-B loop, frame step and frame annotation.
+
+Photos handles pictures, albums and cloud sync. kinoz opens images and GIFs next to your videos with zoom, pan and a slideshow. It has no cloud sync and no photo editing. For grabbing a frame you might use Snipping Tool; kinoz saves any video frame at full resolution, or lets you draw on it first.
+
+The Windows apps do better at syncing with a Microsoft account, store purchases and DRM streaming, casting, and CD ripping and burning.
 
 ### macOS
 
-| Default app | What it is for | Where kinoz differs |
-|---|---|---|
-| **QuickTime Player** | Playing and simple recording of video and audio | Plays formats QuickTime does not open (for example many MKV and AVI files) with no converter; a real library sidebar and queue instead of one file at a time; playlists; speed with pitch correction; equalizer |
-| **Music** | Your Apple Music and iTunes library, local files, playlists | Works straight from your folders with no library import and no Apple account; artists, albums and songs read from the files' tags; the same app plays your videos |
-| **Preview / Photos** | Images, PDFs, your photo library | Browse a folder of pictures and GIFs with the arrow keys, zoom, rotate, slideshow, next to your videos |
+QuickTime Player plays and does simple recording of video and audio. kinoz opens formats QuickTime doesn't, for example many MKV and AVI files, with no converter. It has a library sidebar and a queue instead of one file at a time, plus playlists, speed with pitch correction and an equalizer.
 
-**The Mac apps do better at:** AirPlay and iCloud, Apple Music streaming, deep system integration, and the Photos library. kinoz's Now Playing integration on macOS is not done yet.
+Music is built around your Apple Music and iTunes library, and it handles local files and playlists too. kinoz works straight from your folders with no library import and no Apple account, reads artists, albums and songs from the files' tags, and plays your videos in the same app.
+
+Preview and Photos handle images, PDFs and your photo library. kinoz browses a folder of pictures and GIFs with the arrow keys, with zoom, rotate and a slideshow, next to your videos.
+
+The Mac apps do better at AirPlay and iCloud, Apple Music streaming, deep system integration and the Photos library. kinoz's Now Playing integration on macOS isn't done yet.
 
 ### Linux (GNOME, KDE and others)
 
-| Default app | What it is for | Where kinoz differs |
-|---|---|---|
-| **GNOME Videos / Showtime, KDE Dragon Player** | Simple video playback | A library sidebar, queue, resume, skim tools, picture adjust, equalizer and annotate; the same window plays music and images; consistent look on any desktop |
-| **Rhythmbox, Elisa** | Music libraries | Artists, albums, songs and playlists from your folders, in the same app as your videos; saved playlists are plain `.m3u8` files |
-| **Image viewers** (Eye of GNOME, Gwenview) | Pictures | Pictures and GIFs open in the same window as video and music |
+GNOME Videos (Showtime) and KDE's Dragon Player do simple video playback. kinoz adds a library sidebar, a queue, resume, skim tools, picture adjust, an equalizer and annotation, plays music and images in the same window, and looks the same on any desktop.
 
-**The Linux apps do better at:** following your desktop theme exactly, MPRIS and desktop integration (kinoz's MPRIS support is not done yet), and being packaged by your distribution.
+Rhythmbox and Elisa are music libraries. kinoz gives you artists, albums, songs and playlists from your folders in the same app as your videos, and saved playlists are plain `.m3u8` files.
 
-### Across all three
+Image viewers such as Eye of GNOME and Gwenview only show pictures. In kinoz, pictures and GIFs open in the same window as video and music.
 
-| | The built-in apps | kinoz |
-|---|---|---|
-| Formats | Common files; some need extensions, converters or store downloads | Almost anything out of the box (libmpv and FFmpeg) |
-| Clicking through many files | Fine one at a time | Only the last click opens; the next file is pre-read; instant hover preview; measured 0.3 s to a picture |
-| Cleaning up a folder | Open each file, delete by hand | `Y` keep, `N` reject, `U` next unseen, `Delete` to the Recycle Bin, watched marks |
-| Look | Follows the system | One look on every system, light and dark, and a real animations-off switch |
-| Cost, ads, accounts | Tied to the OS and its services | Free, GPLv3, no account, no telemetry |
-| Your data | Library and history often live in a system or cloud service | Plain files in kinoz's own folder |
-| Updates | With the OS | Its own: download in the background, then restart now or later, or switch it off |
+The Linux apps do better at following your desktop theme exactly, at MPRIS and other desktop integration (kinoz's MPRIS support isn't done yet), and at being packaged by your distribution.
 
-**Not in kinoz, and not planned:** casting to TVs and speakers, CD and DVD features, streaming-service integration, cloud sync.
+### What stays the same on all three
+
+The built-in apps are fine with common files, but some formats need extensions, converters or store downloads. kinoz plays almost anything out of the box. Their libraries and history often live in a system or cloud service, while kinoz keeps plain files in its own folder. They update with the OS, and kinoz updates itself: it downloads in the background, then asks whether to restart now or later, and you can switch that off. And it's free, GPLv3, with no account and no telemetry.
+
+kinoz doesn't do casting to TVs and speakers, CD and DVD features, streaming-service integration or cloud sync, and none of those are planned.
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
 ## What you get
 
-| | |
-|---|---|
-| Every kind of media | MKV, MP4, AVI, WebM, HEVC, FLAC, MP3, JPG, PNG, WebP, GIF and many more, with SRT and ASS subtitles. No codec packs. |
-| A library that stays out of the way | Folders, thumbnails (cached on disk), list or grid, type filter, search, sort, queue, resume position per file, recent items. |
-| Fast skimming | Click through files or spam Next and only the last one opens (measured: 150 clicks, 2 files opened, UI never frozen more than 25 ms). Keep or reject files with `Y` / `N`, jump with `1`-`9`, see what you have already watched, and delete rejects to the Recycle Bin in one go. |
-| Music library | Artists, Albums, Songs and Playlists, read from your folders' tags once and cached. Saved playlists are plain `.m3u8` files; `.m3u`, `.m3u8` and `.pls` open as a queue. |
-| Windows media overlay | The now-playing card in the volume flyout and on the lock screen, with play, pause, next, previous and seeking. |
-| Default player | One button in Settings (and `Ctrl+K`) registers kinoz with Windows and opens its Default apps page. |
-| Setup that looks after itself | A setup window drawn by kinoz: verifies its files, rolls back on failure, repairs with the Doctor, removes everything (optionally your data too) in one switch. Safe mode starts automatically after two abnormal exits. |
-| `Ctrl+K` command palette | Find any file or command from the keyboard. |
-| Seek-bar frame preview | Hover the timeline to see the frame you are about to jump to; it is served from a background-built strip, so it never waits. |
-| Playback tools | Speed with pitch correction, frame step, A-B loop, sleep timer, aspect ratio, audio and subtitle delay, track menus. |
-| Sound | 10-band equalizer with presets, loudness normalizer, output-device picker. |
-| Picture | Brightness, contrast, saturation, gamma and hue, live. |
-| Images and GIFs | Zoom, pan, rotate, browse a folder with the arrow keys, optional slideshow. |
-| Annotation | Draw on a paused frame or an image, export a full-resolution PNG or copy it. |
-| Windows and modes | Fullscreen, a mini always-on-top player, several independent windows, "Safe fullscreen" if your display blinks. |
-| Look | Light and dark theme, six accent colours, glass effect, compact density, animations System / On / Off. |
-| Settings that explain themselves | Six tabs: General, Playback, Shortcuts, Info (system, graphics, engine, current file, copy diagnostics), About, Legal. |
-| Resilient | A broken or missing file is skipped with a clear message instead of stopping the queue. Plays local files only, with no external tools or scripts run. |
-| Offline | No account, no telemetry. An optional, SHA-256-verified update check (Automatic / Notify me / Off) is the only network request. |
+kinoz opens MKV, MP4, AVI, WebM, HEVC, FLAC, MP3, JPG, PNG, WebP, GIF and many more, with SRT and ASS subtitles, and no codec packs. The library has your folders in a sidebar, thumbnails cached on disk, list or grid view, a type filter, search, sort, a queue, a resume position for each file and a list of recent items. `Ctrl+K` finds any file or command from the keyboard.
+
+For skimming, click through files or spam Next and only the last one opens. In the benchmark that was 150 clicks, 2 files opened and no freeze longer than 25 ms. The next file is pre-read, the seek-bar preview comes from a strip built in the background so it never waits, and `1` to `9` jump to 10% to 90% of a video. Keep or reject files with `Y` and `N`, see what you've already watched, and delete the rejects to the Recycle Bin in one go.
+
+Music has Artists, Albums, Songs and Playlists, read from your folders' tags once and cached. Saved playlists are plain `.m3u8` files, and `.m3u`, `.m3u8` and `.pls` files open as a queue. On Windows there's a now-playing card in the volume flyout and on the lock screen, with play, pause, next, previous and seeking.
+
+The playback tools are speed with pitch correction, frame step, A-B loop, a sleep timer, aspect ratio, audio and subtitle delay and track menus. For sound there's a 10-band equalizer with presets, a loudness normalizer and an output-device picker. For picture you get brightness, contrast, saturation, gamma and hue, live. Images and GIFs have zoom, pan, rotate, folder browsing with the arrow keys and an optional slideshow. You can draw on a paused frame or an image and export a full-resolution PNG or copy it.
+
+There's fullscreen, a mini always-on-top player, several independent windows, and "Safe fullscreen" if your display blinks. The look has a light and dark theme, six accent colours, a glass effect, compact density, and animations set to System, On or Off. Settings has six tabs: General, Playback, Shortcuts, Info (system, graphics, engine, current file, copy diagnostics), About and Legal.
+
+The setup is drawn by kinoz. It verifies its files, rolls back on failure, repairs with the Doctor, and removes everything (your data too, if you choose) with one switch. If kinoz ends abnormally twice, it starts in safe mode on its own. A broken or missing file is skipped with a clear message instead of stopping the queue, and kinoz only plays local files and runs no external tools or scripts. The only network request is the optional, SHA-256-verified update check.
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
@@ -246,13 +208,11 @@ Every system ships players for video, music and pictures. They are fine at the b
 
 kinoz recognises these in the library and in "Open with". The engine can also play other formats you drop onto it.
 
-| Kind | Extensions |
-|---|---|
-| Video | `mp4` `m4v` `mkv` `avi` `webm` `mov` `wmv` `flv` `ts` `m2ts` `mts` `mpg` `mpeg` `3gp` `ogv` `vob` `divx` `f4v` `asf` `rm` `rmvb` |
-| Audio | `mp3` `flac` `wav` `ogg` `oga` `opus` `m4a` `aac` `wma` `aiff` `aif` `ape` `alac` `mka` `wv` `mpc` `dsf` `ac3` `dts` |
-| Images | `jpg` `jpeg` `png` `bmp` `tif` `tiff` `webp` `ico` `jfif`, and `avif` `heic` `heif` `jxl` where the bundled FFmpeg supports them |
-| Animated | `gif` `apng` |
-| Subtitles | `srt` `ass` `ssa` `vtt` `sub` |
+- Video: `mp4` `m4v` `mkv` `avi` `webm` `mov` `wmv` `flv` `ts` `m2ts` `mts` `mpg` `mpeg` `3gp` `ogv` `vob` `divx` `f4v` `asf` `rm` `rmvb`
+- Audio: `mp3` `flac` `wav` `ogg` `oga` `opus` `m4a` `aac` `wma` `aiff` `aif` `ape` `alac` `mka` `wv` `mpc` `dsf` `ac3` `dts`
+- Images: `jpg` `jpeg` `png` `bmp` `tif` `tiff` `webp` `ico` `jfif`, plus `avif` `heic` `heif` `jxl` where the bundled FFmpeg supports them
+- Animated: `gif` `apng`
+- Subtitles: `srt` `ass` `ssa` `vtt` `sub`
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
@@ -282,46 +242,59 @@ On an image: mouse wheel or `=` / `-` zooms, drag pans, `R` rotates, `0` fits to
 
 ## Updates and uninstall
 
-**Updates (Windows).** About 8 seconds after you start kinoz it checks GitHub, at most once a day. In **Automatic** mode (the default) a new version downloads in the background with a progress bar, is checked against its published SHA-256, and kinoz asks **Restart now / Later**. If you pick Later, it installs by itself the next time you open kinoz. **Settings, About, Updates** switches between **Automatic**, **Notify me** and **Off**, and **Download page** and **Direct download** are always one click away. A failed update reopens the version you had. On macOS and Linux the update button opens the release page.
+About 8 seconds after you start kinoz on Windows, it checks GitHub, at most once a day. In **Automatic** mode, the default, a new version downloads in the background with a progress bar and is checked against its published SHA-256. Then kinoz asks **Restart now / Later**. If you pick Later, it installs by itself the next time you open kinoz, and if the update fails you get the version you had back. **Settings → About → Updates** switches between **Automatic**, **Notify me** and **Off**, and **Download page** and **Direct download** are always one click away. On macOS and Linux, the update button opens the release page.
 
-**Uninstall (Windows)**, any one of these: **Settings, General, Uninstall...**, or `Ctrl+K` and type "uninstall", or Windows **Settings, Apps, Installed apps, kinoz, Uninstall**. Leave **Delete all my data too** on to remove everything (settings, resume points, thumbnails, logs, exported frames); your own media files are never touched. Silent: `kinoz.exe --uninstall --silent --delete-data`. macOS: drag kinoz out of Applications. Linux: delete the AppImage. The Windows setup also has a **Doctor** that checks and repairs an installation: run `kinoz.exe --doctor` or use `Ctrl+K` and "Doctor".
+To uninstall on Windows, use **Settings → General → Uninstall…**, or press `Ctrl+K` and type "uninstall", or go to Windows **Settings → Apps → Installed apps → kinoz → Uninstall**. Leave **Delete all my data too** on to remove everything: settings, resume points, thumbnails, logs and exported frames. Your own media files are never touched. For a silent uninstall run `kinoz.exe --uninstall --silent --delete-data`. On macOS, drag kinoz out of Applications. On Linux, delete the AppImage.
+
+The Windows setup also has a Doctor that checks an installation and repairs it. Run `kinoz.exe --doctor`, or use `Ctrl+K` and "Doctor".
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
 ## FAQ
 
-**Does it send anything about me?** No accounts, no analytics, no crash reports. The only network request kinoz can make is the optional update check to `github.com` (a plain request for the latest release). Turn it off under Settings, About, Updates, Off. Details: [PRIVACY.md](PRIVACY.md).
+### Does it send anything about me?
 
-**Where does it keep my settings?** In a `data` folder inside the install folder, so nothing is spread over `C:`. **Settings, General, Open data folder** opens it. Delete a file there to reset that part.
+No. There are no accounts, no analytics and no crash reports. The only network request kinoz can make is the optional update check to `github.com`, a plain request for the latest release. Turn it off under **Settings → About → Updates → Off**. Details are in [PRIVACY.md](PRIVACY.md).
 
-**Does it change or delete my media?** Never on its own. `Delete` moves the current file to the Recycle Bin and always asks first.
+### Where does it keep my settings?
 
-**Can I use it at work, or in a company?** Yes. It is GPLv3: free for any use. If you share a modified version, keep it GPLv3, keep the credit and give it a different name.
+In a `data` folder inside the install folder, so nothing is spread over `C:`. **Settings → General → Open data folder** opens it, and deleting a file there resets that part.
 
-**Which formats?** Almost anything FFmpeg opens. The common ones are listed [below](#supported-file-types), and you can drop other files onto it.
+### Does it change or delete my media?
 
-**Why does the Windows setup look different?** It is drawn by kinoz itself instead of the stock wizard, with the same look, a built-in Doctor and a one-click full uninstall.
+Never on its own. `Delete` moves the current file to the Recycle Bin and always asks first.
 
-**Can I add my own shortcuts?** Yes, in `keymap.json`. The current ones are listed under Settings, Shortcuts.
+### Can I use it at work?
+
+Yes. It's GPLv3, so it's free for any use. If you share a modified version, keep it GPLv3, keep the credit and give it a different name.
+
+### Which formats does it play?
+
+Almost anything FFmpeg opens. The common ones are listed [above](#supported-file-types), and you can drop other files onto it.
+
+### Why does the Windows setup look different?
+
+It's drawn by kinoz itself instead of the stock wizard. It has the same look as the app, a built-in Doctor and a one-click full uninstall.
+
+### Can I add my own shortcuts?
+
+Yes, in `keymap.json`. The current ones are listed under **Settings → Shortcuts**.
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
 ## Troubleshooting
 
-| Problem | Try |
-|---|---|
-| The screen blinks or goes black going fullscreen | **Settings, General, Safe fullscreen**. |
-| Choppy playback or a graphics glitch | **Settings, General, Video decoding, CPU**, then reopen the file. |
-| kinoz closed unexpectedly twice | It starts in **safe mode** by itself (software decoding, no glass). Change it back in Settings. |
-| A file will not play | Copy the details with **Settings, Info, Copy diagnostics** and [open an issue](https://github.com/p4inz-code/kinoz/issues/new/choose). |
-| Something in the install looks broken | `kinoz.exe --doctor` (Windows) checks files, shortcuts, right-click entries and settings, and fixes what it can. |
-| Start over | Close kinoz and delete the `data` folder next to it, or use Uninstall with "Delete all my data too". |
+If the screen blinks or goes black when you go fullscreen, turn on **Settings → General → Safe fullscreen**. If playback is choppy or you see a graphics glitch, set **Settings → General → Video decoding** to CPU and reopen the file.
+
+If kinoz closes unexpectedly twice in a row, it starts in safe mode by itself, with software decoding and no glass effect. You can change that back in Settings. If a file won't play, copy the details with **Settings → Info → Copy diagnostics** and [open an issue](https://github.com/p4inz-code/kinoz/issues/new/choose).
+
+If something in the install looks broken, `kinoz.exe --doctor` on Windows checks files, shortcuts, right-click entries and settings, and fixes what it can. To start over, close kinoz and delete the `data` folder next to it, or use Uninstall with "Delete all my data too".
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
 ## Privacy
 
-kinoz works fully offline. Settings, resume points, thumbnails and exports are stored in its data folder on your own computer and nothing is sent anywhere. The only network request it can make is the optional update check to `github.com` (a plain request for the latest release, no user data), which you can turn off in Settings → About. Full details: [PRIVACY.md](PRIVACY.md).
+kinoz works fully offline. Settings, resume points, thumbnails and exports are stored in its data folder on your own computer, and nothing is sent anywhere. The only network request it can make is the optional update check to `github.com`, a plain request for the latest release with no user data, which you can turn off in **Settings → About**. Full details: [PRIVACY.md](PRIVACY.md).
 
 ## Build from source
 
@@ -338,7 +311,7 @@ scripts\release.ps1                                                    # builds 
 
 **Linux:** `sudo apt install qt6-base-dev libgl-dev libmpv-dev pkg-config cmake`, then `cmake -B build && cmake --build build`
 
-More in [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). A built-in self-test (`kinoz --selftest <file>`) drives every control and checks the result.
+More in [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). A built-in self-test (`kinoz --selftest <file>`) drives every control and checks the result, and `kinoz --bench <video>` runs the speed benchmark.
 
 ## Documentation
 
@@ -352,17 +325,11 @@ More in [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/DEVELOPMENT.md](docs/DEVELO
 
 ## License and credit
 
-kinoz is **free software** under the **GNU General Public License v3** ([LICENSE](LICENSE)), with a few additional terms about credit and naming ([ADDITIONAL_TERMS.md](ADDITIONAL_TERMS.md)).
+kinoz is free software under the GNU General Public License v3 ([LICENSE](LICENSE)), with a few additional terms about credit and naming ([ADDITIONAL_TERMS.md](ADDITIONAL_TERMS.md)).
 
-In plain words:
+You can use it for anything, free of charge, including at work. You can study it, change it and share it, modified or not. If you share a version, you need to keep the author credit ("Created by Atharva Patil, P4inz Interactive Labs") and the copyright notices, keep the source open under the same GPLv3 license, and give a modified version its own name instead of "kinoz". Nobody can take it closed-source or sell it as their own work.
 
-- **You may** use kinoz for anything, free of charge, including at work; study it; change it; and share it, modified or not.
-- **You must** keep the author credit ("Created by Atharva Patil, P4inz Interactive Labs") and the copyright notices, keep the source open under the same GPLv3 license if you share a version, and give a modified version its own name instead of "kinoz".
-- **Nobody can** take it closed-source or sell it as their own work.
-
-Every source file carries the copyright and `SPDX-License-Identifier: GPL-3.0-only` line, and the About screen shows the credit.
-
-Third-party components keep their own licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Every source file carries the copyright and `SPDX-License-Identifier: GPL-3.0-only` line, and the About screen shows the credit. Third-party components keep their own licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Copyright © 2026 Atharva Patil.
 
