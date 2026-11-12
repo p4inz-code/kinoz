@@ -133,6 +133,34 @@ void Sheet::paintEvent(QPaintEvent*) {
 void Sheet::mousePressEvent(QMouseEvent* e) { if (!cardRect().contains(e->position())) closeSheet(); }
 void Sheet::keyPressEvent(QKeyEvent* e) { if (e->key() == Qt::Key_Escape) closeSheet(); else QWidget::keyPressEvent(e); }
 
+// ============================================================ ConfirmBox
+ConfirmBox::ConfirmBox(const QString& title, const QString& body, const QString& okText, bool danger, QWidget* parent) : QWidget(parent), m_title(title), m_body(body) {
+    setFocusPolicy(Qt::StrongFocus);
+    m_ok = new TextButton(okText, this, true);
+    m_ok->setDanger(danger);
+    m_cancel = new TextButton(tr("Cancel"), this);
+    connect(m_ok, &QAbstractButton::clicked, this, &ConfirmBox::accepted);
+    connect(m_cancel, &QAbstractButton::clicked, this, &ConfirmBox::cancelled);
+}
+void ConfirmBox::resizeEvent(QResizeEvent*) {
+    const int y = height() - 36 - 22;
+    m_ok->setGeometry(width() - 24 - m_ok->sizeHint().width(), y, m_ok->sizeHint().width(), 36);
+    m_cancel->setGeometry(m_ok->x() - 10 - m_cancel->sizeHint().width(), y, m_cancel->sizeHint().width(), 36);
+}
+void ConfirmBox::keyPressEvent(QKeyEvent* e) {
+    if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) emit accepted();
+    else if (e->key() == Qt::Key_Escape) emit cancelled();
+    else QWidget::keyPressEvent(e);
+}
+void ConfirmBox::paintEvent(QPaintEvent*) {
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setPen(pal().text); p.setFont(Theme::i().font(20, QFont::DemiBold, true));
+    p.drawText(QRectF(24, 20, width() - 48, 32), Qt::AlignVCenter, m_title);
+    p.setPen(pal().muted); p.setFont(Theme::i().font(14));
+    p.drawText(QRectF(24, 62, width() - 48, height() - 62 - 80), Qt::AlignTop | Qt::TextWordWrap, m_body);
+}
+
 // ============================================================ FolderPicker
 FolderPicker::FolderPicker(Mode m, const QString& startDir, QWidget* parent) : QWidget(parent), m_mode(m) {
     m_list = new RowList(this);
@@ -216,6 +244,9 @@ const Cmd kCmds[] = {
     {"theme", "Switch theme", "Ctrl+D", Icon::Moon, "dark light"}, {"settings", "Settings", "Ctrl+,", Icon::Settings, "preferences options"},
     {"speedup", "Faster", "]", Icon::Speed, "speed"}, {"speeddown", "Slower", "[", Icon::Speed, "speed"}, {"speedreset", "Normal speed", "Backspace", Icon::Speed, "speed 1x"},
     {"framestep", "Next frame", ".", Icon::Next, "step"}, {"framestepback", "Previous frame", ",", Icon::Prev, "step"}, {"rotate", "Rotate image", "R", Icon::Redo, "turn"},
+    {"keep", "Keep this file (mark)", "Y", Icon::Check, "favorite star like good"}, {"reject", "Mark this file to reject", "N", Icon::Close, "bad skip no discard"},
+    {"trash", "Delete this file (Recycle Bin)", "Delete", Icon::Trash, "remove recycle"}, {"trashrejected", "Delete all rejected files…", "", Icon::Trash, "remove recycle cleanup rejected"},
+    {"nextunwatched", "Next file I haven't seen", "U", Icon::Next, "unwatched unseen new"},
     {"defaultplayer", "Make kinoz my default player", "", Icon::Play, "default app open with association file type"},
 #ifdef Q_OS_WIN
     {"doctor", "Doctor: check and repair kinoz", "", Icon::Settings, "repair fix health setup"},

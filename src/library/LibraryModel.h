@@ -2,6 +2,7 @@
 #include "media/MediaKind.h"
 #include <QAbstractListModel>
 #include <QVector>
+#include <functional>
 
 // One folder listing (or the list of "places"), scanned off the UI thread, filtered/sorted in memory.
 class LibraryModel : public QAbstractListModel {
@@ -18,6 +19,9 @@ public:
     void setPlaces(const QStringList& places);
     QString folder() const { return m_folder; }
     void setKindFilter(int k);                       // 0 all, 1 video, 2 audio, 3 pictures
+    // 0 everything, 1 not seen yet, 2 kept, 3 marked to reject. `state` returns the review bit mask for a path.
+    void setReviewFilter(int f, std::function<int(const QString&)> state) { m_review = f; m_state = std::move(state); refilter(); }
+    int reviewFilter() const { return m_review; }
     void setText(const QString& t);
     void setSort(int s);                             // 0 name, 1 newest, 2 largest
     QStringList shownFiles() const;
@@ -37,7 +41,8 @@ private:
     QVector<Entry> m_all;
     QVector<int> m_shown;
     QString m_folder, m_text, m_error;
-    int m_kind = 0, m_sort = 0;
+    int m_kind = 0, m_sort = 0, m_review = 0;
+    std::function<int(const QString&)> m_state;
     bool m_loading = false;
     quint64 m_gen = 0;
     QStringList m_places;

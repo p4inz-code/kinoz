@@ -80,6 +80,7 @@ void MediaView::contextMenuEvent(QContextMenuEvent* e) {
 }
 
 // ================= Delegate =================
+namespace { enum { LibraryMark_Keep = 1, LibraryMark_Reject = 2, LibraryMark_Seen = 4 }; }   // = PlayerController::Mark*
 QSize MediaDelegate::sizeHint(const QStyleOptionViewItem&, const QModelIndex&) const {
     return m_grid ? QSize(140, 120) : QSize(0, Theme::i().rowH() + 18);
 }
@@ -121,6 +122,22 @@ void MediaDelegate::paint(QPainter* p, const QStyleOptionViewItem& opt, const QM
             const qreal is = qMin(tr.width(), tr.height()) * 0.5;
             drawIcon(p, dir ? (place ? Icon::Drive : Icon::Folder) : kindIcon(kind), QRectF(tr.center().x() - is / 2, tr.center().y() - is / 2, is, is), dir ? c.accent : c.muted, 1.6);
         }
+        if (dir) return;
+        // review marks: always visible, no mode to switch on
+        const int st = m_ctl->reviewState(path);
+        const bool av = kind == MediaKind::Video || kind == MediaKind::Audio;
+        QPainterPath clip; clip.addRoundedRect(tr, rad, rad);
+        if (st & LibraryMark_Reject) { p->save(); p->setClipPath(clip); p->fillRect(tr, QColor(0, 0, 0, c.dark ? 120 : 105)); p->restore(); }
+        const qreal wf = m_ctl->watched(path);
+        if (av && wf > 0.02) {                                              // how far you got
+            const QRectF track(tr.left() + 4, tr.bottom() - 6, tr.width() - 8, 3);
+            p->setPen(Qt::NoPen); p->setBrush(QColor(0, 0, 0, 110)); p->drawRoundedRect(track, 1.5, 1.5);
+            p->setBrush(wf >= 0.95 ? c.accent.lighter(115) : c.accent); p->drawRoundedRect(QRectF(track.left(), track.top(), track.width() * qMin(1.0, wf), track.height()), 1.5, 1.5);
+        }
+        const qreal bd = qMin<qreal>(18, tr.height() * 0.42);
+        if (st & LibraryMark_Keep) { p->setPen(Qt::NoPen); p->setBrush(c.accent); p->drawEllipse(QRectF(tr.left() + 4, tr.top() + 4, bd, bd)); drawIcon(p, Icon::Check, QRectF(tr.left() + 4 + bd * 0.2, tr.top() + 4 + bd * 0.2, bd * 0.6, bd * 0.6), c.onAccent, 2.2); }
+        else if (st & LibraryMark_Reject) { p->setPen(Qt::NoPen); p->setBrush(c.danger); p->drawEllipse(QRectF(tr.left() + 4, tr.top() + 4, bd, bd)); drawIcon(p, Icon::Close, QRectF(tr.left() + 4 + bd * 0.22, tr.top() + 4 + bd * 0.22, bd * 0.56, bd * 0.56), QColor(255, 255, 255), 2.2); }
+        else if (av && !(st & LibraryMark_Seen)) { p->setPen(QPen(QColor(255, 255, 255, 200), 1.2)); p->setBrush(c.accent); p->drawEllipse(QRectF(tr.right() - 12, tr.top() + 5, 8, 8)); }   // not seen yet
     };
 
     if (m_grid) {
@@ -156,6 +173,8 @@ void MediaDelegate::paint(QPainter* p, const QStyleOptionViewItem& opt, const QM
 }
 
 // ================= Sidebar =================
+void Sidebar::refreshFolder() { if (!m_model->folder().isEmpty()) m_model->refresh(); }
+
 Sidebar::Sidebar(PlayerController* ctl, ThumbService* thumbs, JsonStore* settings, QWidget* parent)
     : QWidget(parent), m_ctl(ctl), m_thumbs(thumbs), m_set(settings) {
     m_model = new LibraryModel(this);
@@ -187,6 +206,7 @@ Sidebar::Sidebar(PlayerController* ctl, ThumbService* thumbs, JsonStore* setting
     m_repaint.setSingleShot(true); m_repaint.setInterval(60);
     connect(&m_repaint, &QTimer::timeout, this, [this] { m_list->viewport()->update(); m_queueView->viewport()->update(); });
     connect(thumbs, &ThumbService::ready, this, [this] { if (!m_repaint.isActive()) m_repaint.start(); });
+    connect(ctl, &PlayerController::markChanged, this, [this] { if (!m_repaint.isActive()) m_repaint.start(); });
     connect(ctl, &PlayerController::pathChanged, this, [this] { m_list->viewport()->update(); m_queueView->viewport()->update(); update(); });
     connect(ctl, &PlayerController::queueChanged, this, [this] { update(); relayout(); });
 
@@ -199,7 +219,14 @@ Sidebar::Sidebar(PlayerController* ctl, ThumbService* thumbs, JsonStore* setting
         auto* m = new PopupMenu(this);
         m->addHeader(tr("Sort by"));
         m->addItem("0", tr("Name"), m_sort == 0); m->addItem("1", tr("Newest first"), m_sort == 1); m->addItem("2", tr("Largest first"), m_sort == 2);
-        connect(m, &PopupMenu::triggered, this, [this](const QString& id) { m_sort = id.toInt(); m_model->setSort(m_sort); m_set->set("sort", m_sort); });
+        m->addSeparator();
+        m->addHeader(tr("Show"));
+        const int rf = m_model->reviewFilter();
+        m->addItem("r0", tr("Everything"), rf == 0); m->addItem("r1", tr("Not seen yet"), rf == 1); m->addItem("r2", tr("Kept"), rf == 2); m->addItem("r3", tr("Marked to reject"), rf == 3);
+        connect(m, &PopupMenu::triggered, this, [this](const QString& id) {
+            if (id.startsWith('r')) { m_model->setReviewFilter(id.mid(1).toInt(), [this](const QString& p) { return m_ctl->reviewState(p); }); return; }
+            m_sort = id.toInt(); m_model->setSort(m_sort); m_set->set("sort", m_sort);
+        });
         m->popup(m_sortBtn->mapToGlobal(QPoint(0, m_sortBtn->height() + 4)));
     });
     connect(m_addPlace, &QAbstractButton::clicked, this, [this] {

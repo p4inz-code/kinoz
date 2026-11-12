@@ -1,9 +1,11 @@
 #include "core/player/PlayerController.h"
 #include "core/JsonStore.h"
+#include "core/Paths.h"
 #include "core/player/MpvPlayer.h"
 #include <QCollator>
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QFutureWatcher>
 #include <QJsonArray>
@@ -32,12 +34,17 @@ QStringList listMedia(const QString& dir, int family) {
 
 PlayerController::PlayerController(MpvPlayer* mpv, JsonStore* settings, JsonStore* resume, QObject* parent)
     : QObject(parent), m_mpv(mpv), m_set(settings), m_resume(resume) {
+    m_marks = new JsonStore(Paths::dataDir() + QStringLiteral("/marks.json"), this);
+    m_marks->setReadOnly(m_resume->readOnly());
     m_shuffle = m_set->flag("shuffle", false);
     m_repeat = Repeat(int(m_set->num("repeat", 0)));
     connect(m_mpv, &MpvPlayer::eofReached, this, &PlayerController::onEof);
     connect(m_mpv, &MpvPlayer::fileLoaded, this, &PlayerController::onFileLoaded);
     connect(m_mpv, &MpvPlayer::pauseChanged, this, &PlayerController::onPause);
     connect(m_mpv, &MpvPlayer::fileEnded, this, &PlayerController::onEnded);
+    connect(m_mpv, &MpvPlayer::videoSizeChanged, this, [this] { applyDecode(); });
+    m_loadTimer.setSingleShot(true);
+    connect(&m_loadTimer, &QTimer::timeout, this, [this] { startLoad(); });
     m_resumeTimer.setInterval(5000);
     connect(&m_resumeTimer, &QTimer::timeout, this, &PlayerController::saveResumeNow);
     m_resumeTimer.start();
@@ -50,13 +57,13 @@ PlayerController::PlayerController(MpvPlayer* mpv, JsonStore* settings, JsonStor
 QString PlayerController::key(const QString& p) const { return QDir::fromNativeSeparators(p).toLower(); }
 
 QString PlayerController::title() const {
-    const QString t = m_mpv->metadata().value("title").toString();
+    const QString t = m_mpvPath == m_path ? m_mpv->metadata().value("title").toString() : QString();   // never show the previous file's tags
     if (!t.isEmpty()) return t;
     if (m_path.isEmpty()) return {};
     return QFileInfo(m_path).completeBaseName();
 }
-QString PlayerController::artist() const { return m_mpv->metadata().value("artist").toString(); }
-QString PlayerController::album() const { return m_mpv->metadata().value("album").toString(); }
+QString PlayerController::artist() const { return m_mpvPath == m_path ? m_mpv->metadata().value("artist").toString() : QString(); }
+QString PlayerController::album() const { return m_mpvPath == m_path ? m_mpv->metadata().value("album").toString() : QString(); }
 
 // ---------- opening ----------
 void PlayerController::open(const QStringList& paths) {
@@ -156,14 +163,75 @@ void PlayerController::load(const QString& path) {
         const double pos = r.value("pos").toDouble(), dur = r.value("dur").toDouble();
         if (pos > 10 && (dur <= 0 || pos < dur - 12)) start = pos;
     }
-    resetView();
-    m_mpv->setProp("pause", false);
-    m_mpv->loadFile(path, start, m_kind == MediaKind::Gif);
+    // The UI updates at once; mpv is handed the file right away on a calm click, but during a burst of clicks
+    // (skimming) only the last file is opened, so decoders never pile up behind the pointer.
+    m_pending = {path, start, m_kind == MediaKind::Gif, true};
     addRecent(path);
     emit pathChanged();
+    if (!m_loadTimer.isActive() && (!m_sinceLoad.isValid() || m_sinceLoad.elapsed() > 150)) startLoad();
+    else m_loadTimer.start(70);
+}
+
+int PlayerController::decodeMode() const {
+    if (m_set->has("decode")) return qBound(0, int(m_set->num("decode", 0)), 2);
+    return m_set->flag("hwdec", true) ? 0 : 2;           // older settings files
+}
+
+// Starting a decoder on the GPU costs ~200 ms per file, which is what you feel when clicking through many videos.
+// So "auto" starts every file in software (instant) and moves 1440p-and-larger video to the GPU as soon as its size is known.
+void PlayerController::applyDecode() {
+    const int dm = decodeMode();
+    const bool big = m_mpv->videoW() >= 2560 || m_mpv->videoH() >= 1440;
+    const bool gpu = dm == 1 || (dm == 0 && big);
+    if (gpu == m_hwUp) return;
+    m_hwUp = gpu;
+    m_mpv->setProp("hwdec", gpu ? QStringLiteral("auto-copy-safe") : QStringLiteral("no"));
+}
+
+void PlayerController::startLoad() {
+    m_loadTimer.stop();
+    if (!m_pending.has) return;
+    const Pending p = m_pending;
+    m_pending.has = false;
+    m_fileLoaded = false;
+    m_hwUp = decodeMode() == 1;
+    m_mpv->setProp("hwdec", m_hwUp ? QStringLiteral("auto-copy-safe") : QStringLiteral("no"));
+    m_mpvPath = p.path;
+    ++m_loadCount;
+    m_sinceLoad.start();
+    resetView();
+    m_mpv->setProp("pause", false);
+    m_mpv->loadFile(p.path, p.start, p.gif);
+}
+
+int PlayerController::peekNext() const {
+    if (m_shuffle) return -1;
+    const QStringList l = m_queue.stringList();
+    const int cur = l.indexOf(m_path);
+    if (cur < 0) return -1;
+    if (cur + 1 < l.size()) return cur + 1;
+    return m_repeat == RepeatAll && l.size() > 1 ? 0 : -1;
+}
+
+void PlayerController::warmNext() {
+    const int i = peekNext();
+    if (i < 0) return;
+    const QString p = m_queue.stringList().value(i);
+    const MediaKind k = Media::kindFor(p);
+    if (p.isEmpty() || p == m_warmed || (k != MediaKind::Video && k != MediaKind::Audio)) return;
+    m_warmed = p;
+    // Pull the start (headers, first frames) and the end (where some MP4s keep their index) into the OS file cache.
+    (void)QtConcurrent::run([p] {
+        QFile f(p);
+        if (!f.open(QIODevice::ReadOnly)) return;
+        const qint64 sz = f.size();
+        f.read(4 * 1024 * 1024);
+        if (sz > 12ll * 1024 * 1024) { f.seek(sz - 2 * 1024 * 1024); f.read(2 * 1024 * 1024); }
+    });
 }
 
 void PlayerController::onFileLoaded() {
+    if (!m_pending.has) m_fileLoaded = true;
     applyEq();
     for (auto it = m_color.begin(); it != m_color.end(); ++it) m_mpv->setPropInt(it.key().toUtf8().constData(), it.value());
     if (m_kind == MediaKind::Video || m_kind == MediaKind::Audio) {
@@ -174,6 +242,7 @@ void PlayerController::onFileLoaded() {
     if (m_set->flag("normalize", false)) m_mpv->setProp("replaygain", QStringLiteral("track"));
     else m_mpv->setProp("replaygain", QStringLiteral("no"));
     emit pathChanged();
+    warmNext();
 }
 
 // ---------- transport ----------
@@ -185,8 +254,9 @@ void PlayerController::togglePause() {
 void PlayerController::pause() { m_mpv->setPause(true); }
 void PlayerController::stop() {
     saveResumeNow();
+    m_loadTimer.stop(); m_pending.has = false;
     m_mpv->stopPlayback();
-    m_path.clear(); m_kind = MediaKind::Unknown;
+    m_path.clear(); m_mpvPath.clear(); m_kind = MediaKind::Unknown;
     emit pathChanged();
 }
 
@@ -220,14 +290,14 @@ void PlayerController::prev() {
 
 void PlayerController::onEof() {
     if (m_kind != MediaKind::Video && m_kind != MediaKind::Audio) return;
+    if (m_pending.has || m_mpvPath != m_path) return;       // a late "ended" from the file we just replaced
+    markSeen(m_mpvPath, 1.0);                               // watched to the end
     if (m_repeat == RepeatOne) { m_mpv->seek(0, true); m_mpv->setPause(false); return; }
     if (m_stopAfterCurrent) { m_stopAfterCurrent = false; m_mpv->setPause(true); emit message(tr("Sleep timer: stopped at the end of the file")); return; }
     if (!m_set->flag("autoplayNext", true)) return;
     const int i = pickNext(+1);
     if (i >= 0) playIndex(i);
-    else {
-        QJsonObject o; m_resume->remove(key(m_path));   // finished: forget resume point
-    }
+    else m_resume->remove(key(m_mpvPath));   // finished: forget resume point
 }
 
 void PlayerController::onPause(bool) { saveResumeNow(); }
@@ -334,11 +404,80 @@ QStringList PlayerController::recent() const {
     for (const auto& v : m_set->get("recent").toArray()) l << v.toString();
     return l;
 }
+// ---------- review marks (always on, no mode) ----------
+int PlayerController::reviewState(const QString& path) const {
+    const QJsonObject o = m_marks->get(key(path)).toObject();
+    int s = o.value("m").toInt();
+    if (o.value("f").toDouble() > 0.0) s |= MarkSeen;
+    return s;
+}
+double PlayerController::watched(const QString& path) const { return m_marks->get(key(path)).toObject().value("f").toDouble(); }
+
+void PlayerController::toggleMark(const QString& path, int mark) {
+    if (path.isEmpty() || (mark != MarkKeep && mark != MarkReject)) return;
+    QJsonObject o = m_marks->get(key(path)).toObject();
+    const int cur = o.value("m").toInt();
+    o["m"] = cur == mark ? 0 : mark;                 // pressing the same key again clears it
+    if (o["m"].toInt() == 0 && o.value("f").toDouble() <= 0) m_marks->remove(key(path)); else m_marks->set(key(path), o);
+    emit markChanged(path);
+    emit message(o["m"].toInt() == MarkKeep ? tr("Kept") : o["m"].toInt() == MarkReject ? tr("Marked to reject") : tr("Mark cleared"));
+}
+
+void PlayerController::markSeen(const QString& path, double frac) {
+    if (path.isEmpty()) return;
+    frac = qBound(0.0, std::round(frac * 100) / 100, 1.0);
+    QJsonObject o = m_marks->get(key(path)).toObject();
+    const double old = o.value("f").toDouble();
+    if (frac < 0.01) frac = 0.01;                    // opened and played at all = seen
+    if (frac <= old + 0.019) return;                 // avoid rewriting the file for tiny progress
+    o["f"] = frac;
+    m_marks->set(key(path), o);
+    emit markChanged(path);
+}
+
+int PlayerController::nextUnwatched() const {
+    const QStringList l = m_queue.stringList();
+    if (l.isEmpty()) return -1;
+    const int cur = l.indexOf(m_path);
+    for (int k = 1; k <= l.size(); ++k) {
+        const int i = ((cur < 0 ? -1 : cur) + k) % l.size();
+        const MediaKind kd = Media::kindFor(l[i]);
+        if (kd != MediaKind::Video && kd != MediaKind::Audio) continue;
+        const int s = reviewState(l[i]);
+        if (!(s & MarkSeen) && !(s & MarkReject)) return i;
+    }
+    return -1;
+}
+
+QStringList PlayerController::rejected() const {
+    QStringList out;
+    for (const QString& p : m_queue.stringList()) if (reviewState(p) & MarkReject) out << p;
+    return out;
+}
+
+void PlayerController::dropFiles(const QStringList& files) {
+    if (files.isEmpty()) return;
+    QStringList l = m_queue.stringList();
+    const bool curGone = files.contains(m_path);
+    QString fallback;
+    if (curGone && !l.isEmpty()) {
+        const int cur = l.indexOf(m_path);
+        for (int k = 1; k <= l.size(); ++k) { const QString c = l[((cur < 0 ? 0 : cur) + k) % l.size()]; if (!files.contains(c)) { fallback = c; break; } }
+    }
+    for (const QString& f : files) { l.removeAll(f); m_marks->remove(key(f)); m_resume->remove(key(f)); }
+    m_queue.setStringList(l);
+    if (curGone) { if (fallback.isEmpty()) stop(); else load(fallback); }
+    for (const QString& f : files) emit markChanged(f);
+}
+
 void PlayerController::saveResumeNow() {
-    if (m_path.isEmpty() || (m_kind != MediaKind::Video && m_kind != MediaKind::Audio)) return;
+    // Always the file mpv really has open (not the one the user just clicked), with the kind of THAT file.
+    const MediaKind k = Media::kindFor(m_mpvPath);
+    if (m_mpvPath.isEmpty() || (k != MediaKind::Video && k != MediaKind::Audio)) return;
     const double pos = m_mpv->position(), dur = m_mpv->duration();
+    if (dur > 0 && pos >= 0.5) markSeen(m_mpvPath, pos / dur);
     if (dur < 30) return;
-    if (pos < 10 || pos > dur - 12) { m_resume->remove(key(m_path)); return; }
+    if (pos < 10 || pos > dur - 12) { m_resume->remove(key(m_mpvPath)); return; }
     QJsonObject o; o["pos"] = pos; o["dur"] = dur; o["t"] = double(QDateTime::currentSecsSinceEpoch());
-    m_resume->set(key(m_path), o);
+    m_resume->set(key(m_mpvPath), o);
 }

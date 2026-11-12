@@ -3,6 +3,21 @@
 All notable changes. Dates are release dates.
 
 ## Unreleased
+**Fast skimming (built in, always on)**
+- Clicking through files or spamming Next opens only the last file (150 clicks measured: 2 files opened, UI never frozen more than 25 ms). The next file's head and tail are pre-read so it opens faster.
+- Hover preview on the seek bar is served from a frame strip built in the background (coarse first), then replaced by the exact frame.
+- `1`-`9` jump to 10%-90% of a video or track, `0` back to the start. `Y` keeps a file, `N` marks it to reject, `U` jumps to the next file you haven't seen, `Delete` moves the current file to the Recycle Bin after a confirmation. Palette: "Delete all rejected files...".
+- The library and queue show keep / reject badges, a watched-progress bar and an unseen dot. Sort menu: Show everything / not seen yet / kept / marked to reject.
+- Video decoding "Auto" starts every file in software (about 30% faster click to picture) and switches 1440p and larger to the GPU; GPU and CPU-only are still options.
+- Controls fade after 2 s of no pointer activity (setting: 2 s / 3 s / 5 s / never).
+- Settings are written by a background thread, never on the UI thread.
+- `kinoz --bench <video>` measures all of this and checks it against budgets (docs/PERFORMANCE.md).
+
+**Fullscreen**
+- Entering fullscreen from a maximised window no longer plays the restore animation first (the blink); leaving goes straight back to maximised.
+- Rapid fullscreen toggles (double-click, F-F) are ignored for 350 ms.
+- Unplugging or adding a monitor while fullscreen re-fits the window; leaving fullscreen can't put the window off-screen.
+
 - Uninstall is one click inside kinoz: Settings → General → Uninstall… (Windows) or `Ctrl+K` → "Uninstall kinoz…". Opens the same Remove screen with the delete-all-data switch.
 
 ## 0.1.1 — custom setup, Doctor, default player

@@ -22,3 +22,17 @@ Not yet measured: macOS/Linux, 4K, very large libraries (the model is built for 
 
 ## Run the checks yourself
 `kinoz --selftest <a video>` (use `KINOZ_SILENT=1 KINOZ_OFFSCREEN=1` to keep it quiet and off-screen) → `data/logs/selftest.txt`.
+
+## Skimming benchmark (`--bench`)
+
+`KINOZ_SILENT=1 KINOZ_OFFSCREEN=1 kinoz --bench <a video>` copies the video into 8 clips, then clicks through them, spams Next 150 times, drags the seek bar 300 times and prints PASS/FAIL against budgets to `data/logs/bench.txt`. A 4 ms heartbeat on the UI thread records the longest freeze.
+
+| Check | Budget | Measured (Windows, 1080p clip) |
+|---|---|---|
+| First frame after launch | 3000 ms | ~600 ms |
+| Click to picture, average / slowest | 700 / 1500 ms | ~275 / ~285 ms |
+| Longest UI freeze, clicking through | 100 ms | 5-10 ms |
+| Skip spam (150 clicks): longest UI freeze | 150 ms | 5-25 ms |
+| Skip spam: files really opened | 12 | 2 |
+| Seek-bar drag: longest UI freeze | 150 ms | 5-10 ms |
+| Memory after all of it | 700 MB | ~255 MB |

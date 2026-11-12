@@ -2,7 +2,9 @@
 #include "media/MediaKind.h"
 #include <QHash>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QVariantAnimation>
+#include <functional>
 #include <QWidget>
 
 class MpvPlayer;
@@ -36,6 +38,7 @@ public:
     // test hooks
     QString debugState() const;
     void runSelfTest();
+    void runBench();
     void runShots(const QString& dir);
 
 protected:
@@ -62,6 +65,7 @@ private:
     void toggleFullscreen();
     void enterFullscreen();
     void exitFullscreen();
+    void fitFullscreenToMonitor();           // Windows: re-fit after the display setup changes
     void toggleMini();
     void togglePin();
     void setSidebarOpen(bool open, bool animate = true);
@@ -75,6 +79,10 @@ private:
     void cycleTheme();
     void updateGlass();
     void openSettings();
+    void confirm(const QString& title, const QString& body, const QString& okText, std::function<void()> onOk, bool danger = true);
+    void trashCurrent();
+    void trashRejected();
+    void trashFiles(const QStringList& files);
     void openPicker(bool folder);
     void startAnnotate();
     void notify(const QString& text, bool error = false);
@@ -129,6 +137,7 @@ private:
     double m_seekRef = 0;
     FadeCover* m_cover = nullptr;
     QTimer m_slide, m_sleep;
+    QElapsedTimer m_fsGuard;                 // debounce for fullscreen toggles
     quint64 m_fsStyle = 0;
     int m_fsRestoreX = 0, m_fsRestoreY = 0, m_fsRestoreW = 0, m_fsRestoreH = 0;
     QPoint m_lastMouse;

@@ -92,7 +92,8 @@ int main(int argc, char** argv) {
     const bool selftest = all.contains(QStringLiteral("--selftest"));
     const bool newWindow = all.contains(QStringLiteral("--new"));      // extra independent player window
     const QString shotsDir = all.contains(QStringLiteral("--shots")) ? all.value(all.indexOf(QStringLiteral("--shots")) + 1) : QString();
-    const bool stress = selftest || newWindow || !shotsDir.isEmpty();
+    const bool bench = all.contains(QStringLiteral("--bench"));
+    const bool stress = selftest || bench || newWindow || !shotsDir.isEmpty();
 
     // Single instance: hand the files to the running player and exit immediately.
     if (!stress) {
@@ -131,6 +132,7 @@ int main(int argc, char** argv) {
 
     if (!args.isEmpty()) w.openPaths(args);
     if (selftest) w.runSelfTest();
+    if (bench) w.runBench();
     if (!shotsDir.isEmpty()) w.runShots(shotsDir);
     return app.exec();
 }

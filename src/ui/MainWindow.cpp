@@ -1,4 +1,10 @@
 #include "ui/MainWindow.h"
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <psapi.h>
+#endif
+#include <QElapsedTimer>
+#include <QRandomGenerator>
 #include "core/DefaultApp.h"
 #include "core/JsonStore.h"
 #include "core/Paths.h"
@@ -133,7 +139,7 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
     connect(&m_geoTimer, &QTimer::timeout, this, &MainWindow::saveGeometryNow);
     qApp->installEventFilter(this);
 
-    m_mpv->initAsync(m_set->flag("hwdec", true));
+    m_mpv->initAsync(m_ctl->decodeMode() != 2);
     connect(m_mpv, &MpvPlayer::ready, this, [this] {
         m_mpv->setVolume(m_set->num("volume", 80));
         refreshChrome();
@@ -174,6 +180,11 @@ void MainWindow::buildUi() {
     m_toast = new Toast(m_content);
     m_palette = new CommandPalette(m_ctl, m_index, this);
     m_cover = new FadeCover(this);          // veil for the open/close animation
+#ifdef Q_OS_WIN
+    for (auto sig : {&QGuiApplication::screenAdded, &QGuiApplication::screenRemoved})       // unplugging or adding a monitor while fullscreen
+        connect(qApp, sig, this, [this] { QTimer::singleShot(400, this, [this] { fitFullscreenToMonitor(); }); });
+    connect(qApp, &QGuiApplication::primaryScreenChanged, this, [this] { QTimer::singleShot(400, this, [this] { fitFullscreenToMonitor(); }); });
+#endif
     m_cover->setGeometry(rect());
     m_bar->hide();
 
@@ -202,7 +213,7 @@ void MainWindow::buildUi() {
         const QPoint local = m_content->mapFromGlobal(g);
         const QPoint anchor(local.x(), m_bar->y() + int(m_bar->panelRect().top()) - 8);
         m_previewPath = m_ctl->path();
-        if (m_ctl->kind() == MediaKind::Video) { m_tip->showTimeOnly(txt, anchor); m_preview->request(m_previewPath, sec, 240); }
+        if (m_ctl->kind() == MediaKind::Video) { m_tip->showTimeOnly(txt, anchor); m_preview->request(m_previewPath, sec, 240, dur); }
         else m_tip->showTimeOnly(txt, anchor);
         m_tip->setProperty("anchor", anchor); m_tip->setProperty("txt", txt);
         updateGlass();
@@ -336,7 +347,7 @@ bool MainWindow::pointerOverChrome() const {
 
 void MainWindow::idleTick() {
     if (!m_ctl->hasMedia() || m_annot->active()) return;
-    if (int(m_set->num("hideDelay", 3)) == 0) { m_idle.start(); return; }       // "Never hide"
+    if (int(m_set->num("hideDelay", 2)) == 0) { m_idle.start(); return; }       // "Never hide"
     const MediaKind k = m_ctl->kind();
     const bool keep = k == MediaKind::Audio || m_mpv->paused() || m_bar->busy() || m_top->busy() || pointerOverChrome() || m_palette->isOpen() || m_panel->isOpen();
     if (keep) { m_idle.start(); return; }
@@ -639,7 +650,11 @@ void MainWindow::doAction(const QString& id) {
     else if (id == "rotate") m_ctl->rotate(90);
     else if (id == "zoomin") m_ctl->zoomBy(1);
     else if (id == "zoomout") m_ctl->zoomBy(-1);
-    else if (id == "zoom" || id == "zoomreset") m_ctl->resetView();
+    else if (id == "zoom" || id == "zoomreset") {
+        const MediaKind k = m_ctl->kind();
+        if (id == "zoomreset" && (k == MediaKind::Video || k == MediaKind::Audio)) { m_ctl->seekFrac(0.0, true); poke(); }     // 0 = back to the start
+        else m_ctl->resetView();
+    }
     else if (id == "screenshot") screenshotFrame();
     else if (id == "more") showMoreMenu();
     else if (id == "speed") showSpeedMenu();
@@ -654,6 +669,15 @@ void MainWindow::doAction(const QString& id) {
     else if (id == "openfolder") openPicker(true);
     else if (id == "openfile") openPicker(false);
     else if (id == "settings") openSettings();
+    else if (id == "keep") { if (m_ctl->hasMedia()) m_ctl->toggleMark(m_ctl->path(), PlayerController::MarkKeep); }
+    else if (id == "reject") { if (m_ctl->hasMedia()) m_ctl->toggleMark(m_ctl->path(), PlayerController::MarkReject); }
+    else if (id == "trash") trashCurrent();
+    else if (id == "trashrejected") trashRejected();
+    else if (id == "nextunwatched") { const int i = m_ctl->nextUnwatched(); if (i >= 0) m_ctl->playIndex(i); else notify(tr("You've seen everything in this list")); }
+    else if (id.startsWith(QStringLiteral("seekpct"))) {                       // 1..9 jump to 10%..90% of a video or track
+        const MediaKind k = m_ctl->kind();
+        if (k == MediaKind::Video || k == MediaKind::Audio) { m_ctl->seekFrac(id.mid(7).toInt() / 10.0, true); poke(); }
+    }
     else if (id == "defaultplayer") { const auto r = DefaultApp::apply(); notify(r.message, !r.ok); }
     else if (id == "uninstall") { if (!QProcess::startDetached(QCoreApplication::applicationFilePath(), {QStringLiteral("--uninstall")})) notify(tr("Couldn't open the uninstaller"), true); }
     else if (id == "doctor") { if (!QProcess::startDetached(QCoreApplication::applicationFilePath(), {QStringLiteral("--doctor")})) notify(tr("Couldn't open the Doctor"), true); }
@@ -676,7 +700,29 @@ void MainWindow::startAnnotate() {
     notify(tr("Draw on the frame. Save exports it at full resolution."));
 }
 
-void MainWindow::toggleFullscreen() { m_full ? exitFullscreen() : enterFullscreen(); }
+void MainWindow::toggleFullscreen() {
+    // A double-click or a fast F-F must not thrash the window style: ignore toggles that arrive within 350 ms.
+    if (m_fsGuard.isValid() && m_fsGuard.elapsed() < 350) return;
+    m_fsGuard.start();
+    m_full ? exitFullscreen() : enterFullscreen();
+}
+
+#ifndef Q_OS_WIN
+void MainWindow::fitFullscreenToMonitor() {}
+#else
+// Re-fit the borderless window to whichever monitor it is on (also after the display setup changes).
+void MainWindow::fitFullscreenToMonitor() {
+    if (!m_full) return;
+    HWND h = reinterpret_cast<HWND>(winId());
+    MONITORINFO mi{sizeof(mi)};
+    if (!GetMonitorInfo(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mi)) return;
+    const bool safe = m_set->flag("fsSafe", false);
+    RECT r = safe ? mi.rcWork : mi.rcMonitor;
+    if (!safe) r.bottom -= 1;
+    SetWindowPos(h, safe ? HWND_TOP : HWND_TOPMOST, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOACTIVATE);
+    layoutAll();
+}
+#endif
 
 void MainWindow::enterFullscreen() {
     if (m_full) return;
@@ -685,11 +731,14 @@ void MainWindow::enterFullscreen() {
     m_wasMax = isMaximized(); m_restoreSidebar = m_sidebarOpen; m_full = true; showFullScreen();
 #else
     HWND h = reinterpret_cast<HWND>(winId());
-    m_wasMax = IsZoomed(h);
-    if (m_wasMax) ShowWindow(h, SW_RESTORE);
-    RECT wr; GetWindowRect(h, &wr);
+    // Remember where the window lives WITHOUT un-maximising it first: SW_RESTORE plays Windows' restore animation,
+    // which shows up as a blink right before fullscreen. GetWindowPlacement gives the normal rectangle directly.
+    WINDOWPLACEMENT wp{sizeof(wp)};
+    GetWindowPlacement(h, &wp);
+    m_wasMax = wp.showCmd == SW_SHOWMAXIMIZED;
+    const RECT wr = wp.rcNormalPosition;
     m_fsRestoreX = wr.left; m_fsRestoreY = wr.top; m_fsRestoreW = wr.right - wr.left; m_fsRestoreH = wr.bottom - wr.top;
-    m_fsStyle = quint64(GetWindowLongPtr(h, GWL_STYLE));
+    m_fsStyle = quint64(GetWindowLongPtr(h, GWL_STYLE)) & ~quint64(WS_MAXIMIZE);
     m_restoreSidebar = m_sidebarOpen;
     applyDwmFrame(false);                                       // an extended DWM frame can blank GL windows covering the monitor
     SetWindowLongPtr(h, GWL_STYLE, WS_POPUP | WS_VISIBLE);
@@ -716,8 +765,22 @@ void MainWindow::exitFullscreen() {
     m_full = false;
     SetWindowLongPtr(h, GWL_STYLE, LONG_PTR(m_fsStyle));
     applyDwmFrame(true);
-    SetWindowPos(h, m_pinned ? HWND_TOPMOST : HWND_NOTOPMOST, m_fsRestoreX, m_fsRestoreY, m_fsRestoreW, m_fsRestoreH, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-    if (m_wasMax) ShowWindow(h, SW_MAXIMIZE);
+    // If the monitor the window came from is gone (or the layout changed), bring the window back onto a visible screen.
+    RECT rr{m_fsRestoreX, m_fsRestoreY, m_fsRestoreX + m_fsRestoreW, m_fsRestoreY + m_fsRestoreH};
+    HMONITOR mon = MonitorFromRect(&rr, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{sizeof(mi)};
+    if (GetMonitorInfo(mon, &mi)) {
+        const int w = qMin<int>(m_fsRestoreW, mi.rcWork.right - mi.rcWork.left), hh = qMin<int>(m_fsRestoreH, mi.rcWork.bottom - mi.rcWork.top);
+        rr.left = std::clamp<LONG>(rr.left, mi.rcWork.left, LONG(mi.rcWork.right - w)); rr.top = std::clamp<LONG>(rr.top, mi.rcWork.top, LONG(mi.rcWork.bottom - hh));
+        rr.right = rr.left + w; rr.bottom = rr.top + hh;
+    }
+    SetWindowPos(h, m_pinned ? HWND_TOPMOST : HWND_NOTOPMOST, rr.left, rr.top, rr.right - rr.left, rr.bottom - rr.top, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+    if (m_wasMax) {                                             // straight back to maximised, no un-maximise/maximise flicker
+        WINDOWPLACEMENT wp{sizeof(wp)};
+        wp.showCmd = SW_SHOWMAXIMIZED;
+        wp.rcNormalPosition = rr;
+        SetWindowPlacement(h, &wp);
+    }
 #endif
     layoutAll();
     QTimer::singleShot(80, this, [this] { refreshChrome(); poke(); m_video->update(); });
@@ -844,11 +907,11 @@ void MainWindow::applySetting(const QString& key) {
     else if (key == "hideDelay") { applyHideDelay(); poke(); }
     else if (key == "slideshow") restartSlideshow();
     else if (key == "normalize") m_ctl->applyEq();
-    else if (key == "hwdec") notify(tr("Restart the player to apply hardware decoding"));
+    else if (key == "decode") { m_ctl->applyDecode(); notify(tr("Decoding changes apply to the next file")); }
 }
 
 void MainWindow::applyHideDelay() {
-    const int s = int(m_set->num("hideDelay", 3));
+    const int s = int(m_set->num("hideDelay", 2));
     m_idle.setInterval(qMax(1, s) * 1000);
 }
 
@@ -889,6 +952,51 @@ void MainWindow::showAspectMenu() {
         else { m_mpv->setProp("panscan", 0.0); m_mpv->setProp("video-aspect-override", id); }
     });
     m->popupAbove(m_bar->isVisible() ? m_bar->buttonRect("more") : QRect(QCursor::pos(), QSize(1, 1)));
+}
+
+// ---------------- deleting (always to the Recycle Bin, always asks first) ----------------
+void MainWindow::confirm(const QString& title, const QString& body, const QString& okText, std::function<void()> onOk, bool danger) {
+    auto* sh = new Sheet(this);
+    auto* box = new ConfirmBox(title, body, okText, danger);
+    sh->setContent(box, QSize(460, 220));
+    connect(box, &ConfirmBox::cancelled, sh, &Sheet::closeSheet);
+    connect(box, &ConfirmBox::accepted, this, [sh, onOk] { sh->closeSheet(); onOk(); });
+    sh->openSheet();
+    QTimer::singleShot(0, box, qOverload<>(&QWidget::setFocus));
+}
+
+void MainWindow::trashCurrent() {
+    if (!m_ctl->hasMedia()) return;
+    const QString path = m_ctl->path();
+    confirm(tr("Move to the Recycle Bin?"), tr("“%1” will be moved to the Recycle Bin. You can restore it from there.").arg(QFileInfo(path).fileName()),
+            tr("Move to Recycle Bin"), [this, path] { trashFiles({path}); });
+}
+
+void MainWindow::trashRejected() {
+    const QStringList files = m_ctl->rejected();
+    if (files.isEmpty()) { notify(tr("Nothing is marked to reject. Press N on a file to mark it.")); return; }
+    qint64 bytes = 0;
+    for (const QString& f : files) bytes += QFileInfo(f).size();
+    confirm(tr("Move %n rejected file(s) to the Recycle Bin?", nullptr, files.size()),
+            tr("%1 in total. You can restore them from the Recycle Bin.").arg(QLocale().formattedDataSize(bytes, 1)),
+            tr("Move to Recycle Bin"), [this, files] { trashFiles(files); });
+}
+
+void MainWindow::trashFiles(const QStringList& files) {
+    if (files.isEmpty()) return;
+    m_ctl->dropFiles(files);                     // playback moves off a file that is about to go; marks and resume points are forgotten
+    // mpv needs a moment to let go of the file; try again once if Windows still has it open.
+    auto attempt = [](const QStringList& l) { QStringList failed; for (const QString& f : l) if (QFileInfo::exists(f) && !QFile::moveToTrash(f)) failed << f; return failed; };
+    QTimer::singleShot(450, this, [this, files, attempt] {
+        const QStringList failed = attempt(files);
+        if (failed.isEmpty()) { notify(tr("Moved %n file(s) to the Recycle Bin", nullptr, files.size())); m_side->refreshFolder(); return; }
+        QTimer::singleShot(900, this, [this, failed, attempt, total = int(files.size())] {
+            const QStringList still = attempt(failed);
+            if (still.isEmpty()) notify(tr("Moved %n file(s) to the Recycle Bin", nullptr, total));
+            else notify(tr("Couldn't move %n file(s): in use, or this drive has no Recycle Bin", nullptr, int(still.size())), true);
+            m_side->refreshFolder();
+        });
+    });
 }
 
 void MainWindow::openSettings() {
@@ -1020,6 +1128,128 @@ QString MainWindow::debugState() const {
         .arg(m_mpv->volume(), 0, 'f', 0).arg(m_mpv->speed()).arg(m_mpv->muted()).arg(m_full).arg(m_mini).arg(m_sidebarOpen).arg(m_panel->page() + (m_panel->isOpen() ? "(open)" : "")).arg(m_ctl->queue()->rowCount());
 }
 
+// --bench <video>: the way you really use it (click through files, spam next, drag the seek bar), measured.
+// Writes data/logs/bench.txt with PASS/FAIL against budgets. Silent and off-screen with KINOZ_SILENT / KINOZ_OFFSCREEN.
+void MainWindow::runBench() {
+    m_selfTest = true;
+    auto* out = new QFile(Paths::logsDir() + "/bench.txt");
+    out->open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text);
+    auto log = [out](const QString& s) { QTextStream(out) << s << '\n'; out->flush(); };
+    auto fails = std::make_shared<int>(0);
+    auto verdict = [log, fails](const QString& name, double v, double budget, const QString& unit) {
+        const bool ok = v <= budget;
+        if (!ok) ++*fails;
+        log(QStringLiteral("%1  %2: %3 %4   (budget %5 %4)").arg(ok ? QStringLiteral("PASS") : QStringLiteral("FAIL"), name).arg(v, 0, 'f', 0).arg(unit).arg(budget, 0, 'f', 0));
+    };
+    // The UI thread must never stall: a 4 ms heartbeat records the longest gap between two beats.
+    struct Mon { QElapsedTimer t; qint64 max = 0; QTimer tm; };
+    auto mon = std::make_shared<Mon>();
+    mon->t.start(); mon->tm.setInterval(4);
+    connect(&mon->tm, &QTimer::timeout, this, [mon] { const qint64 g = mon->t.restart(); if (g > mon->max) mon->max = g; });
+    mon->tm.start();
+
+    auto loaded = [this] { return m_ctl->settled() && m_mpv->videoW() > 0; };      // cached state only: a blocking mpv query would itself freeze the UI
+    auto waitUntil = [this](std::function<bool()> cond, int timeoutMs, std::function<void(bool, qint64)> done) {
+        auto t = std::make_shared<QElapsedTimer>(); t->start();
+        auto poll = std::make_shared<std::function<void()>>();
+        *poll = [this, cond, done, t, timeoutMs, poll] {
+            if (cond()) { done(true, t->elapsed()); return; }
+            if (t->elapsed() > timeoutMs) { done(false, t->elapsed()); return; }
+            QTimer::singleShot(4, this, *poll);
+        };
+        (*poll)();
+    };
+    using Next = std::function<void()>;
+    auto phases = std::make_shared<QVector<std::function<void(Next)>>>();
+    auto P = [phases](std::function<void(Next)> f) { phases->push_back(std::move(f)); };
+    auto started = std::make_shared<QElapsedTimer>(); started->start();
+
+    P([=](Next next) { waitUntil([this] { return m_mpv->videoW() > 0; }, 10000, [=](bool ok, qint64 ms) { verdict(QStringLiteral("first frame after launch"), ok ? double(started->elapsed()) : 99999, 3000, QStringLiteral("ms")); (void)ms; next(); }); });
+    P([=](Next next) {
+        const QString dir = Paths::dataDir() + QStringLiteral("/bench-media");
+        QDir().mkpath(dir);
+        const QString src = m_ctl->path();
+        for (int i = 1; i <= 8; ++i) QFile::copy(src, QStringLiteral("%1/clip-%2.%3").arg(dir).arg(i).arg(QFileInfo(src).suffix()));
+        m_ctl->open({dir});
+        waitUntil([=] { return m_ctl->queue()->rowCount() == 8 && loaded(); }, 8000, [=](bool ok, qint64 ms) { verdict(QStringLiteral("open a folder of 8 files"), ok ? double(ms) : 99999, 1500, QStringLiteral("ms")); next(); });
+    });
+    P([=](Next next) {                                              // calm clicking: one file after another
+        auto times = std::make_shared<QVector<qint64>>();
+        auto step = std::make_shared<std::function<void()>>();
+        mon->max = 0;
+        *step = [=] {
+            if (times->size() >= 6) {
+                verdict(QStringLiteral("click-through: longest UI freeze"), double(mon->max), 100, QStringLiteral("ms"));
+                qint64 sum = 0, mx = 0; for (qint64 t : *times) { sum += t; mx = qMax(mx, t); }
+                verdict(QStringLiteral("click to picture, average"), double(sum) / times->size(), 700, QStringLiteral("ms"));
+                verdict(QStringLiteral("click to picture, slowest"), double(mx), 1500, QStringLiteral("ms"));
+                next(); return;
+            }
+            m_ctl->next();
+            waitUntil(loaded, 6000, [=](bool ok, qint64 ms) { times->push_back(ok ? ms : 9999); QTimer::singleShot(120, this, *step); });
+        };
+        (*step)();
+    });
+    P([=](Next next) {                                              // skimming: 150 clicks, 3 ms apart
+        mon->max = 0;
+        if (m_ctl->repeat() == PlayerController::RepeatOff) m_ctl->cycleRepeat();      // wrap around, so every click really loads a file
+        const int before = m_ctl->loadCount();
+        auto n = std::make_shared<int>(0);
+        auto slow = std::make_shared<QPair<qint64, int>>(0, 0);
+        auto t = new QTimer(this); t->setInterval(3);
+        connect(t, &QTimer::timeout, this, [=] {
+            if (++*n <= 150) {
+                QElapsedTimer one; one.start();
+                m_ctl->next();
+                if (one.elapsed() > slow->first) { slow->first = one.elapsed(); slow->second = *n; }
+                return;
+            }
+            log(QStringLiteral("info  slowest single next(): %1 ms at click %2").arg(slow->first).arg(slow->second));
+            t->stop(); t->deleteLater();
+            const qint64 stall = mon->max;
+            waitUntil(loaded, 6000, [=](bool ok, qint64 ms) {
+                verdict(QStringLiteral("skip spam: longest UI freeze"), double(stall), 150, QStringLiteral("ms"));
+                verdict(QStringLiteral("skip spam: time to show the last file"), ok ? double(ms) : 99999, 1000, QStringLiteral("ms"));
+                verdict(QStringLiteral("skip spam: files really opened"), m_ctl->loadCount() - before, 12, QStringLiteral("files"));
+                next();
+            });
+        });
+        t->start();
+    });
+    P([=](Next next) {                                              // dragging the seek bar like mad
+        mon->max = 0;
+        auto n = std::make_shared<int>(0);
+        auto t = new QTimer(this); t->setInterval(4);
+        connect(t, &QTimer::timeout, this, [=] {
+            if (++*n <= 300) { m_ctl->seekFrac(QRandomGenerator::global()->generateDouble(), false); return; }
+            t->stop(); t->deleteLater();
+            verdict(QStringLiteral("seek-bar drag: longest UI freeze"), double(mon->max), 150, QStringLiteral("ms"));
+            next();
+        });
+        t->start();
+    });
+    P([=](Next next) {
+#ifdef Q_OS_WIN
+        PROCESS_MEMORY_COUNTERS pmc{};
+        if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) verdict(QStringLiteral("memory (working set) after all that"), pmc.WorkingSetSize / 1048576.0, 700, QStringLiteral("MB"));
+#endif
+        next();
+    });
+    auto idx = std::make_shared<int>(0);
+    auto runNext = std::make_shared<std::function<void()>>();
+    *runNext = [=] {
+        if (*idx >= phases->size()) {
+            log(QStringLiteral("DONE  %1 checks, %2 over budget").arg(phases->size()).arg(*fails));
+            out->close();
+            QTimer::singleShot(200, qApp, &QApplication::quit);
+            return;
+        }
+        auto ph = (*phases)[(*idx)++];
+        ph([=] { QTimer::singleShot(150, this, *runNext); });
+    };
+    QTimer::singleShot(600, this, *runNext);
+}
+
 void MainWindow::runSelfTest() {
     m_selfTest = true;
     auto* out = new QFile(Paths::logsDir() + "/selftest.txt");
@@ -1112,6 +1342,30 @@ void MainWindow::runSelfTest() {
         S("8K frame decodes and renders", [this] { m_mpv->loadFile("av://lavfi:testsrc2=size=7680x4320:rate=24"); }, [this] { return m_mpv->videoW() == 7680 && m_mpv->videoH() == 4320; }, 3000);
         S("recovers after 8K (loads a normal file)", [this] { m_ctl->playIndex(0); }, [this] { return m_ctl->hasMedia() && m_mpv->videoW() > 0 && m_mpv->videoW() < 3000; }, 1500);
     }
+    // ---- skimming features: marks, number keys, skip-spam ----
+    auto before = std::make_shared<int>(0);
+    S("test folder of 6 clips opens", [this] {
+        const QString dir = Paths::dataDir() + QStringLiteral("/selftest-media");
+        QDir().mkpath(dir);
+        const QString src = m_ctl->path();
+        for (int i = 1; i <= 6; ++i) QFile::copy(src, QStringLiteral("%1/clip-%2.%3").arg(dir).arg(i).arg(QFileInfo(src).suffix()));
+        m_ctl->open({dir});
+    }, [this] { return m_ctl->queue()->rowCount() == 6 && m_ctl->hasMedia(); }, 1600);
+    S("keep mark", [this] { doAction("keep"); }, [this] { return m_ctl->reviewState(m_ctl->path()) & PlayerController::MarkKeep; }, 200);
+    S("reject replaces keep", [this] { doAction("reject"); }, [this] { const int s = m_ctl->reviewState(m_ctl->path()); return (s & PlayerController::MarkReject) && !(s & PlayerController::MarkKeep); }, 200);
+    S("same key clears the mark", [this] { doAction("reject"); }, [this] { return !(m_ctl->reviewState(m_ctl->path()) & (PlayerController::MarkKeep | PlayerController::MarkReject)); }, 200);
+    S("number key 5 jumps to the middle", [this] { m_mpv->setPause(true); doAction("seekpct5"); }, [this] { return m_mpv->duration() < 1 || qAbs(m_mpv->position() / m_mpv->duration() - 0.5) < 0.25; }, 900);
+    S("0 returns to the start", [this] { doAction("zoomreset"); }, [this] { return m_mpv->position() < 1.0; }, 900);
+    S("progress marks the file as seen", [this] { m_mpv->seek(1.5, true); }, [this] { m_ctl->saveResumeNow(); return m_ctl->reviewState(m_ctl->path()) & PlayerController::MarkSeen; }, 700);
+    S("next unwatched skips seen files", [this] { doAction("nextunwatched"); }, [this] { return m_ctl->hasMedia() && !(m_ctl->reviewState(m_ctl->path()) & PlayerController::MarkReject); }, 900);
+    S("skip-spam burst", [this, before] { if (m_ctl->repeat() == PlayerController::RepeatOff) m_ctl->cycleRepeat(); *before = m_ctl->loadCount(); for (int i = 0; i < 25; ++i) m_ctl->next(); }, [] { return true; }, 50);
+    S("skip-spam opened only the last file", [] {}, [this, before] {
+        const QString want = QFileInfo(m_ctl->path()).fileName();
+        const QString have = QFileInfo(m_mpv->getProp("path").toString()).fileName();
+        return have == want && m_ctl->loadCount() - *before <= 2;               // 25 clicks, at most the first and the last were opened
+    }, 900);
+    S("reject then delete list excludes unmarked", [this] { doAction("reject"); }, [this] { return m_ctl->rejected().size() == 1; }, 200);
+    S("drop forgets files and moves playback on", [this] { m_ctl->dropFiles(m_ctl->rejected()); }, [this] { return m_ctl->queue()->rowCount() == 5 && m_ctl->rejected().isEmpty(); }, 500);
     S("rapid next x30", [this] { for (int i = 0; i < 30; ++i) m_ctl->next(); }, [this] { return m_ctl->hasMedia(); }, 1200);
     auto idx = std::make_shared<int>(0);
     auto fails = std::make_shared<int>(0);

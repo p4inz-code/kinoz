@@ -54,6 +54,7 @@ public:
     void removePlace(const QString& path);
     void showQueue(bool q);
     void navigate(const QString& folder);
+    void refreshFolder();
     bool isCaptionAt(const QPoint& localPos) const { return localPos.y() < 44; }
     void focusSearch();
     int libraryRows() const;

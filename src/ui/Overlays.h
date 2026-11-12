@@ -75,6 +75,24 @@ private:
     bool m_closing = false;
 };
 
+// ---------------- ConfirmBox: small yes/no card shown inside a Sheet (Enter = confirm, Esc = cancel) ----------------
+class ConfirmBox : public QWidget {
+    Q_OBJECT
+public:
+    ConfirmBox(const QString& title, const QString& body, const QString& okText, bool danger, QWidget* parent = nullptr);
+signals:
+    void accepted();
+    void cancelled();
+protected:
+    void paintEvent(QPaintEvent*) override;
+    void resizeEvent(QResizeEvent*) override;
+    void keyPressEvent(QKeyEvent*) override;
+private:
+    QString m_title, m_body;
+    TextButton* m_ok;
+    TextButton* m_cancel;
+};
+
 // ---------------- FolderPicker (our own, replaces the OS dialog) ----------------
 class FolderPicker : public QWidget {
     Q_OBJECT

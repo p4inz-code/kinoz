@@ -1,5 +1,6 @@
 #pragma once
 #include "media/MediaKind.h"
+#include <QElapsedTimer>
 #include <QObject>
 #include <QStringListModel>
 #include <QTimer>
@@ -22,6 +23,10 @@ public:
     bool shuffle() const { return m_shuffle; }
     Repeat repeat() const { return m_repeat; }
     bool hasMedia() const { return !m_path.isEmpty(); }
+    bool settled() const { return !m_pending.has && m_mpvPath == m_path && m_fileLoaded; }   // the requested file is open in mpv
+    int decodeMode() const;                              // 0 auto (fast start, GPU for big video), 1 always GPU, 2 CPU only
+    void applyDecode();                                  // re-apply after the setting changes
+    int loadCount() const { return m_loadCount; }        // how many files were really handed to mpv (tests: skip-spam coalescing)
     QString title() const;
     QString artist() const;
     QString album() const;
@@ -70,6 +75,16 @@ public:
     void selectTrack(const QString& type, int id);
     void loadSubtitleFile(const QString& p);
 
+    // review: mark files while you skim (kept / rejected), and remember what you've already seen
+    enum Mark { MarkKeep = 1, MarkReject = 2, MarkSeen = 4 };
+    int reviewState(const QString& path) const;        // bit mask of Mark
+    double watched(const QString& path) const;         // 0..1, how far you got
+    void toggleMark(const QString& path, int mark);    // MarkKeep / MarkReject; choosing one clears the other
+    int nextUnwatched() const;                          // queue index of the next unseen, not-rejected file, or -1
+    QStringList rejected() const;                       // queue files marked as rejected
+    void dropFiles(const QStringList& files);           // forget files that were deleted (queue, marks, resume); moves playback on
+    void markSeen(const QString& path, double frac);
+
     // history
     QStringList recent() const;
     void saveResumeNow();
@@ -81,6 +96,7 @@ signals:
     void message(const QString&);
     void error(const QString&);   // shown as a red toast
     void viewChanged();         // zoom/pan/rotate
+    void markChanged(const QString& path);   // keep / reject / seen changed
 
 private slots:
     void onEnded(bool eof, bool err, const QString& reason);
@@ -90,6 +106,9 @@ private slots:
 
 private:
     void load(const QString& path);
+    void startLoad();                       // really hands the pending file to mpv
+    void warmNext();                        // reads the head/tail of the next file so it opens instantly
+    int peekNext() const;                   // next index without side effects (-1 when unknown / shuffle)
     void buildQueueFromSiblings(const QString& path, quint64 gen);
     void addRecent(const QString& p);
     QString key(const QString& p) const;
@@ -98,8 +117,17 @@ private:
     MpvPlayer* m_mpv;
     JsonStore* m_set;
     JsonStore* m_resume;
+    JsonStore* m_marks = nullptr;
     QStringListModel m_queue;
-    QString m_path;
+    QString m_path;                         // what the user asked for (updates instantly, so the UI never waits)
+    QString m_mpvPath;                      // what mpv actually has loaded (resume points belong to this one)
+    struct Pending { QString path; double start = -1; bool gif = false; bool has = false; } m_pending;
+    QString m_warmed;                       // last file whose head/tail we pre-read
+    int m_loadCount = 0;
+    bool m_hwUp = false;                    // this file already switched to the GPU
+    bool m_fileLoaded = false;              // mpv reported the current file as loaded
+    QTimer m_loadTimer;                     // trailing edge of the click burst
+    QElapsedTimer m_sinceLoad;              // leading edge: a calm click loads immediately
     MediaKind m_kind = MediaKind::Unknown;
     bool m_shuffle = false;
     Repeat m_repeat = RepeatOff;

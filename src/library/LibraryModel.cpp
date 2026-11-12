@@ -100,6 +100,12 @@ void LibraryModel::refilter() {
             const bool ok = (m_kind == 1 && e.kind == MediaKind::Video) || (m_kind == 2 && e.kind == MediaKind::Audio) || (m_kind == 3 && Media::isPicture(e.kind));
             if (!ok) continue;
         }
+        if (!e.dir && m_review && m_state) {
+            const int s = m_state(e.path);
+            const bool av = e.kind == MediaKind::Video || e.kind == MediaKind::Audio;
+            const bool ok = m_review == 1 ? (av && !(s & 4) && !(s & 2)) : m_review == 2 ? (s & 1) != 0 : (s & 2) != 0;
+            if (!ok) continue;
+        }
         m_shown.push_back(i);
     }
     if (m_sort != 0) {

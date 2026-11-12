@@ -22,8 +22,10 @@ public:
     QJsonObject object() const { return m_obj; }
     void flush();
     void setReadOnly(bool r) { m_readOnly = r; }     // extra windows never overwrite the main window's settings
+    bool readOnly() const { return m_readOnly; }
 
 private:
+    void flushImpl(bool sync);
     bool m_readOnly = false;
     QString m_path;
     QJsonObject m_obj;

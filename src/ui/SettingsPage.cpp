@@ -28,6 +28,8 @@ const ActionInfo kActions[] = {
     {"seekfwd10", "Forward 10 s", "Playback"}, {"seekback10", "Back 10 s", "Playback"}, {"speedup", "Faster", "Playback"}, {"speeddown", "Slower", "Playback"},
     {"speedreset", "Normal speed", "Playback"}, {"framestep", "Next frame", "Playback"}, {"framestepback", "Previous frame", "Playback"},
     {"shuffle", "Shuffle", "Playback"}, {"repeat", "Repeat (off / all / one)", "Playback"}, {"abloop", "A-B loop (A, then B, then clear)", "Playback"},
+    {"seekpct1", "Jump to 10% … 90% (videos and tracks)", "Playback"}, {"keep", "Keep this file (mark)", "Skimming"}, {"reject", "Mark this file to reject", "Skimming"},
+    {"nextunwatched", "Next file I haven't seen", "Skimming"}, {"trash", "Delete this file (to the Recycle Bin, asks first)", "Skimming"},
     {"volup", "Volume up", "Sound and picture"}, {"voldown", "Volume down", "Sound and picture"}, {"mute", "Mute", "Sound and picture"}, {"eq", "Equalizer", "Sound and picture"},
     {"adjust", "Adjust picture", "Sound and picture"}, {"subcycle", "Next subtitle track", "Sound and picture"}, {"subdelayminus", "Subtitles earlier", "Sound and picture"},
     {"subdelayplus", "Subtitles later", "Sound and picture"}, {"rotate", "Rotate image", "Sound and picture"}, {"zoomin", "Zoom in", "Sound and picture"},
@@ -54,7 +56,8 @@ SettingsPage::SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, 
     addSeg(General, "motion", {tr("System"), tr("On"), tr("Off")}, {0, 1, 2}, 0, tr("Animations"), tr("Off removes every fade, slide and glow — nothing moves"));
     addSwitch(General, "glass", true, tr("Glass effect"), tr("Blurred backdrop behind the control bar"));
     addSeg(General, "compact", {tr("Comfortable"), tr("Compact")}, {0, 1}, 0, tr("Density"), tr("Row and control size in lists"));
-    addSwitch(General, "hwdec", true, tr("Hardware decoding"), tr("Use the GPU for video (restart to apply)"));
+    if (!m_set->has("decode")) m_set->set("decode", m_set->flag("hwdec", true) ? 0 : 2);        // from the old on/off switch
+    addSeg(General, "decode", {tr("Auto"), tr("GPU"), tr("CPU")}, {0, 1, 2}, 0, tr("Video decoding"), tr("Auto starts every file instantly and uses the GPU for 1440p and larger"));
     addSwitch(General, "fsSafe", false, tr("Safe fullscreen"), tr("Keep the taskbar visible (try this if your screen blinks)"));
     auto* defBtn = new TextButton(tr("Make default…"), this);
     connect(defBtn, &QAbstractButton::clicked, this, &SettingsPage::makeDefault);
@@ -80,7 +83,7 @@ SettingsPage::SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, 
     addSeg(Playback, "seekSmall", {tr("5 s"), tr("10 s"), tr("15 s")}, {5, 10, 15}, 5, tr("Small seek step"), tr("Left / Right arrows"));
     addSeg(Playback, "seekLarge", {tr("30 s"), tr("1 min"), tr("2 min")}, {30, 60, 120}, 30, tr("Large seek step"), tr("Shift + Left / Right"));
     addSeg(Playback, "volStep", {tr("2"), tr("5"), tr("10")}, {2, 5, 10}, 5, tr("Volume step"), tr("Up / Down arrows and the mouse wheel"));
-    addSeg(Playback, "hideDelay", {tr("2 s"), tr("3 s"), tr("5 s"), tr("Never")}, {2, 3, 5, 0}, 3, tr("Hide controls after"), tr("While a video plays and the mouse is still"));
+    addSeg(Playback, "hideDelay", {tr("2 s"), tr("3 s"), tr("5 s"), tr("Never")}, {2, 3, 5, 0}, 2, tr("Hide controls after"), tr("While a video plays and the mouse is still"));
     addSeg(Playback, "slideshow", {tr("Off"), tr("3 s"), tr("5 s"), tr("10 s")}, {0, 3, 5, 10}, 0, tr("Image slideshow"), tr("Advance pictures automatically"));
 
     buildShortcuts();
@@ -118,6 +121,7 @@ void SettingsPage::buildShortcuts() {
         const QString group = tr(a.group);
         QStringList k = byAction.value(QString::fromLatin1(a.id)); k.sort();
         if (k.isEmpty()) continue;
+        if (QByteArray(a.id) == "seekpct1") k = QStringList{QStringLiteral("1 … 9")};         // one row for all nine keys
         if (group != lastGroup) { rows.push_back({Icon::File, group, {}, {}, {}, true}); lastGroup = group; }
         rows.push_back({Icon::Check, tr(a.label), {}, k.join("   ·   ").replace("Return", "Enter").replace("Esc", "Esc"), {}, false});
     }
