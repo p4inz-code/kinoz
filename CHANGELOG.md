@@ -2,7 +2,8 @@
 
 All notable changes. Dates are release dates.
 
-## Unreleased
+## 0.2.0 — first public release
+Everything from 0.1.1 to 0.1.4 (setup with Doctor, fast skimming, Music and playlists, media overlay, updates that finish the job) plus:
 - Licensing and credit made airtight: the fonts' OFL license texts now ship next to the fonts, `THIRD_PARTY_NOTICES.md` lists exact versions and where each component's source is (with a written source offer), every source file carries a copyright and SPDX line, README explains the credit in plain words.
 - Windows hardening: Control Flow Guard, high-entropy ASLR and DEP are on, and libraries load only from kinoz's folder and System32.
 - README: a "Make kinoz your default player" section for each system, an honest comparison with the built-in players, and an up-to-date status. `docs/KNOWN_ISSUES.md` and `SECURITY.md` brought up to date.

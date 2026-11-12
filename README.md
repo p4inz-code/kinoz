@@ -113,7 +113,9 @@ It plays almost anything with no codec packs, because the engine underneath is l
   <a href="#build-from-source">Build from source</a>
 </p>
 
-> **Status: 0.1.x, usable every day on Windows.** The Windows build is the one that is run and tested hardest (automated self-test of 94 checks plus a speed benchmark). The macOS and Linux builds come from CI on every release and have **not** been run on real machines yet, so expect rough edges there. What is missing, honestly, is in [Known issues](docs/KNOWN_ISSUES.md) and the [roadmap](ROADMAP.md).
+> **Status: 0.2, usable every day on Windows.** The Windows build is the one that is run and tested hardest (automated self-test of 94 checks plus a speed benchmark). The macOS and Linux builds come from CI on every release and have **not** been run on real machines yet, so expect rough edges there. What is missing, honestly, is in [Known issues](docs/KNOWN_ISSUES.md) and the [roadmap](ROADMAP.md).
+>
+> **Running it on macOS or Linux?** You are the testers. Please [open an issue](https://github.com/p4inz-code/kinoz/issues/new/choose) and say what worked and what did not: window moving and resizing, fullscreen, media keys, and opening your files.
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
