@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <psapi.h>
 #endif
+#include <QCryptographicHash>
 #include <QElapsedTimer>
 #include <QRandomGenerator>
 #include "core/DefaultApp.h"
@@ -95,6 +96,18 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
     m_index = new LibraryIndex(this);
     m_updater = new Updater(m_set, this);
     connect(m_updater, &Updater::updateFound, this, [this](const QString& v) { notify(tr("kinoz %1 is available. Settings → About to update.").arg(v)); });
+    // A verified update is ready: ask to restart now or later. "Later" is safe: the update installs by itself the next time kinoz starts.
+    connect(m_updater, &Updater::readyToInstall, this, [this](const QString& v, bool automatic) {
+        const bool watching = automatic && m_ctl->kind() == MediaKind::Video && !m_mpv->paused();      // never interrupt a movie for a background download
+        if (watching) { notify(tr("kinoz %1 is ready. It installs the next time you open kinoz, or restart now from Settings → About.").arg(v)); return; }
+        confirm(tr("kinoz %1 is ready").arg(v), tr("Restart now to finish updating. If you choose Later, kinoz installs the update by itself the next time you open it. Your settings and library are kept."),
+                tr("Restart now"), [this] { m_updater->installAndQuit(); }, false, tr("Later"));
+    });
+    if (m_set->has("updateFailedVersion")) {                                                          // an update could not be applied twice in a row
+        const QString v = m_set->str("updateFailedVersion");
+        m_set->remove("updateFailedVersion");
+        QTimer::singleShot(3000, this, [this, v] { notify(tr("kinoz couldn't install version %1 automatically. Use Settings → About → Download page.").arg(v), true); });
+    }
     if (!QCoreApplication::arguments().contains(QStringLiteral("--new")) && !qEnvironmentVariableIsSet("KINOZ_OFFSCREEN"))
         QTimer::singleShot(8000, this, [this] { m_updater->checkAutoIfDue(); });
     m_thumbs->trimDiskCache();
@@ -1036,9 +1049,9 @@ void MainWindow::deletePlaylist(const QString& name) {
 }
 
 // ---------------- deleting (always to the Recycle Bin, always asks first) ----------------
-void MainWindow::confirm(const QString& title, const QString& body, const QString& okText, std::function<void()> onOk, bool danger) {
+void MainWindow::confirm(const QString& title, const QString& body, const QString& okText, std::function<void()> onOk, bool danger, const QString& cancelText) {
     auto* sh = new Sheet(this);
-    auto* box = new ConfirmBox(title, body, okText, danger);
+    auto* box = new ConfirmBox(title, body, okText, danger, nullptr, cancelText);
     sh->setContent(box, QSize(460, 220));
     connect(box, &ConfirmBox::cancelled, sh, &Sheet::closeSheet);
     connect(box, &ConfirmBox::accepted, this, [sh, onOk] { sh->closeSheet(); onOk(); });
@@ -1481,6 +1494,28 @@ void MainWindow::runSelfTest() {
         for (const auto& x : t) if (x.dur < 0.9 || x.dur > 1.1 || x.title.startsWith(QLatin1String("0"))) return false;       // length read, "01 - " prefix stripped from the fallback title
         return true;
     }, 5000);
+#ifdef Q_OS_WIN
+    // ---- updates: what happens to a downloaded update the user left for "later" (decided without launching anything) ----
+    auto stageFake = [this](const QString& version, bool tamper) {
+        QDir().mkpath(Updater::stagingDir());
+        const QString file = Updater::stagingDir() + QStringLiteral("/kinoz-Setup-fake.exe");
+        QFile f(file); f.open(QIODevice::WriteOnly | QIODevice::Truncate); f.write("not a real installer, never run"); f.close();
+        QFile fr(file); fr.open(QIODevice::ReadOnly);
+        const QString sha = QString::fromLatin1(QCryptographicHash::hash(fr.readAll(), QCryptographicHash::Sha256).toHex());
+        fr.close();
+        if (tamper) { QFile t(file); t.open(QIODevice::Append); t.write("x"); }
+        QJsonObject o; o["version"] = version; o["file"] = file; o["sha"] = sha; o["name"] = QStringLiteral("kinoz-Setup-fake.exe");
+        QFile pf(Updater::stagingDir() + QStringLiteral("/pending.json")); pf.open(QIODevice::WriteOnly | QIODevice::Truncate); pf.write(QJsonDocument(o).toJson(QJsonDocument::Compact));
+    };
+    auto staged = [] { return QFile::exists(Updater::stagingDir() + QStringLiteral("/pending.json")); };
+    S("update left for later is applied on next start", [this, stageFake] { m_set->set("updateMode", 0); m_set->set("updateAttempts", 0); stageFake(QStringLiteral("99.0.0"), false); },
+      [this] { return Updater::applyPendingOnStartup(m_set, true) && int(m_set->num("updateAttempts")) == 1; }, 150);
+    S("a second start tries again", [] {}, [this] { return Updater::applyPendingOnStartup(m_set, true) && int(m_set->num("updateAttempts")) == 2; }, 100);
+    S("it gives up after two tries (no loop)", [] {}, [this, staged] { const bool a = Updater::applyPendingOnStartup(m_set, true); const bool ok = !a && !staged() && m_set->str("updateFailedVersion") == QStringLiteral("99.0.0"); m_set->remove("updateFailedVersion"); return ok; }, 100);
+    S("a changed installer file is never run", [this, stageFake] { m_set->set("updateAttempts", 0); stageFake(QStringLiteral("99.0.0"), true); }, [this, staged] { return !Updater::applyPendingOnStartup(m_set, true) && !staged(); }, 150);
+    S("an older staged version is just cleaned up", [this, stageFake] { stageFake(QStringLiteral("0.0.1"), false); }, [this, staged] { return !Updater::applyPendingOnStartup(m_set, true) && !staged(); }, 150);
+    S("turning updates off discards a staged one", [this, stageFake] { stageFake(QStringLiteral("99.0.0"), false); m_updater->setMode(Updater::Off); }, [this, staged] { const bool ok = !staged() && m_updater->mode() == Updater::Off; m_updater->setMode(Updater::Automatic); return ok && m_updater->mode() == Updater::Automatic; }, 150);
+#endif
     S("rapid next x30", [this] { for (int i = 0; i < 30; ++i) m_ctl->next(); }, [this] { return m_ctl->hasMedia(); }, 1200);
     auto idx = std::make_shared<int>(0);
     auto fails = std::make_shared<int>(0);

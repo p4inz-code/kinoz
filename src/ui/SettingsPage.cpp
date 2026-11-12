@@ -187,10 +187,15 @@ void SettingsPage::buildAbout() {
     connect(lic, &QAbstractButton::clicked, this, [this] { m_tabs->setCurrent(Legal); showPage(Legal); });
     auto* rel = new TextButton(tr("Release notes"), this);
     connect(rel, &QAbstractButton::clicked, this, [] { QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/p4inz-code/kinoz/releases"))); });
-    auto* autoUpd = new Switch(this);
-    autoUpd->setChecked(m_set->flag("autoUpdate", true));
-    connect(autoUpd, &QAbstractButton::toggled, this, [this](bool on) { m_set->set("autoUpdate", on); });
-    m_pageWidgets[About] << m_updBtn << src << lic << rel << autoUpd;
+    // Download it yourself: always possible, whatever the update mode is.
+    auto* page = new TextButton(tr("Download page"), this);
+    connect(page, &QAbstractButton::clicked, this, [] { QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/p4inz-code/kinoz/releases/latest"))); });
+    m_dlDirect = new TextButton(tr("Direct download"), this);
+    connect(m_dlDirect, &QAbstractButton::clicked, this, [this] { if (m_up->directDownload().isValid()) QDesktopServices::openUrl(m_up->directDownload()); });
+    m_updMode = new Segmented({tr("Automatic"), tr("Notify me"), tr("Off")}, this);
+    m_updMode->setCurrent(m_up->mode());
+    connect(m_updMode, &Segmented::currentChanged, this, [this](int i) { m_up->setMode(i); update(); });
+    m_pageWidgets[About] << m_updBtn << src << lic << rel << page << m_dlDirect << m_updMode;
 
     m_legal = new QTextBrowser(this);
     m_legal->setOpenExternalLinks(true);
@@ -214,7 +219,7 @@ void SettingsPage::buildAbout() {
             "<h3>No warranty</h3><p>kinoz is provided “as is”, without warranty of any kind, to the extent permitted by law (GPLv3 sections 15–17).</p>"
             "<h3>Privacy</h3><p>kinoz works fully offline. It has no accounts, no analytics and no crash reporting. Your files, folders and playback history stay on your computer, in the data folder. "
             "The only network request it can make is the <b>update check</b> to github.com (a plain request for the latest release; nothing about you or your files is sent). "
-            "You can turn it off under About → “Check for updates automatically”. Details: <b>PRIVACY.md</b>.</p>"
+            "You can turn it off under About → Updates → Off. Details: <b>PRIVACY.md</b>.</p>"
             "<h3>Built with</h3><ul>"
             "<li><b>mpv / libmpv</b> and <b>FFmpeg</b> — playback engine (GPL/LGPL)</li>"
             "<li><b>Qt 6</b> — user interface (LGPL v3, dynamically linked)</li>"
@@ -238,12 +243,13 @@ void SettingsPage::refreshUpdate() {
     case Updater::Downloading: {
         const int pct = m_up->total() > 0 ? int(100 * m_up->received() / m_up->total()) : 0;
         m_updBtn->setText(tr("Downloading… %1%").arg(pct)); m_updStatus = m_up->info(); break; }
-    case Updater::Ready: m_updBtn->setText(tr("Install and restart")); m_updStatus = m_up->info(); break;
+    case Updater::Ready: m_updBtn->setText(tr("Restart now")); m_updStatus = m_up->info(); break;
     case Updater::Failed: m_updBtn->setText(tr("Try again")); m_updStatus = m_up->error(); break;
     case Updater::UpToDate: m_updBtn->setText(tr("Check again")); m_updStatus = m_up->info(); break;
     default: m_updBtn->setText(tr("Check for updates")); m_updStatus.clear(); break;
     }
     m_updBtn->resize(m_updBtn->sizeHint());
+    if (m_dlDirect) m_dlDirect->setEnabled(m_up->directDownload().isValid());       // known once a check has found a newer version
     update();
 }
 
@@ -301,11 +307,13 @@ void SettingsPage::resizeEvent(QResizeEvent*) {
     if (m_infoView) m_infoView->setGeometry(content);
     if (m_copyDiag) m_copyDiag->setGeometry(24, height() - 56, m_copyDiag->sizeHint().width(), 36);
     if (m_legal) m_legal->setGeometry(24, 116, width() - 48, height() - 132);
-    if (m_pageWidgets[About].size() == 5) {
-        int x = 24; const int y = 504;
+    if (m_pageWidgets[About].size() == 7) {
+        int x = 24; const int y = 500;
         m_updBtn->resize(m_updBtn->sizeHint()); m_updBtn->move(x, y); x += m_updBtn->width() + 10;
-        for (int i = 1; i <= 3; ++i) { auto* w = m_pageWidgets[About][i]; const QSize s = w->sizeHint(); w->setGeometry(x, y, s.width(), s.height()); x += s.width() + 10; }
-        m_pageWidgets[About][4]->move(width() - 28 - 38, 564);
+        for (int i = 1; i <= 2; ++i) { auto* w = m_pageWidgets[About][i]; const QSize s = w->sizeHint(); w->setGeometry(x, y, s.width(), s.height()); x += s.width() + 10; }
+        x = 24;
+        for (int i = 3; i <= 5; ++i) { auto* w = m_pageWidgets[About][i]; const QSize s = w->sizeHint(); w->setGeometry(x, 544, s.width(), s.height()); x += s.width() + 10; }
+        m_updMode->setGeometry(width() - 28 - m_updMode->sizeHint().width(), 590, m_updMode->sizeHint().width(), 30);
     }
 }
 
@@ -360,8 +368,19 @@ void SettingsPage::paintEvent(QPaintEvent*) {
         p.setPen(c.border); p.drawLine(24, y + 8, width() - 24, y + 8);
         p.setPen(c.muted); p.setFont(Theme::i().font(13));
         p.drawText(QRectF(24, y + 20, width() - 48, 60), Qt::AlignTop | Qt::TextWordWrap, tr("Free and open source. Anyone may use and change it; versions they share must stay free and keep this credit. Engine, framework and font details are on the Info and Legal tabs."));
-        if (!m_updStatus.isEmpty()) { p.setPen(m_up->state() == Updater::Failed ? c.danger : c.muted); p.drawText(QRectF(24, 474, width() - 48, 22), Qt::AlignVCenter, m_updStatus); }
-        p.setPen(c.text); p.setFont(Theme::i().font(14, QFont::Medium)); p.drawText(QRectF(24, 560, width() - 120, 26), Qt::AlignVCenter, tr("Check for updates automatically"));
-        p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(QRectF(24, 584, width() - 80, 20), Qt::AlignVCenter, tr("Once a day, asks github.com for the newest version. Sends nothing about you."));
+        // download progress: a real bar while the update downloads in the background, full once it is verified
+        const auto st = m_up->state();
+        if (st == Updater::Downloading || st == Updater::Ready) {
+            const qreal frac = st == Updater::Ready ? 1.0 : (m_up->total() > 0 ? qBound(0.0, double(m_up->received()) / double(m_up->total()), 1.0) : 0.0);
+            const QRectF track(24, 458, width() - 48, 8);
+            p.setPen(Qt::NoPen); p.setBrush(c.sunken); p.drawRoundedRect(track, 4, 4);
+            p.setBrush(c.accent); p.drawRoundedRect(QRectF(track.left(), track.top(), qMax(8.0, track.width() * frac), track.height()), 4, 4);
+        }
+        if (!m_updStatus.isEmpty()) { p.setPen(st == Updater::Failed ? c.danger : c.muted); p.setFont(Theme::i().font(13)); p.drawText(QRectF(24, 472, width() - 48, 22), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(m_updStatus, Qt::ElideRight, width() - 48)); }
+        p.setPen(c.text); p.setFont(Theme::i().font(14, QFont::DemiBold)); p.drawText(QRectF(24, 590, 120, 30), Qt::AlignVCenter, tr("Updates"));
+        const QString desc = m_up->mode() == Updater::Automatic ? tr("Downloads quietly, then asks to restart. If you pick Later, it installs on the next launch.")
+                           : m_up->mode() == Updater::Notify ? tr("Tells you when a new version is out. You choose when to download and install.")
+                                                              : tr("Never checks by itself. “Check for updates” above still works.");
+        p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(QRectF(24, 622, width() - 48, 18), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(desc, Qt::ElideRight, width() - 48));
     }
 }

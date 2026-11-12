@@ -84,7 +84,7 @@ private:
     void cycleTheme();
     void updateGlass();
     void openSettings();
-    void confirm(const QString& title, const QString& body, const QString& okText, std::function<void()> onOk, bool danger = true);
+    void confirm(const QString& title, const QString& body, const QString& okText, std::function<void()> onOk, bool danger = true, const QString& cancelText = {});
     void promptText(const QString& title, const QString& label, const QString& text, const QString& okText, std::function<void(const QString&)> onOk);
     void savePlaylist();
     void renamePlaylist(const QString& name);

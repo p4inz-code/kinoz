@@ -1,5 +1,6 @@
 #include "core/JsonStore.h"
 #include "core/Paths.h"
+#include "core/Updater.h"
 #include "installer/Installer.h"
 #include "ui/MainWindow.h"
 #include "ui/Theme.h"
@@ -114,6 +115,9 @@ int main(int argc, char** argv) {
     JsonStore settings(Paths::dataDir() + QStringLiteral("/settings.json"));
     JsonStore resume(Paths::dataDir() + QStringLiteral("/resume.json"));
     if (newWindow) { settings.setReadOnly(true); resume.setReadOnly(true); }
+
+    // An update the user chose to install "later" is applied now, before any window exists; the installer reopens kinoz.
+    if (!stress && Updater::applyPendingOnStartup(&settings)) { settings.flush(); return 0; }
 
     // Crash-loop protection: a "running" marker exists while the main window is open and is removed on a clean exit.
     // If it is still there at the next start, the last run ended abnormally (crash, driver reset, power cut). After two

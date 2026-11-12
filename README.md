@@ -128,7 +128,7 @@ Pick the file for your system from the [latest release](https://github.com/p4inz
 
 **Uninstall (Windows), any one of these:** Windows **Settings → Apps → Installed apps → kinoz → Uninstall**, or inside kinoz **Settings → General → Uninstall…**, or press `Ctrl+K` and type "uninstall". Leave **Delete all my data too** on to remove everything in one go (settings, resume points, thumbnails, logs, exported frames); your own media files are never touched. Silent: `kinoz.exe --uninstall --silent --delete-data`. macOS: drag kinoz out of Applications. Linux: delete the AppImage.
 
-Each file has a `.sha256` next to it. The in-app updater (optional) only installs a download whose SHA-256 matches. Your first five minutes: open kinoz, press **Add a folder**, point it at where your media lives, and click anything. Press `Ctrl+K` to search, `?`-style help is in **Settings → Shortcuts**.
+Each file has a `.sha256` next to it. The in-app updater downloads in the background with a progress bar, installs only a file whose SHA-256 matches (checked again right before installing), then asks **Restart now / Later**; if you pick Later it installs by itself the next time you open kinoz. **Settings → About → Updates** switches between Automatic, Notify me and Off, and the download page and direct link are one click away. Your first five minutes: open kinoz, press **Add a folder**, point it at where your media lives, and click anything. Press `Ctrl+K` to search, `?`-style help is in **Settings → Shortcuts**.
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
@@ -165,7 +165,7 @@ Each file has a `.sha256` next to it. The in-app updater (optional) only install
 | Look | Light and dark theme, six accent colours, glass effect, compact density, animations System / On / Off. |
 | Settings that explain themselves | Six tabs: General, Playback, Shortcuts, Info (system, graphics, engine, current file, copy diagnostics), About, Legal. |
 | Resilient | A broken or missing file is skipped with a clear message instead of stopping the queue. Plays local files only, with no external tools or scripts run. |
-| Offline | No account, no telemetry. An optional, SHA-256-verified update check is the only network request. |
+| Offline | No account, no telemetry. An optional, SHA-256-verified update check (Automatic / Notify me / Off) is the only network request. |
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 

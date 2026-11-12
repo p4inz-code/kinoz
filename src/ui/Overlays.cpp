@@ -134,11 +134,11 @@ void Sheet::mousePressEvent(QMouseEvent* e) { if (!cardRect().contains(e->positi
 void Sheet::keyPressEvent(QKeyEvent* e) { if (e->key() == Qt::Key_Escape) closeSheet(); else QWidget::keyPressEvent(e); }
 
 // ============================================================ ConfirmBox
-ConfirmBox::ConfirmBox(const QString& title, const QString& body, const QString& okText, bool danger, QWidget* parent) : QWidget(parent), m_title(title), m_body(body) {
+ConfirmBox::ConfirmBox(const QString& title, const QString& body, const QString& okText, bool danger, QWidget* parent, const QString& cancelText) : QWidget(parent), m_title(title), m_body(body) {
     setFocusPolicy(Qt::StrongFocus);
     m_ok = new TextButton(okText, this, true);
     m_ok->setDanger(danger);
-    m_cancel = new TextButton(tr("Cancel"), this);
+    m_cancel = new TextButton(cancelText.isEmpty() ? tr("Cancel") : cancelText, this);
     connect(m_ok, &QAbstractButton::clicked, this, &ConfirmBox::accepted);
     connect(m_cancel, &QAbstractButton::clicked, this, &ConfirmBox::cancelled);
 }

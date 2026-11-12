@@ -25,7 +25,7 @@ kinoz can check for updates. This is the only thing it ever sends over the netwo
 
 As with any request, GitHub sees your IP address and handles it under [its own privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement). No server run by the author is involved.
 
-It runs at most once a day and can be switched off: **Settings → About → "Check for updates automatically"**. You can also check manually, or never.
+It runs at most once a day. **Settings → About → Updates** chooses what happens: **Automatic** (download in the background, then ask to restart; "Later" installs it on the next launch), **Notify me** (tell me, I decide), or **Off** (never contacts the network on its own). You can always check manually, or download the installer yourself from the release page.
 
 Downloaded updates are only installed if their SHA-256 checksum matches the one published with the release, and only when you press the button.
 

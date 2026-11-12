@@ -79,7 +79,7 @@ private:
 class ConfirmBox : public QWidget {
     Q_OBJECT
 public:
-    ConfirmBox(const QString& title, const QString& body, const QString& okText, bool danger, QWidget* parent = nullptr);
+    ConfirmBox(const QString& title, const QString& body, const QString& okText, bool danger, QWidget* parent = nullptr, const QString& cancelText = {});
 signals:
     void accepted();
     void cancelled();

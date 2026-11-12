@@ -57,11 +57,81 @@ void Updater::setState(State s, const QString& err, const QString& info) {
     emit stateChanged();
 }
 
+QString Updater::stagingDir() { return Paths::tmpDir() + QStringLiteral("/update"); }
+
+int Updater::mode() const {
+    if (m_set->has("updateMode")) return qBound(0, int(m_set->num("updateMode", Automatic)), 2);
+    return m_set->flag("autoUpdate", true) ? Automatic : Off;       // older settings files had a plain on/off switch
+}
+
+void Updater::setMode(int m) {
+    m = qBound(0, m, 2);
+    m_set->set("updateMode", m);
+    m_set->set("autoUpdate", m != Off);
+    if (m == Off) discardStaged();                                  // opting out also cancels a staged update
+}
+
 void Updater::checkAutoIfDue() {
-    if (!m_set->flag("autoUpdate", true)) return;
+    if (mode() == Off) return;
     const qint64 last = qint64(m_set->num("lastUpdateCheck", 0));
     if (QDateTime::currentSecsSinceEpoch() - last < 24 * 3600) return;
     checkNow(false);
+}
+
+void Updater::discardStaged() {
+    QDir d(stagingDir());
+    for (const QFileInfo& fi : d.entryInfoList(QDir::Files | QDir::NoDotAndDotDot)) QFile::remove(fi.absoluteFilePath());
+}
+
+// Remember a verified download so it can be installed at the next start if the user doesn't restart now.
+void Updater::stage() {
+    QJsonObject o;
+    o["version"] = m_latest; o["file"] = m_file; o["sha"] = m_sha; o["name"] = m_assetName;
+    QFile f(stagingDir() + QStringLiteral("/pending.json"));
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) f.write(QJsonDocument(o).toJson(QJsonDocument::Compact));
+    m_set->set("updateAttempts", 0);
+}
+
+bool Updater::applyPendingOnStartup(JsonStore* settings, bool dryRun) {
+#ifndef Q_OS_WIN
+    Q_UNUSED(settings) Q_UNUSED(dryRun)
+    return false;
+#else
+    QFile pf(stagingDir() + QStringLiteral("/pending.json"));
+    if (!pf.open(QIODevice::ReadOnly)) return false;
+    const QJsonObject o = QJsonDocument::fromJson(pf.readAll()).object();
+    pf.close();
+    const QString version = o.value("version").toString(), file = o.value("file").toString(), sha = o.value("sha").toString().toLower();
+    if (!isNewer(version, current())) {                              // already installed (or stale): tidy up
+        discardStaged();
+        settings->set("updateAttempts", 0);
+        return false;
+    }
+    const int m = settings->has("updateMode") ? int(settings->num("updateMode", Automatic)) : (settings->flag("autoUpdate", true) ? int(Automatic) : int(Off));
+    if (m == Off) { discardStaged(); return false; }                  // the user opted out since downloading
+    const int attempts = int(settings->num("updateAttempts", 0));
+    if (attempts >= 2) {                                              // two tries were not enough: never loop, tell the user
+        discardStaged();
+        settings->set("updateAttempts", 0);
+        settings->set("updateFailedVersion", version);
+        return false;
+    }
+    // The file must be inside the staging folder and still match the checksum it was verified with.
+    const QFileInfo fi(file);
+    QFile f(file);
+    QCryptographicHash h(QCryptographicHash::Sha256);
+    if (fi.absolutePath() != QFileInfo(stagingDir()).absoluteFilePath() || sha.size() != 64 || !f.open(QIODevice::ReadOnly) || !h.addData(&f)
+        || QString::fromLatin1(h.result().toHex()).toLower() != sha) {
+        discardStaged();
+        return false;
+    }
+    f.close();
+    settings->set("updateAttempts", attempts + 1);
+    settings->flush();                                                // the counter must survive the restart the installer causes
+    if (dryRun) return true;
+    if (!QProcess::startDetached(file, {QStringLiteral("/SILENT"), QStringLiteral("/SUPPRESSMSGBOXES"), QStringLiteral("/NORESTART"), QStringLiteral("/CLOSEAPPLICATIONS")})) return false;
+    return true;
+#endif
 }
 
 void Updater::checkNow(bool manual) {
@@ -94,7 +164,7 @@ void Updater::onChecked(QNetworkReply* r) {
     m_latest = tag;
     m_notes = o.value("body").toString();
     m_page = QUrl(o.value("html_url").toString());
-    m_assetUrl = QUrl(); m_assetName.clear(); m_sha.clear();
+    m_assetUrl = QUrl(); m_directUrl = QUrl(); m_assetName.clear(); m_sha.clear();
 #ifdef Q_OS_WIN
     static const QRegularExpression pat("^kinoz-Setup-.*\\.exe$");
 #elif defined(Q_OS_MACOS)
@@ -116,6 +186,7 @@ void Updater::onChecked(QNetworkReply* r) {
         const QJsonObject a = v.toObject();
         if (!m_assetName.isEmpty() && a.value("name").toString() == m_assetName + ".sha256") shaUrl = a.value("browser_download_url").toString();
     }
+    if (urlAllowed(m_assetUrl)) m_directUrl = m_assetUrl;                // for the "download it yourself" link
     if (m_assetName.isEmpty() || !urlAllowed(m_assetUrl)) {
         setState(Available, {}, tr("Version %1 is available. Open the release page to download it.").arg(m_latest));
         m_assetUrl = QUrl();
@@ -147,18 +218,23 @@ void Updater::finishAvailable() {
     } else {
         setState(Available, {}, tr("Version %1 is available.").arg(m_latest));
     }
-    if (!m_manual) emit updateFound(m_latest);
+    if (m_manual) return;
+#ifdef Q_OS_WIN
+    if (mode() == Automatic && m_assetUrl.isValid()) { download(true); return; }    // background download; the prompt comes when it is verified
+#endif
+    emit updateFound(m_latest);
 }
 
-void Updater::download() {
+void Updater::download(bool automatic) {
     if (m_state != Available) return;
+    m_auto = automatic;
 #ifndef Q_OS_WIN
-    QDesktopServices::openUrl(m_page);          // macOS / Linux: open the release page; the user installs it themselves
+    if (!automatic) QDesktopServices::openUrl(m_page);   // macOS / Linux: open the release page; the user installs it themselves
     return;
 #endif
     if (!m_assetUrl.isValid() || !urlAllowed(m_assetUrl)) { QDesktopServices::openUrl(m_page); return; }
     QDir().mkpath(Paths::tmpDir() + "/update");
-    m_file = Paths::tmpDir() + "/update/" + m_assetName;
+    m_file = stagingDir() + "/" + QFileInfo(m_assetName).fileName();          // a file name only, never a path from the network
     delete m_out;
     m_out = new QFile(m_file + ".part", this);
     if (!m_out->open(QIODevice::WriteOnly | QIODevice::Truncate)) { setState(Failed, tr("Couldn't write the update to disk."), {}); return; }
@@ -193,8 +269,10 @@ void Updater::onDownloaded() {
         return;
     }
     QFile::remove(m_file);
-    QFile::rename(m_file + ".part", m_file);
-    setState(Ready, {}, tr("Version %1 is downloaded and verified.").arg(m_latest));
+    if (!QFile::rename(m_file + ".part", m_file)) { setState(Failed, tr("Couldn't save the update."), {}); return; }
+    stage();                                                         // survives a restart: installed at the next start if the user says "Later"
+    setState(Ready, {}, tr("Version %1 is downloaded and verified. It installs when you restart, or the next time you open kinoz.").arg(m_latest));
+    emit readyToInstall(m_latest, m_auto);
 }
 
 bool Updater::installAndQuit() {

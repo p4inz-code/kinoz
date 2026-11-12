@@ -847,7 +847,13 @@ int run(const QStringList& args) {
             err = installJob(o, payload, none);
             if (err.isEmpty() && o.launch) QProcess::startDetached(QDir::cleanPath(o.dest + "/kinoz.exe"), {});
         }
-        if (!err.isEmpty()) logLine("FAILED: " + err);
+        if (!err.isEmpty()) {
+            logLine("FAILED: " + err);
+            // An update that could not be applied must not leave the user without a player: reopen what is installed
+            // (the failed copy was rolled back, so this is the previous, working version).
+            const QString prev = QDir::cleanPath(o.dest + "/kinoz.exe");
+            if (!uninstall && o.launch && QFile::exists(prev)) QProcess::startDetached(prev, {});
+        }
         return err.isEmpty() ? 0 : 1;
     }
     SetupWindow w(payload, o.dest, o.launch);
