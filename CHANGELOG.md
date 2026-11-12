@@ -2,8 +2,7 @@
 
 All notable changes. Dates are release dates.
 
-## 0.1.0 — first public build (unreleased)
-First version. Windows build is the one that has been run and tested; the macOS and Linux builds are produced by CI and have **not** been tested by hand yet (see [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)).
+## 0.1.1 — custom setup, Doctor, default player
 
 **Setup**
 - Custom setup window drawn by the app itself (Install, Update/Reinstall, Repair, Remove), light and dark.
@@ -21,6 +20,9 @@ First version. Windows build is the one that has been run and tested; the macOS 
 **Fixes**
 - Closing kinoz no longer ends with a crash inside libmpv (the video widget is now freed before the player core).
 - Setup only ever removes what it installed: files listed in its manifest (plus `data` if you chose to delete data). A folder without kinoz's file list is refused, and unrelated files in a shared folder are left alone.
+
+## 0.1.0 — first public build
+First version. Windows build is the one that has been run and tested; the macOS and Linux builds are produced by CI and have **not** been tested by hand yet (see [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)).
 
 **Playback**
 - Plays video, audio, images and animated GIFs in one window (libmpv + FFmpeg, no codec packs).
