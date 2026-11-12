@@ -93,6 +93,26 @@ private:
     TextButton* m_cancel;
 };
 
+// ---------------- InputBox: one-line text prompt inside a Sheet (Enter = OK, Esc = cancel) ----------------
+class InputBox : public QWidget {
+    Q_OBJECT
+public:
+    InputBox(const QString& title, const QString& label, const QString& text, const QString& okText, QWidget* parent = nullptr);
+    void focusEdit();
+signals:
+    void accepted(const QString& text);
+    void cancelled();
+protected:
+    void paintEvent(QPaintEvent*) override;
+    void resizeEvent(QResizeEvent*) override;
+    void keyPressEvent(QKeyEvent*) override;
+private:
+    QString m_title, m_label;
+    QLineEdit* m_edit;
+    TextButton* m_ok;
+    TextButton* m_cancel;
+};
+
 // ---------------- FolderPicker (our own, replaces the OS dialog) ----------------
 class FolderPicker : public QWidget {
     Q_OBJECT

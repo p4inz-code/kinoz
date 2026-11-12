@@ -2,6 +2,9 @@
 #include "core/JsonStore.h"
 #include "core/player/PlayerController.h"
 #include "library/LibraryModel.h"
+#include "library/MusicIndex.h"
+#include "library/Playlists.h"
+#include "ui/MusicView.h"
 #include "thumbs/ThumbService.h"
 #include "ui/Theme.h"
 #include "ui/Widgets.h"
@@ -178,13 +181,23 @@ void Sidebar::refreshFolder() { if (!m_model->folder().isEmpty()) m_model->refre
 Sidebar::Sidebar(PlayerController* ctl, ThumbService* thumbs, JsonStore* settings, QWidget* parent)
     : QWidget(parent), m_ctl(ctl), m_thumbs(thumbs), m_set(settings) {
     m_model = new LibraryModel(this);
-    m_tabs = new Segmented({tr("Library"), tr("Queue")}, this);
+    m_tabs = new Segmented({tr("Library"), tr("Queue"), tr("Music")}, this);
     m_filter = new Segmented({tr("All"), tr("Video"), tr("Audio"), tr("Images")}, this);
     m_up = new IconButton(Icon::ChevronLeft, this, 30);
     m_viewBtn = new IconButton(Icon::Grid, this, 32);
     m_sortBtn = new IconButton(Icon::List, this, 32);
     m_addPlace = new IconButton(Icon::Plus, this, 30);
     m_clearQ = new IconButton(Icon::Trash, this, 30);
+    m_saveQ = new IconButton(Icon::Export, this, 30);
+    m_saveQ->setToolTip(tr("Save the queue as a playlist"));
+    m_clearQ->setToolTip(tr("Clear the queue"));
+    m_musicIdx = new MusicIndex(this);
+    m_music = new MusicView(ctl, m_musicIdx, this);
+    connect(m_music, &MusicView::toast, this, &Sidebar::toast);
+    connect(m_music, &MusicView::savePlaylistRequested, this, &Sidebar::savePlaylistRequested);
+    connect(m_music, &MusicView::renamePlaylistRequested, this, &Sidebar::renamePlaylistRequested);
+    connect(m_music, &MusicView::deletePlaylistRequested, this, &Sidebar::deletePlaylistRequested);
+    connect(m_saveQ, &QAbstractButton::clicked, this, &Sidebar::savePlaylistRequested);
     m_search = new QLineEdit(this);
     m_search->setPlaceholderText(tr("Filter this folder"));
     m_search->setClearButtonEnabled(true);
@@ -210,7 +223,7 @@ Sidebar::Sidebar(PlayerController* ctl, ThumbService* thumbs, JsonStore* setting
     connect(ctl, &PlayerController::pathChanged, this, [this] { m_list->viewport()->update(); m_queueView->viewport()->update(); update(); });
     connect(ctl, &PlayerController::queueChanged, this, [this] { update(); relayout(); });
 
-    connect(m_tabs, &Segmented::currentChanged, this, [this](int i) { showQueue(i == 1); });
+    connect(m_tabs, &Segmented::currentChanged, this, [this](int i) { showTab(i); });
     connect(m_filter, &Segmented::currentChanged, this, [this](int i) { m_model->setKindFilter(i); m_set->set("filter", i); });
     connect(m_search, &QLineEdit::textChanged, this, [this](const QString& t) { m_model->setText(t); });
     connect(m_up, &QAbstractButton::clicked, this, [this] { navigate(parentOf(m_model->folder())); });
@@ -263,6 +276,7 @@ Sidebar::Sidebar(PlayerController* ctl, ThumbService* thumbs, JsonStore* setting
     m_filter->setCurrent(int(m_set->num("filter", 0))); m_model->setKindFilter(m_filter->current());
     QStringList pl; for (const auto& v : m_set->get("places").toArray()) pl << v.toString();
     m_model->setPlaces(pl);
+    m_musicIdx->setRoots(pl);
     applyGrid(m_set->flag("grid", false));
     const QString last = m_set->str("lastFolder");
     if (!last.isEmpty() && QDir(last).exists()) navigate(last); else m_model->setFolder({});
@@ -278,7 +292,7 @@ QString Sidebar::parentOf(const QString& f) const {
 }
 
 QStringList Sidebar::places() const { QStringList l; for (const auto& v : m_set->get("places").toArray()) l << v.toString(); return l; }
-void Sidebar::savePlaces(const QStringList& p) { m_set->set("places", QJsonArray::fromStringList(p)); m_model->setPlaces(p); emit placesChanged(); update(); }
+void Sidebar::savePlaces(const QStringList& p) { m_set->set("places", QJsonArray::fromStringList(p)); m_model->setPlaces(p); m_musicIdx->setRoots(p); emit placesChanged(); update(); }
 void Sidebar::addPlace(const QString& path) { QStringList l = places(); const QString c = QDir::cleanPath(path); if (!l.contains(c)) { l << c; savePlaces(l); } }
 void Sidebar::removePlace(const QString& path) { QStringList l = places(); l.removeAll(QDir::cleanPath(path)); savePlaces(l); }
 
@@ -293,12 +307,19 @@ void Sidebar::navigate(const QString& folder) {
     update();
 }
 
-void Sidebar::showQueue(bool q) {
-    m_queueTab = q;
-    m_tabs->setCurrent(q ? 1 : 0);
+void Sidebar::showQueue(bool q) { showTab(q ? 1 : 0); }
+
+void Sidebar::showTab(int tab) {
+    m_tab = qBound(0, tab, 2);
+    m_queueTab = m_tab == 1;
+    m_tabs->setCurrent(m_tab);
+    if (m_tab == 2) { m_musicIdx->ensureScanned(); m_music->refresh(); }       // the tags are read only once you open Music
     relayout();
     update();
 }
+
+void Sidebar::showPlaylists() { showTab(2); m_music->showPlaylists(); }
+void Sidebar::refreshMusic() { m_music->refresh(); }
 
 void Sidebar::applyGrid(bool g) {
     m_grid = g;
@@ -349,28 +370,24 @@ void Sidebar::resizeEvent(QResizeEvent*) { relayout(); }
 void Sidebar::relayout() {
     const int w = width(), h = height();
     m_tabs->setGeometry(12, 50, m_tabs->sizeHint().width(), 30);
-    const bool q = m_queueTab;
-    m_viewBtn->setVisible(!q); m_sortBtn->setVisible(!q);
+    const bool lib = m_tab == 0, q = m_tab == 1, mu = m_tab == 2;
+    const bool inPlaces = m_model->folder().isEmpty();
+    m_up->setVisible(lib); m_addPlace->setVisible(lib); m_list->setVisible(lib);
+    m_filter->setVisible(lib && !inPlaces); m_search->setVisible(lib && !inPlaces);
+    m_viewBtn->setVisible(lib && !inPlaces); m_sortBtn->setVisible(lib && !inPlaces);
+    m_clearQ->setVisible(q); m_saveQ->setVisible(q); m_queueView->setVisible(q);
+    m_music->setVisible(mu);
     m_viewBtn->move(w - 12 - 32, 49);
     m_sortBtn->move(w - 12 - 32 - 34, 49);
-    m_up->setVisible(!q); m_addPlace->setVisible(!q);
-    m_filter->setVisible(!q); m_search->setVisible(!q); m_list->setVisible(!q);
-    m_clearQ->setVisible(q); m_queueView->setVisible(q);
-    m_up->setEnabled(!m_model->folder().isEmpty());
     m_up->move(12, 90);
     m_addPlace->move(w - 12 - 30, 90);
     m_filter->setGeometry(12, 128, qMin(w - 24, m_filter->sizeHint().width()), 30);
     m_search->setGeometry(12, 166, w - 24, 32);
-    m_list->setGeometry(0, 206, w, h - 206 - 8);
-    m_clearQ->move(w - 12 - 30, 90);
-    m_queueView->setGeometry(0, 130, w, h - 130 - 8);
-    m_addPlace->setVisible(!q);
-    const bool inPlaces = m_model->folder().isEmpty();
-    m_filter->setVisible(!q && !inPlaces);
-    m_search->setVisible(!q && !inPlaces);
-    m_viewBtn->setVisible(!q && !inPlaces);
-    m_sortBtn->setVisible(!q && !inPlaces);
     m_list->setGeometry(0, inPlaces ? 130 : 206, w, h - (inPlaces ? 130 : 206) - 8);
+    m_clearQ->move(w - 12 - 30, 90);
+    m_saveQ->move(w - 12 - 30 - 34, 90);
+    m_queueView->setGeometry(0, 130, w, h - 130 - 8);
+    m_music->setGeometry(0, 90, w, h - 90 - 8);
     m_up->setEnabled(!inPlaces);
 }
 
@@ -383,7 +400,7 @@ void Sidebar::paintEvent(QPaintEvent*) {
     p.setPen(c.text); p.setFont(Theme::i().font(17, QFont::DemiBold, true));
     p.drawText(QRectF(18, 0, width() - 36, 44), Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral(APP_NAME));
     const bool inPlaces = m_model->folder().isEmpty();
-    if (!m_queueTab) {
+    if (m_tab == 0) {
         p.setFont(Theme::i().font(13, QFont::DemiBold)); p.setPen(c.text);
         QString label = inPlaces ? tr("Places") : QFileInfo(m_model->folder()).fileName();
         if (label.isEmpty()) label = m_model->folder();
@@ -400,7 +417,7 @@ void Sidebar::paintEvent(QPaintEvent*) {
             p.setPen(c.muted); p.setFont(Theme::i().font(14));
             p.drawText(QRectF(24, inPlaces ? 150 : 226, width() - 48, 30), Qt::AlignTop, tr("Loading…"));
         }
-    } else {
+    } else if (m_tab == 1) {
         const int n = m_ctl->queue()->rowCount();
         p.setFont(Theme::i().font(13, QFont::DemiBold)); p.setPen(c.text);
         p.drawText(QRectF(16, 90, width() - 70, 30), Qt::AlignVCenter, tr("Up next · %1").arg(n));

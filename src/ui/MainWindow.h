@@ -21,6 +21,7 @@ class SidePanel;
 class CommandPalette;
 class Annotator;
 class PreviewTip;
+class Smtc;
 class PreviewService;
 class ThumbService;
 class LibraryIndex;
@@ -66,6 +67,9 @@ private:
     void enterFullscreen();
     void exitFullscreen();
     void fitFullscreenToMonitor();           // Windows: re-fit after the display setup changes
+    void updateSmtc();                       // Windows media overlay (volume flyout / lock screen)
+    Smtc* m_smtc = nullptr;
+    QTimer m_smtcTimer;
     void toggleMini();
     void togglePin();
     void setSidebarOpen(bool open, bool animate = true);
@@ -80,6 +84,10 @@ private:
     void updateGlass();
     void openSettings();
     void confirm(const QString& title, const QString& body, const QString& okText, std::function<void()> onOk, bool danger = true);
+    void promptText(const QString& title, const QString& label, const QString& text, const QString& okText, std::function<void(const QString&)> onOk);
+    void savePlaylist();
+    void renamePlaylist(const QString& name);
+    void deletePlaylist(const QString& name);
     void trashCurrent();
     void trashRejected();
     void trashFiles(const QStringList& files);

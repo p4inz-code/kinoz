@@ -6,12 +6,15 @@
 #include <QElapsedTimer>
 #include <QRandomGenerator>
 #include "core/DefaultApp.h"
+#include "core/Smtc.h"
 #include "core/JsonStore.h"
 #include "core/Paths.h"
 #include "core/player/MpvPlayer.h"
 #include "core/player/PlayerController.h"
 #include "core/Updater.h"
 #include "library/LibraryIndex.h"
+#include "library/MusicIndex.h"
+#include "library/Playlists.h"
 #include "thumbs/PreviewService.h"
 #include "thumbs/ThumbService.h"
 #include "ui/Annotator.h"
@@ -244,6 +247,9 @@ void MainWindow::buildUi() {
 
     connect(m_side, &Sidebar::addFolderRequested, this, [this] { openPicker(true); });
     connect(m_side, &Sidebar::toast, this, [this](const QString& t) { notify(t); });
+    connect(m_side, &Sidebar::savePlaylistRequested, this, [this] { savePlaylist(); });
+    connect(m_side, &Sidebar::renamePlaylistRequested, this, [this](const QString& n) { renamePlaylist(n); });
+    connect(m_side, &Sidebar::deletePlaylistRequested, this, [this](const QString& n) { deletePlaylist(n); });
     connect(m_side, &Sidebar::openInNewWindow, this, [this](const QString& p) {
         if (!QProcess::startDetached(QCoreApplication::applicationFilePath(), {QStringLiteral("--new"), p})) notify(tr("Couldn't open a new window"), true);
     });
@@ -499,6 +505,37 @@ void MainWindow::showEvent(QShowEvent* e) {
     setGeometry(m_normalGeo);                                  // frame change can shift the window: re-apply
     if (m_wasMax) QTimer::singleShot(0, this, [this] { showMaximized(); });
     QTimer::singleShot(0, this, [this] { m_cover->run(1.0, 0.0, 300); });   // gentle fade-in on launch
+#ifdef Q_OS_WIN
+    if (!qEnvironmentVariableIsSet("KINOZ_SILENT")) {                       // tests stay invisible to the system media overlay
+        m_smtc = new Smtc(this, this);
+        if (m_smtc->ok()) {
+            connect(m_smtc, &Smtc::playRequested, this, [this] { if (m_mpv->paused()) m_ctl->togglePause(); });
+            connect(m_smtc, &Smtc::pauseRequested, this, [this] { if (!m_mpv->paused()) m_ctl->togglePause(); });
+            connect(m_smtc, &Smtc::nextRequested, this, [this] { doAction("next"); });
+            connect(m_smtc, &Smtc::previousRequested, this, [this] { doAction("prev"); });
+            connect(m_smtc, &Smtc::stopRequested, this, [this] { doAction("stop"); });
+            connect(m_smtc, &Smtc::seekRequested, this, [this](double s) { m_mpv->seek(s, true); });
+            connect(m_ctl, &PlayerController::pathChanged, this, &MainWindow::updateSmtc);
+            connect(m_mpv, &MpvPlayer::pauseChanged, this, [this](bool) { updateSmtc(); });
+            m_smtcTimer.setInterval(1500);                                 // keeps the overlay's progress bar in step
+            connect(&m_smtcTimer, &QTimer::timeout, this, &MainWindow::updateSmtc);
+            m_smtcTimer.start();
+        }
+    }
+#endif
+}
+
+void MainWindow::updateSmtc() {
+#ifdef Q_OS_WIN
+    if (!m_smtc || !m_smtc->ok()) return;
+    Smtc::State s;
+    s.hasMedia = m_ctl->hasMedia() && Media::family(m_ctl->kind()) == 1;      // pictures don't belong in the media overlay
+    s.video = m_ctl->kind() == MediaKind::Video;
+    s.title = m_ctl->title(); s.artist = m_ctl->artist(); s.album = m_ctl->album();
+    s.playing = !m_mpv->paused();
+    s.pos = m_mpv->position(); s.dur = m_mpv->duration();
+    m_smtc->update(s);
+#endif
 }
 
 #ifndef Q_OS_WIN
@@ -669,6 +706,9 @@ void MainWindow::doAction(const QString& id) {
     else if (id == "openfolder") openPicker(true);
     else if (id == "openfile") openPicker(false);
     else if (id == "settings") openSettings();
+    else if (id == "saveplaylist") savePlaylist();
+    else if (id == "playlists") { setSidebarOpen(true); m_side->showPlaylists(); }
+    else if (id == "music") { setSidebarOpen(true); m_side->showTab(2); }
     else if (id == "keep") { if (m_ctl->hasMedia()) m_ctl->toggleMark(m_ctl->path(), PlayerController::MarkKeep); }
     else if (id == "reject") { if (m_ctl->hasMedia()) m_ctl->toggleMark(m_ctl->path(), PlayerController::MarkReject); }
     else if (id == "trash") trashCurrent();
@@ -952,6 +992,47 @@ void MainWindow::showAspectMenu() {
         else { m_mpv->setProp("panscan", 0.0); m_mpv->setProp("video-aspect-override", id); }
     });
     m->popupAbove(m_bar->isVisible() ? m_bar->buttonRect("more") : QRect(QCursor::pos(), QSize(1, 1)));
+}
+
+// ---------------- playlists ----------------
+void MainWindow::promptText(const QString& title, const QString& label, const QString& text, const QString& okText, std::function<void(const QString&)> onOk) {
+    auto* sh = new Sheet(this);
+    auto* box = new InputBox(title, label, text, okText);
+    sh->setContent(box, QSize(460, 220));
+    connect(box, &InputBox::cancelled, sh, &Sheet::closeSheet);
+    connect(box, &InputBox::accepted, this, [sh, onOk](const QString& t) { sh->closeSheet(); onOk(t); });
+    sh->openSheet();
+    QTimer::singleShot(0, box, [box] { box->focusEdit(); });
+}
+
+void MainWindow::savePlaylist() {
+    const QStringList files = m_ctl->queue()->stringList();
+    if (files.isEmpty()) { notify(tr("The queue is empty. Play something first, then save it."), true); return; }
+    promptText(tr("Save as playlist"), tr("%n song(s) from the queue", nullptr, files.size()), Playlists::uniqueName(tr("Playlist")), tr("Save"), [this, files](const QString& name) {
+        const QString n = Playlists::sanitize(name);
+        auto write = [this, files, n] {
+            QString err;
+            if (Playlists::save(n, files, &err)) { notify(tr("Saved “%1”").arg(n)); m_side->showPlaylists(); }
+            else notify(tr("Couldn't save the playlist: %1").arg(err), true);
+        };
+        if (Playlists::exists(n)) confirm(tr("Replace “%1”?").arg(n), tr("A playlist with this name already exists."), tr("Replace"), write, false);
+        else write();
+    });
+}
+
+void MainWindow::renamePlaylist(const QString& name) {
+    promptText(tr("Rename playlist"), tr("New name"), name, tr("Rename"), [this, name](const QString& to) {
+        QString err;
+        if (Playlists::rename(name, Playlists::sanitize(to), &err)) { notify(tr("Renamed")); m_side->showPlaylists(); }
+        else notify(err, true);
+    });
+}
+
+void MainWindow::deletePlaylist(const QString& name) {
+    confirm(tr("Delete “%1”?").arg(name), tr("The playlist file is removed. Your songs are not touched."), tr("Delete playlist"), [this, name] {
+        if (Playlists::remove(name)) { notify(tr("Playlist deleted")); m_side->showPlaylists(); }
+        else notify(tr("Couldn't delete the playlist"), true);
+    });
 }
 
 // ---------------- deleting (always to the Recycle Bin, always asks first) ----------------
@@ -1366,6 +1447,40 @@ void MainWindow::runSelfTest() {
     }, 900);
     S("reject then delete list excludes unmarked", [this] { doAction("reject"); }, [this] { return m_ctl->rejected().size() == 1; }, 200);
     S("drop forgets files and moves playback on", [this] { m_ctl->dropFiles(m_ctl->rejected()); }, [this] { return m_ctl->queue()->rowCount() == 5 && m_ctl->rejected().isEmpty(); }, 500);
+    // ---- playlists and the music library ----
+    auto plCount = std::make_shared<int>(0);
+    S("playlist saves", [this, plCount] { *plCount = m_ctl->queue()->rowCount(); Playlists::save(QStringLiteral("selftest list"), m_ctl->queue()->stringList()); },
+      [plCount] { return Playlists::exists(QStringLiteral("selftest list")) && Playlists::tracks(QStringLiteral("selftest list")).size() == *plCount && *plCount > 0; }, 300);
+    S("playlist opens as a queue", [this] { m_ctl->open({Playlists::fileFor(QStringLiteral("selftest list"))}); }, [this, plCount] { return m_ctl->queue()->rowCount() == *plCount && m_ctl->hasMedia(); }, 800);
+    S("playlist names are made safe", [] {}, [] { return Playlists::sanitize(QStringLiteral("a/b:c*")) == QStringLiteral("a_b_c_") && Playlists::sanitize(QStringLiteral("CON")) == QStringLiteral("Playlist"); }, 50);
+    S("playlist is deleted", [] { Playlists::remove(QStringLiteral("selftest list")); }, [] { return !Playlists::exists(QStringLiteral("selftest list")); }, 100);
+    auto idxp = std::make_shared<MusicIndex*>(nullptr);
+    S("music index reads tags and lengths", [this, idxp] {
+        const QString dir = Paths::dataDir() + QStringLiteral("/selftest-music");
+        QDir().mkpath(dir);
+        for (int i = 1; i <= 3; ++i) {                                               // three 1-second WAV files with known content
+            QFile f(QStringLiteral("%1/0%2 - Song %2.wav").arg(dir).arg(i));
+            if (!f.open(QIODevice::WriteOnly)) continue;
+            const quint32 n = 8000 * 2, riff = 36 + n, rate = 8000, byteRate = 16000, fmtLen = 16;
+            const quint16 pcm = 1, ch = 1, align = 2, bits = 16;
+            QDataStream s(&f); s.setByteOrder(QDataStream::LittleEndian);
+            f.write("RIFF"); s << riff; f.write("WAVEfmt "); s << fmtLen << pcm << ch << rate << byteRate << align << bits; f.write("data"); s << n;
+            QByteArray pcmData(int(n), '\0');
+            for (int k = 0; k < 8000; ++k) { const qint16 v = qint16(8000 * std::sin(k * 0.2 * i)); memcpy(pcmData.data() + k * 2, &v, 2); }
+            f.write(pcmData);
+        }
+        auto* idx = new MusicIndex(this);
+        *idxp = idx;
+        idx->setRoots({dir});
+        idx->ensureScanned();
+    }, [idxp] {
+        MusicIndex* idx = *idxp;
+        if (!idx || idx->scanning()) return false;
+        const auto t = idx->tracks();
+        if (t.size() != 3) return false;
+        for (const auto& x : t) if (x.dur < 0.9 || x.dur > 1.1 || x.title.startsWith(QLatin1String("0"))) return false;       // length read, "01 - " prefix stripped from the fallback title
+        return true;
+    }, 5000);
     S("rapid next x30", [this] { for (int i = 0; i < 30; ++i) m_ctl->next(); }, [this] { return m_ctl->hasMedia(); }, 1200);
     auto idx = std::make_shared<int>(0);
     auto fails = std::make_shared<int>(0);

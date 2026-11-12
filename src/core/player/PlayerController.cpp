@@ -2,6 +2,7 @@
 #include "core/JsonStore.h"
 #include "core/Paths.h"
 #include "core/player/MpvPlayer.h"
+#include "library/Playlists.h"
 #include <QCollator>
 #include <QDateTime>
 #include <QDir>
@@ -70,6 +71,12 @@ void PlayerController::open(const QStringList& paths) {
     QStringList files, dirs;
     for (const QString& p : paths) {
         QFileInfo fi(p);
+        if (Playlists::isPlaylistFile(p) && fi.isFile()) {                         // a .m3u/.m3u8/.pls opens as its own queue
+            const QStringList l = Playlists::load(fi.absoluteFilePath());
+            if (l.isEmpty()) emit message(tr("That playlist has no playable files"));
+            else setQueue(l, l.first());
+            return;
+        }
         if (fi.isDir()) dirs << fi.absoluteFilePath();
         else if (Media::isMedia(p)) files << fi.absoluteFilePath();
     }

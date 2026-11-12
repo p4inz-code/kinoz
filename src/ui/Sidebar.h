@@ -9,6 +9,8 @@ class LibraryModel;
 class PlayerController;
 class ThumbService;
 class JsonStore;
+class MusicIndex;
+class MusicView;
 class Segmented;
 class IconButton;
 class PopupMenu;
@@ -53,6 +55,9 @@ public:
     void addPlace(const QString& path);
     void removePlace(const QString& path);
     void showQueue(bool q);
+    void showTab(int tab);                  // 0 library, 1 queue, 2 music
+    void showPlaylists();
+    void refreshMusic();
     void navigate(const QString& folder);
     void refreshFolder();
     bool isCaptionAt(const QPoint& localPos) const { return localPos.y() < 44; }
@@ -64,6 +69,9 @@ signals:
     void placesChanged();
     void openInNewWindow(const QString& path);
     void toast(const QString&);
+    void savePlaylistRequested();
+    void renamePlaylistRequested(const QString& name);
+    void deletePlaylistRequested(const QString& name);
 
 protected:
     void paintEvent(QPaintEvent*) override;
@@ -82,7 +90,10 @@ private:
     LibraryModel* m_model;
     Segmented* m_tabs;
     Segmented* m_filter;
-    IconButton *m_up, *m_viewBtn, *m_sortBtn, *m_addPlace, *m_clearQ;
+    IconButton *m_up, *m_viewBtn, *m_sortBtn, *m_addPlace, *m_clearQ, *m_saveQ;
+    MusicIndex* m_musicIdx;
+    MusicView* m_music;
+    int m_tab = 0;
     QLineEdit* m_search;
     MediaView* m_list;
     MediaView* m_queueView;

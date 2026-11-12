@@ -161,6 +161,37 @@ void ConfirmBox::paintEvent(QPaintEvent*) {
     p.drawText(QRectF(24, 62, width() - 48, height() - 62 - 80), Qt::AlignTop | Qt::TextWordWrap, m_body);
 }
 
+// ============================================================ InputBox
+InputBox::InputBox(const QString& title, const QString& label, const QString& text, const QString& okText, QWidget* parent) : QWidget(parent), m_title(title), m_label(label) {
+    setFocusPolicy(Qt::StrongFocus);
+    m_edit = new QLineEdit(text, this);
+    m_edit->setMaxLength(80);
+    const auto& c = pal();
+    m_edit->setStyleSheet(QStringLiteral("QLineEdit{background:%1;border:1px solid %2;border-radius:8px;padding:0 10px;color:%3;selection-background-color:%4;selection-color:%5;font-size:15px;}QLineEdit:focus{border:1px solid %6;}")
+                              .arg(c.raised.name(), c.border.name(), c.text.name(), c.accent.name(), c.onAccent.name(), c.accent.name()));
+    m_ok = new TextButton(okText, this, true);
+    m_cancel = new TextButton(tr("Cancel"), this);
+    connect(m_ok, &QAbstractButton::clicked, this, [this] { if (!m_edit->text().trimmed().isEmpty()) emit accepted(m_edit->text().trimmed()); });
+    connect(m_cancel, &QAbstractButton::clicked, this, &InputBox::cancelled);
+    connect(m_edit, &QLineEdit::returnPressed, m_ok, &QAbstractButton::click);
+}
+void InputBox::focusEdit() { m_edit->setFocus(); m_edit->selectAll(); }
+void InputBox::resizeEvent(QResizeEvent*) {
+    m_edit->setGeometry(24, 96, width() - 48, 40);
+    const int y = height() - 36 - 22;
+    m_ok->setGeometry(width() - 24 - m_ok->sizeHint().width(), y, m_ok->sizeHint().width(), 36);
+    m_cancel->setGeometry(m_ok->x() - 10 - m_cancel->sizeHint().width(), y, m_cancel->sizeHint().width(), 36);
+}
+void InputBox::keyPressEvent(QKeyEvent* e) { if (e->key() == Qt::Key_Escape) emit cancelled(); else QWidget::keyPressEvent(e); }
+void InputBox::paintEvent(QPaintEvent*) {
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setPen(pal().text); p.setFont(Theme::i().font(20, QFont::DemiBold, true));
+    p.drawText(QRectF(24, 20, width() - 48, 32), Qt::AlignVCenter, m_title);
+    p.setPen(pal().muted); p.setFont(Theme::i().font(14));
+    p.drawText(QRectF(24, 60, width() - 48, 28), Qt::AlignVCenter, m_label);
+}
+
 // ============================================================ FolderPicker
 FolderPicker::FolderPicker(Mode m, const QString& startDir, QWidget* parent) : QWidget(parent), m_mode(m) {
     m_list = new RowList(this);
@@ -244,6 +275,8 @@ const Cmd kCmds[] = {
     {"theme", "Switch theme", "Ctrl+D", Icon::Moon, "dark light"}, {"settings", "Settings", "Ctrl+,", Icon::Settings, "preferences options"},
     {"speedup", "Faster", "]", Icon::Speed, "speed"}, {"speeddown", "Slower", "[", Icon::Speed, "speed"}, {"speedreset", "Normal speed", "Backspace", Icon::Speed, "speed 1x"},
     {"framestep", "Next frame", ".", Icon::Next, "step"}, {"framestepback", "Previous frame", ",", Icon::Prev, "step"}, {"rotate", "Rotate image", "R", Icon::Redo, "turn"},
+    {"music", "Music: artists, albums, songs", "", Icon::Music, "library artist album song tracks"}, {"playlists", "Playlists", "", Icon::Queue, "saved queue m3u"},
+    {"saveplaylist", "Save the queue as a playlist…", "", Icon::Export, "playlist m3u store"},
     {"keep", "Keep this file (mark)", "Y", Icon::Check, "favorite star like good"}, {"reject", "Mark this file to reject", "N", Icon::Close, "bad skip no discard"},
     {"trash", "Delete this file (Recycle Bin)", "Delete", Icon::Trash, "remove recycle"}, {"trashrejected", "Delete all rejected files…", "", Icon::Trash, "remove recycle cleanup rejected"},
     {"nextunwatched", "Next file I haven't seen", "U", Icon::Next, "unwatched unseen new"},
