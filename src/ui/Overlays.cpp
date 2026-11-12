@@ -209,13 +209,14 @@ const Cmd kCmds[] = {
     {"playpause", "Play / pause", "Space", Icon::Play, "toggle"}, {"next", "Next", "Ctrl+F", Icon::Next, "skip"}, {"prev", "Previous", "Ctrl+B", Icon::Prev, "back"},
     {"stop", "Stop", "Ctrl+S", Icon::Stop, ""}, {"shuffle", "Toggle shuffle", "Ctrl+H", Icon::Shuffle, "random"}, {"repeat", "Cycle repeat", "Ctrl+T", Icon::Repeat, "loop"},
     {"mute", "Mute", "M", Icon::Mute, "volume sound"}, {"fullscreen", "Fullscreen", "F", Icon::Fullscreen, "full screen"}, {"mini", "Mini player", "Ctrl+M", Icon::Mini, "pip floating small"},
-    {"pin", "Always on top", "Ctrl+Shift+T", Icon::Pin, "float pin"}, {"sidebar", "Toggle library sidebar", "Tab", Icon::Sidebar, "library queue"},
+    {"pin", "Always on top", "Ctrl+Shift+T", Icon::Pin, "float pin"}, {"sidebar", "Toggle library sidebar", "Tab or `",Icon::Sidebar, "library queue"},
     {"openfolder", "Open folder…", "Ctrl+O", Icon::Folder, "browse add"}, {"openfile", "Open file…", "", Icon::File, "browse"},
     {"adjust", "Adjust picture", "Ctrl+J", Icon::Adjust, "brightness contrast saturation gamma hue color"}, {"eq", "Equalizer", "Ctrl+E", Icon::Equalizer, "audio bass treble normalize"},
     {"annotate", "Annotate frame", "A", Icon::Pen, "draw markup highlight text note"}, {"screenshot", "Save frame as image", "Ctrl+Shift+S", Icon::Camera, "screenshot capture"},
     {"theme", "Switch theme", "Ctrl+D", Icon::Moon, "dark light"}, {"settings", "Settings", "Ctrl+,", Icon::Settings, "preferences options"},
     {"speedup", "Faster", "]", Icon::Speed, "speed"}, {"speeddown", "Slower", "[", Icon::Speed, "speed"}, {"speedreset", "Normal speed", "Backspace", Icon::Speed, "speed 1x"},
     {"framestep", "Next frame", ".", Icon::Next, "step"}, {"framestepback", "Previous frame", ",", Icon::Prev, "step"}, {"rotate", "Rotate image", "R", Icon::Redo, "turn"},
+    {"defaultplayer", "Make kinoz my default player", "", Icon::Play, "default app open with association file type"},
 #ifdef Q_OS_WIN
     {"doctor", "Doctor: check and repair kinoz", "", Icon::Settings, "repair fix health uninstall setup"},
 #endif

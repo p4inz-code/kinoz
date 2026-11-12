@@ -11,6 +11,14 @@ First version. Windows build is the one that has been run and tested; the macOS 
 - Built-in Doctor (`kinoz.exe --doctor`, also in the command palette): verifies program files, runtime, shortcut, Apps entry, right-click entries, data folder, settings files, disk space, and fixes what it can.
 - Remove with one switch to delete all data too (settings, resume points, thumbnails, logs, exported frames). Your own media is never touched. Silent flags: `--uninstall --silent [--delete-data]`.
 
+**Default player**
+- Settings → Default player, the palette command "Make kinoz my default player", and a button on setup's last page. On Windows kinoz is registered under Settings → Default apps and its page opens there; Linux uses `xdg-mime`; macOS shows the Get Info steps.
+- `` ` `` (backtick) toggles the library sidebar, as well as `Tab`.
+
+**Fixes**
+- Closing kinoz no longer ends with a crash inside libmpv (the video widget is now freed before the player core).
+- Setup only ever removes what it installed: files listed in its manifest (plus `data` if you chose to delete data). A folder without kinoz's file list is refused, and unrelated files in a shared folder are left alone.
+
 **Playback**
 - Plays video, audio, images and animated GIFs in one window (libmpv + FFmpeg, no codec packs).
 - Speed 0.25×–4× with pitch correction, frame step, resume position per file, subtitle and audio-track menus, subtitle delay and size.

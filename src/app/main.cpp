@@ -14,6 +14,8 @@
 #include <QLocalSocket>
 #include <QSurfaceFormat>
 #include <QTextStream>
+#include <csignal>
+#include <exception>
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <dbghelp.h>
@@ -59,11 +61,26 @@ int main(int argc, char** argv) {
 
     QFile log(Paths::logsDir() + QStringLiteral("/app.log"));
     if (log.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) { g_log = &log; qInstallMessageHandler(logHandler); }
+    struct LogGuard { ~LogGuard() { qInstallMessageHandler(nullptr); g_log = nullptr; } } logGuard;   // never log into a destroyed file at exit
 
 #ifdef Q_OS_WIN
     // If the app ever crashes, leave a small dump in the logs folder so the problem can be found and fixed.
     QDir::toNativeSeparators(Paths::logsDir() + QStringLiteral("/crash.dmp")).toWCharArray(g_dumpPath);
     SetUnhandledExceptionFilter(crashFilter);
+    if (qEnvironmentVariableIsSet("KINOZ_TRACE_ABORT")) {      // debugging aid: where does an abort() come from?
+        signal(SIGABRT, [](int) {
+            void* fr[40]; const USHORT n = CaptureStackBackTrace(0, 40, fr, nullptr);
+            FILE* f = _wfopen((std::wstring(g_dumpPath) + L".abort.txt").c_str(), L"w");
+            if (!f) return;
+            for (USHORT i = 0; i < n; ++i) {
+                HMODULE m = nullptr; wchar_t nm[MAX_PATH] = L"?";
+                if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(fr[i]), &m)) GetModuleFileNameW(m, nm, MAX_PATH);
+                fwprintf(f, L"%u %ls +0x%llx\n", i, wcsrchr(nm, L'\\') ? wcsrchr(nm, L'\\') + 1 : nm, (unsigned long long)((char*)fr[i] - (char*)m));
+            }
+            fclose(f);
+        });
+        std::set_terminate([] { FILE* f = _wfopen((std::wstring(g_dumpPath) + L".terminate.txt").c_str(), L"w"); if (f) { fputs("std::terminate called", f); fclose(f); } abort(); });
+    }
 #endif
     QStringList args;
     const QStringList all = app.arguments();

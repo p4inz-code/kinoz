@@ -55,6 +55,9 @@ SettingsPage::SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, 
     addSeg(General, "compact", {tr("Comfortable"), tr("Compact")}, {0, 1}, 0, tr("Density"), tr("Row and control size in lists"));
     addSwitch(General, "hwdec", true, tr("Hardware decoding"), tr("Use the GPU for video (restart to apply)"));
     addSwitch(General, "fsSafe", false, tr("Safe fullscreen"), tr("Keep the taskbar visible (try this if your screen blinks)"));
+    auto* defBtn = new TextButton(tr("Make default…"), this);
+    connect(defBtn, &QAbstractButton::clicked, this, &SettingsPage::makeDefault);
+    m_rows[General].push_back({"defaultPlayer", tr("Default player"), tr("Open your videos, music and pictures with kinoz"), defBtn});
     auto* b1 = new TextButton(tr("Open data folder"), this);
     connect(b1, &QAbstractButton::clicked, this, [] { QDesktopServices::openUrl(QUrl::fromLocalFile(Paths::dataDir())); });
     auto* b2 = new TextButton(tr("Clear thumbnails"), this); connect(b2, &QAbstractButton::clicked, this, &SettingsPage::clearThumbs);

@@ -1,4 +1,5 @@
 #include "ui/MainWindow.h"
+#include "core/DefaultApp.h"
 #include "core/JsonStore.h"
 #include "core/Paths.h"
 #include "core/player/MpvPlayer.h"
@@ -146,7 +147,12 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
     QTimer::singleShot(1500, this, [this] { m_index->rebuild(m_side->places()); });
 }
 
-MainWindow::~MainWindow() = default;
+MainWindow::~MainWindow() {
+    // libmpv aborts if its core is destroyed while a render context is alive, and Qt deletes children in creation
+    // order (the player before the video widget). Free the video widget (and its render context) first.
+    delete m_video;
+    m_video = nullptr;
+}
 
 void MainWindow::notify(const QString& text, bool error) {
     if (error) qWarning().noquote() << "[error]" << text;
@@ -648,6 +654,7 @@ void MainWindow::doAction(const QString& id) {
     else if (id == "openfolder") openPicker(true);
     else if (id == "openfile") openPicker(false);
     else if (id == "settings") openSettings();
+    else if (id == "defaultplayer") { const auto r = DefaultApp::apply(); notify(r.message, !r.ok); }
     else if (id == "doctor") { if (!QProcess::startDetached(QCoreApplication::applicationFilePath(), {QStringLiteral("--doctor")})) notify(tr("Couldn't open the Doctor"), true); }
     else if (id == "annotate") startAnnotate();
     else if (id == "newwindow") { if (!QProcess::startDetached(QCoreApplication::applicationFilePath(), {QStringLiteral("--new")})) notify(tr("Couldn't open a new window"), true); }
@@ -888,6 +895,7 @@ void MainWindow::openSettings() {
     auto* pg = new SettingsPage(m_set, m_keys, m_updater, diagnosticsText());
     sh->setContent(pg, QSize(660, 650));
     connect(pg, &SettingsPage::closeRequested, sh, &Sheet::closeSheet);
+    connect(pg, &SettingsPage::makeDefault, this, [this] { doAction("defaultplayer"); });
     connect(pg, &SettingsPage::changed, this, [this](const QString& key) { applySetting(key); });
     connect(pg, &SettingsPage::clearThumbs, this, [this] {
         int n = 0;

@@ -21,6 +21,7 @@ signals:
     void changed(const QString& key);
     void clearThumbs();
     void clearResume();
+    void makeDefault();
     void closeRequested();
 protected:
     void paintEvent(QPaintEvent*) override;

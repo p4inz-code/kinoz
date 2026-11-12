@@ -4,6 +4,7 @@
 namespace Installer {
 bool wanted(const QStringList&) { return false; }
 int run(const QStringList&) { return 0; }
+void registerDefaultApp(const QString&) {}
 }
 #else
 
@@ -16,6 +17,7 @@ int run(const QStringList&) { return 0; }
 #include <QApplication>
 #include <QCryptographicHash>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
@@ -37,6 +39,7 @@ int run(const QStringList&) { return 0; }
 #include <QThread>
 #include <QTime>
 #include <QTimer>
+#include <QUrl>
 #include <QVariantAnimation>
 #include <QWindow>
 #include <cmath>
@@ -170,18 +173,31 @@ using Progress = std::function<void(qint64 done, qint64 total, const QString& st
 QString startMenuLink() { return QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation) + "/kinoz.lnk"; }
 QString desktopLink() { return QStandardPaths::writableLocation(QStandardPaths::DesktopLocation) + "/kinoz.lnk"; }
 
+const QString kCapKey = QStringLiteral("Software\\kinoz\\Capabilities");
+
+// Makes kinoz appear in Settings > Apps > Default apps (the only way Windows lets an app be chosen as a default).
+void registerCapabilities(const QString& exe) {
+    const QString cmd = QStringLiteral("\"%1\" \"%2\"").arg(QDir::toNativeSeparators(exe), QStringLiteral("%1"));
+    const QString icon = QDir::toNativeSeparators(exe) + ",0";
+    const QString classes = QStringLiteral("Software\\Classes\\");
+    regSet(classes + kProgId, "", QStringLiteral("kinoz media file"));
+    regSet(classes + kProgId + "\\DefaultIcon", "", icon);
+    regSet(classes + kProgId + "\\shell\\open\\command", "", cmd);
+    for (const QString& e : mediaExtensions()) regSetNone(classes + "." + e + "\\OpenWithProgids", kProgId);
+    regSet(kCapKey, "ApplicationName", kApp);
+    regSet(kCapKey, "ApplicationDescription", QStringLiteral("Fast, calm media player for video, audio, images and GIFs"));
+    for (const QString& e : mediaExtensions()) regSet(kCapKey + "\\FileAssociations", "." + e, kProgId);
+    regSet(QStringLiteral("Software\\RegisteredApplications"), kApp, kCapKey);
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
+}
+
 void registerShell(const Options& o, const QString& exe) {
     const QString cmd = QStringLiteral("\"%1\" \"%2\"").arg(QDir::toNativeSeparators(exe), QStringLiteral("%1"));
     const QString icon = QDir::toNativeSeparators(exe) + ",0";
     const QString classes = QStringLiteral("Software\\Classes\\");
     regSet(classes + "Applications\\kinoz.exe", "FriendlyAppName", kApp);
     regSet(classes + "Applications\\kinoz.exe\\shell\\open\\command", "", cmd);
-    if (o.openWith) {
-        regSet(classes + kProgId, "", QStringLiteral("kinoz media file"));
-        regSet(classes + kProgId + "\\DefaultIcon", "", icon);
-        regSet(classes + kProgId + "\\shell\\open\\command", "", cmd);
-        for (const QString& e : mediaExtensions()) regSetNone(classes + "." + e + "\\OpenWithProgids", kProgId);
-    }
+    if (o.openWith) registerCapabilities(exe);
     if (o.rightClick) {
         for (const QString& e : mediaExtensions()) {
             const QString k = classes + "SystemFileAssociations\\." + e + "\\shell\\kinoz";
@@ -197,6 +213,8 @@ void unregisterShell() {
     const QString classes = QStringLiteral("Software\\Classes\\");
     regDeleteTree(classes + "Applications\\kinoz.exe");
     regDeleteTree(classes + kProgId);
+    regDeleteTree(QStringLiteral("Software\\kinoz"));
+    regDeleteValue(QStringLiteral("Software\\RegisteredApplications"), kApp);
     regDeleteTree(classes + "Directory\\shell\\kinoz");
     for (const QString& e : mediaExtensions()) {
         regDeleteValue(classes + "." + e + "\\OpenWithProgids", kProgId);
@@ -234,7 +252,12 @@ QVector<ManifestFile> readManifest(const QString& dir, QString* version = nullpt
     if (!f.open(QIODevice::ReadOnly)) return v;
     const QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
     if (version) *version = o.value("version").toString();
-    for (const auto& e : o.value("files").toArray()) { const auto a = e.toObject(); v.push_back({a.value("p").toString(), qint64(a.value("s").toDouble()), a.value("h").toString().toLower()}); }
+    for (const auto& e : o.value("files").toArray()) {
+        const auto a = e.toObject();
+        const QString p = a.value("p").toString();
+        if (p.isEmpty() || p.startsWith('/') || p.startsWith('\\') || p.contains(':') || p.contains(QStringLiteral(".."))) continue;   // never write outside the install folder
+        v.push_back({p, qint64(a.value("s").toDouble()), a.value("h").toString().toLower()});
+    }
     return v;
 }
 QString fileSha256(const QString& path) {
@@ -279,7 +302,7 @@ QVector<Check> runDoctor(const QString& dest, const QString& payload) {
     const QString nd = QDir::toNativeSeparators(dest);
     const bool rc = verb.contains(nd, Qt::CaseInsensitive) && dverb.contains(nd, Qt::CaseInsensitive);
     add(QObject::tr("Right-click menu"), rc ? QObject::tr("“Play with kinoz” is set up") : QObject::tr("not set up (or old location)"), rc ? 0 : 1, true, "shell");
-    const bool ow = regExists("Software\\Classes\\" + kProgId);
+    const bool ow = regExists("Software\\Classes\\" + kProgId) && regExists(kCapKey);
     add(QObject::tr("“Open with” list"), ow ? QObject::tr("present") : QObject::tr("not set up"), ow ? 0 : 1, true, "shell");
 
     const QString data = dest + "/data";
@@ -399,6 +422,16 @@ QString installJob(const Options& o, const QString& payload, const Progress& pro
 QString uninstallJob(const Options& o, const Progress& progress) {
     const QString dir = QDir::cleanPath(installedDir().isEmpty() ? QCoreApplication::applicationDirPath() : installedDir());
     logLine("uninstall " + dir + (o.deleteData ? " (with data)" : " (keep data)"));
+    // Only ever remove a real kinoz install: it must have the exe and the setup's file list, and not be a system/root folder.
+    QString why;
+    if (!QFile::exists(dir + "/kinoz.exe") || !QFile::exists(dir + "/manifest.json") || !safeDestination(dir, &why)) {
+        logLine("refused to remove " + dir + " (not a kinoz install)");
+        return QObject::tr("That folder doesn't look like a kinoz install, so nothing was removed.");
+    }
+    QSet<QString> names;                                   // top-level entries that belong to kinoz (never anything else in the folder)
+    for (const auto& mf : readManifest(dir)) names.insert(mf.path.section('/', 0, 0));
+    names.insert(QStringLiteral("manifest.json"));
+    if (o.deleteData) names.insert(QStringLiteral("data"));
     progress(0, 3, QObject::tr("Closing kinoz"), {});
     closeRunning(dir);
     progress(1, 3, QObject::tr("Removing shortcuts and menu entries"), {});
@@ -413,9 +446,17 @@ QString uninstallJob(const Options& o, const Progress& progress) {
     QFile f(bat);
     if (f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
         QTextStream s(&f);
-        s << "@echo off\r\nping -n 3 127.0.0.1 >nul\r\n";
-        if (o.deleteData) s << "rmdir /s /q \"" << nd << "\"\r\n";
-        else s << "for /d %%i in (\"" << nd << "\\*\") do if /i not \"%%~nxi\"==\"data\" rmdir /s /q \"%%i\"\r\ndel /f /q \"" << nd << "\\*.*\"\r\nrmdir \"" << nd << "\" 2>nul\r\n";
+        auto esc = [](QString p) { return p.replace('%', QStringLiteral("%%")); };
+        s << "@echo off\r\n";
+        for (int pass = 0; pass < 2; ++pass) {              // second pass catches files that were still locked a moment ago
+            s << "ping -n 3 127.0.0.1 >nul\r\n";
+            for (const QString& n : names) {
+                const QString p = esc(nd + "\\" + QDir::toNativeSeparators(n));
+                s << "if exist \"" << p << "\\\" (rmdir /s /q \"" << p << "\") else del /f /q \"" << p << "\" 2>nul\r\n";
+            }
+            s << "del /f /q \"" << esc(nd) << "\\*.kz-old\" 2>nul\r\n";
+        }
+        s << "rmdir \"" << esc(nd) << "\" 2>nul\r\n";       // removes the folder only if nothing else is left in it
         s << "del \"%~f0\"\r\n";
         f.close();
         QProcess::startDetached(QStringLiteral("cmd.exe"), {QStringLiteral("/c"), QDir::toNativeSeparators(bat)});
@@ -445,10 +486,12 @@ public:
         m_retry = new TextButton(tr("Try again"), this, true);
         m_fix = new TextButton(tr("Fix problems"), this, true);
         m_back = new TextButton(tr("Back"), this);
+        m_default = new TextButton(tr("Make kinoz my default player…"), this);
+        connect(m_default, &QAbstractButton::clicked, this, [] { QDesktopServices::openUrl(QUrl(QStringLiteral("ms-settings:defaultapps?registeredAppUser=kinoz"))); });
         for (auto* s : {&m_sw1, &m_sw2, &m_sw3}) *s = new Switch(this);
         m_sw1->setChecked(true); m_sw2->setChecked(true); m_sw3->setChecked(false);
         m_x = new IconButton(Icon::Close, this, 32);
-        connect(m_x, &QAbstractButton::clicked, this, [this] { if (m_page != Working) close(); });
+        connect(m_x, &QAbstractButton::clicked, this, [this] { close(); });
         connect(m_cancel, &QAbstractButton::clicked, this, [this] { if (m_page == Remove && hasInstall() && !m_payload.isEmpty()) { m_flow = Install; setPage(Maintenance); } else close(); });
         connect(m_close, &QAbstractButton::clicked, this, [this] { close(); });
         connect(m_back, &QAbstractButton::clicked, this, [this] { setPage(Maintenance); });
@@ -486,6 +529,7 @@ public:
         m_sw1->setVisible(p == Choose || p == Remove); m_sw2->setVisible(p == Choose); m_sw3->setVisible(p == Choose);
         m_open->setVisible(p == Done && !un); m_close->setVisible(p == Done || p == Failed || p == Maintenance || p == Doctor);
         m_retry->setVisible(p == Failed);
+        m_default->setVisible(p == Done && !un);
         m_fix->setVisible(p == Doctor && !m_checking && fixableCount() > 0);
         m_back->setVisible(p == Doctor && hasInstall() && !m_payload.isEmpty());
         m_x->setVisible(p != Working);
@@ -505,7 +549,7 @@ protected:
         if (e->key() == Qt::Key_Escape && m_page != Working) close();
         else if ((e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) && (m_page == Choose || m_page == Remove)) start();
     }
-    void closeEvent(QCloseEvent* e) override { if (m_page == Working) e->ignore(); else QWidget::closeEvent(e); }
+    void closeEvent(QCloseEvent* e) override { if (m_page == Working || m_checking) e->ignore(); else QWidget::closeEvent(e); }   // worker threads still point at this window
 
     QVector<QRectF> cardRects() const {
         const QRectF c = card(); const qreal x0 = c.left() + 300, w = c.right() - 36 - x0;
@@ -545,6 +589,7 @@ protected:
         if (m_page == Remove) m_sw1->move(x1 - 38, int(c.top()) + 184);
         m_open->setGeometry(x0, int(c.top()) + 306, 140, 42);
         m_retry->setGeometry(x0, int(c.top()) + 306, 120, 42);
+        m_default->setGeometry(x0, int(c.top()) + 362, m_default->sizeHint().width(), 38);
         const bool bottom = m_page == Maintenance || m_page == Doctor;
         m_close->setGeometry(bottom ? x1 - 100 : (!m_open->isHidden() ? x0 + 152 : (!m_retry->isHidden() ? x0 + 132 : x0)), bottom ? by : int(c.top()) + 306, 100, 40);
         m_fix->setGeometry(x1 - 100 - 10 - 140, by, 140, 40);
@@ -735,7 +780,7 @@ private:
     bool m_launch;
     bool m_updating = false, m_checking = false;
     Options m_opt;
-    TextButton *m_primary, *m_cancel, *m_change, *m_open, *m_close, *m_retry, *m_fix, *m_back;
+    TextButton *m_primary, *m_cancel, *m_change, *m_open, *m_close, *m_retry, *m_fix, *m_back, *m_default;
     Switch *m_sw1 = nullptr, *m_sw2 = nullptr, *m_sw3 = nullptr;
     IconButton* m_x;
     QTimer m_tick;
@@ -749,6 +794,8 @@ private:
 }
 
 namespace Installer {
+void registerDefaultApp(const QString& exePath) { registerCapabilities(exePath); }
+
 bool wanted(const QStringList& args) {
     for (const char* f : {"--installer", "--uninstall", "--doctor", "--installer-shots"}) if (args.contains(QString::fromLatin1(f))) return true;
     return false;

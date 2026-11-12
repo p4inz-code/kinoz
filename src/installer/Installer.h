@@ -10,4 +10,5 @@
 namespace Installer {
 bool wanted(const QStringList& args);            // true if the command line asks for installer mode
 int run(const QStringList& args);                // runs the wizard / silent job, returns the exit code
+void registerDefaultApp(const QString& exePath); // Windows: list kinoz in Settings > Default apps (no-op elsewhere)
 }

@@ -33,6 +33,7 @@
     ".": "framestep",
     ",": "framestepback",
     "Tab": "sidebar",
+    "`": "sidebar",
     "Ctrl+K": "palette",
     "Ctrl+Shift+P": "palette",
     "Ctrl+M": "mini",
