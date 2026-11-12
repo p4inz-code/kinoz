@@ -1,4 +1,6 @@
-﻿// The WinRT headers must come before Qt's (Qt defines keyword macros such as `emit`).
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
+// The WinRT headers must come before Qt's (Qt defines keyword macros such as `emit`).
 #ifdef _WIN32
 #include <unknwn.h>
 #include <winrt/Windows.Foundation.h>

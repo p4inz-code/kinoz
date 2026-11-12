@@ -106,13 +106,14 @@ It plays almost anything with no codec packs, because the engine underneath is l
 <p align="center">
   <a href="#download-and-install">Download</a> &nbsp;|&nbsp;
   <a href="#what-makes-kinoz-different">What is different</a> &nbsp;|&nbsp;
+  <a href="#make-kinoz-your-default-player">Default player</a> &nbsp;|&nbsp;
   <a href="#what-you-get">What you get</a> &nbsp;|&nbsp;
   <a href="#supported-file-types">File types</a> &nbsp;|&nbsp;
   <a href="#keyboard-shortcuts">Shortcuts</a> &nbsp;|&nbsp;
   <a href="#build-from-source">Build from source</a>
 </p>
 
-> **Status: early (0.1).** The Windows build is the one that has been run and tested hardest. The macOS and Linux builds come from CI and have not been tried by hand yet, so they may need fixes. [Known issues](docs/KNOWN_ISSUES.md) is the honest list.
+> **Status: 0.1.x, usable every day on Windows.** The Windows build is the one that is run and tested hardest (automated self-test of 94 checks plus a speed benchmark). The macOS and Linux builds come from CI on every release and have **not** been run on real machines yet, so expect rough edges there. What is missing, honestly, is in [Known issues](docs/KNOWN_ISSUES.md) and the [roadmap](ROADMAP.md).
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
@@ -137,9 +138,38 @@ Each file has a `.sha256` next to it. The in-app updater downloads in the backgr
 1. **One player for everything.** Video, audio, images and animated GIFs open in the same window and the stage adapts to what you play: letterboxed video, a cover-art now-playing card for music, a zoom-and-pan viewer for pictures, a looping player for GIFs.
 2. **Real glass, not a screenshot of glass.** The floating control bar blurs the video behind it, live, on the GPU, with a slow liquid-metal sheen and a rim light. Prefer it flat? One switch. Prefer nothing moving at all? **Settings → Animations → Off** removes every fade and glow.
 3. **Your library is one keystroke away.** A sidebar with your folders, thumbnails, list or grid view, a type filter, search and a drag-reorderable queue. `Ctrl+K` searches every file under your folders and every command. Resume continues each video from where you left off.
-4. **Built for heavy use.** It opens and closes instantly (the window appears before the engine finishes starting), keeps working when you click fast, runs several independent windows at once (`Ctrl+N`), and a minimized video keeps its sound while dropping the picture to save CPU. 4K and 8K frames decode and render in the tests.
+4. **Built for people who click fast.** Click through a folder or hammer Next and only the last file opens: in the benchmark 150 clicks opened 2 files and the interface never froze for more than 25 ms. A file shows its picture about 0.3 s after you click, the next file is pre-read, the seek-bar preview never waits, and memory stays around 255 MB. It runs several independent windows (`Ctrl+N`), and a minimized video keeps its sound while dropping the picture. 4K and 8K frames decode and render in the tests. `kinoz --bench <video>` reproduces the numbers on your machine.
 5. **Tools you actually reach for.** Annotate any frame or image with a pen, highlighter, arrows, shapes and text and export a full-resolution PNG. A-B loop, sleep timer, aspect ratio, audio and subtitle sync, a 10-band equalizer with presets, picture adjust, speed 0.25×–4× with pitch correction.
 6. **Free, offline and yours.** GPLv3, so it stays free and the credit stays. No account, no telemetry; the only network request it can ever make is the optional update check, and you can switch it off.
+
+<p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
+
+## Make kinoz your default player
+
+No program may silently take over your file types, and kinoz doesn't try. It does the part that is allowed and makes the rest one click:
+
+| System | How |
+|---|---|
+| **Windows** | **Settings → General → Default player → Make default** (or `Ctrl+K`, "Make kinoz my default player"). kinoz registers itself and opens its page in Windows **Settings → Apps → Default apps**, where you pick it for video, music and pictures. The installer's last page has the same button. |
+| **macOS** | Select a video in Finder, press `Cmd+I`, set **Open with** to kinoz, then click **Change All**. |
+| **Linux** | The same menu entry runs `xdg-mime` for the common video, audio and image types. |
+
+Right-click entries ("Play with kinoz", "Open folder in kinoz") and the "Open with" list are added by the Windows setup. To undo any of it, **Settings → General → Uninstall…** removes kinoz, its entries and, if you choose, all of its data.
+
+<p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
+
+## Next to the player your system already has
+
+| | The built-in players (Windows Media Player and Movies & TV, QuickTime and Music, the GNOME and KDE players) | kinoz |
+|---|---|---|
+| Formats | Good for common files; some need extra codecs or store downloads | Plays almost anything out of the box (libmpv + FFmpeg), no codec packs |
+| Speed when you click through files | Fine one at a time | Built for it: only the last click opens, pre-reads the next file, instant hover preview |
+| Skim and clean up a folder | Open each file, delete by hand | `Y` keep, `N` reject, `U` next unseen, `Delete` to the Recycle Bin, watched marks |
+| Look and feel | Follows the system | One custom look on every system, light and dark, a real "animations off" switch |
+| Cost, ads, account | Tied to the OS and its services | Free, GPLv3, no account, no telemetry |
+| Your data | Library and history often live in a system or cloud service | Plain files in kinoz's own folder you can open, copy or delete |
+
+**What the built-in players have that kinoz does not (yet):** casting to TVs and speakers (AirPlay, Chromecast, DLNA), CD ripping and burning, DVD and Blu-ray menus, online music and video services, cloud sync of your library, and, on macOS and Linux, the system now-playing and media-key integration (kinoz has it on Windows). Streaming services, casting and disc features are not planned; the rest is on the [roadmap](ROADMAP.md).
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
@@ -242,7 +272,13 @@ More in [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/DEVELOPMENT.md](docs/DEVELO
 
 kinoz is **free software** under the **GNU General Public License v3** ([LICENSE](LICENSE)), with a few additional terms about credit and naming ([ADDITIONAL_TERMS.md](ADDITIONAL_TERMS.md)).
 
-In plain words: use it for anything, change it, share it. If you share a version, its source stays open under the same license, the author credit stays, and a modified version gets its own name. Nobody can take it closed-source.
+In plain words:
+
+- **You may** use kinoz for anything, free of charge, including at work; study it; change it; and share it, modified or not.
+- **You must** keep the author credit ("Created by Atharva Patil, P4inz Interactive Labs") and the copyright notices, keep the source open under the same GPLv3 license if you share a version, and give a modified version its own name instead of "kinoz".
+- **Nobody can** take it closed-source or sell it as their own work.
+
+Every source file carries the copyright and `SPDX-License-Identifier: GPL-3.0-only` line, and the About screen shows the credit.
 
 Third-party components keep their own licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 

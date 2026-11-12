@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
 #include "core/JsonStore.h"
 #include "core/Paths.h"
 #include "core/Updater.h"
@@ -45,6 +47,10 @@ static void logHandler(QtMsgType, const QMessageLogContext&, const QString& msg)
 }
 
 int main(int argc, char** argv) {
+#ifdef Q_OS_WIN
+    // Libraries are only ever loaded from kinoz's own folder and System32 (blocks "DLL planting" from the current directory or PATH).
+    SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+#endif
     QSurfaceFormat fmt;
     fmt.setVersion(3, 3);
     fmt.setProfile(QSurfaceFormat::CoreProfile);

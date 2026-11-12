@@ -1,4 +1,6 @@
-﻿#include "thumbs/ThumbService.h"
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
+#include "thumbs/ThumbService.h"
 #include "core/Paths.h"
 #include "thumbs/FrameGrabber.h"
 #include <QCryptographicHash>

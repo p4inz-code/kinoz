@@ -84,7 +84,9 @@ target_link_libraries(${APP_EXE} PRIVATE Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWid
 target_compile_definitions(${APP_EXE} PRIVATE APP_NAME="${APP_NAME}" APP_VERSION="${PROJECT_VERSION}")
 
 if(MSVC)
-  target_compile_options(${APP_EXE} PRIVATE /utf-8 /permissive- /Zc:__cplusplus /W3 /MP)
+  target_compile_options(${APP_EXE} PRIVATE /utf-8 /permissive- /Zc:__cplusplus /W3 /MP /GS /guard:cf)
+  # Exploit mitigations: Control Flow Guard, ASLR (high entropy), DEP, CET shadow stacks where the CPU has them.
+  target_link_options(${APP_EXE} PRIVATE /GUARD:CF /DYNAMICBASE /HIGHENTROPYVA /NXCOMPAT /CETCOMPAT)
 endif()
 
 # Everything lands in <project>/dist/app

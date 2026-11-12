@@ -1,4 +1,6 @@
-﻿#include "library/LibraryIndex.h"
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
+#include "library/LibraryIndex.h"
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QFutureWatcher>
