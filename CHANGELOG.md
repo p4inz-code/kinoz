@@ -2,7 +2,7 @@
 
 All notable changes. Dates are release dates.
 
-## Unreleased
+## 0.1.2 — fast skimming, music library, playlists, media overlay
 **Music, playlists and the Windows media overlay**
 - New **Music** tab in the sidebar: Artists, Albums, Songs and Playlists, drilling down from artist to album to track. Tags (title, artist, album, track, length) are read once in the background from the folders in your library, cached in `data/music.json`, and updated as files change.
 - **Saved playlists** are plain `.m3u8` files in `data/playlists`. Save the queue from the Queue tab, the Playlists list or `Ctrl+K` ("Save the queue as a playlist"); rename or delete from inside a playlist. `.m3u`, `.m3u8` and `.pls` files open as a queue (drop one on the window or open it).
