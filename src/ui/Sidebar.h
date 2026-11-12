@@ -57,6 +57,7 @@ public:
     void showQueue(bool q);
     void showTab(int tab);                  // 0 library, 1 queue, 2 music
     void showPlaylists();
+    void musicDrill(const QString& artist, const QString& album);
     void refreshMusic();
     void navigate(const QString& folder);
     void refreshFolder();

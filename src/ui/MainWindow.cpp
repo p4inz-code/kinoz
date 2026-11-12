@@ -1511,7 +1511,13 @@ void MainWindow::runShots(const QString& dir) {
     auto page = [tabsOf](int i) { if (auto* t = tabsOf()) { t->setCurrent(i); emit t->currentChanged(i); } };
     struct S { int wait; std::function<void()> fn; };
     auto steps = std::make_shared<QVector<S>>();
-    steps->push_back({1500, [this] { Theme::i().setMode(Theme::Mode::Dark); }});
+    steps->push_back({1200, [this] {                                     // a populated library for the home pictures (when demo media is present)
+        const QString videoDir = QFileInfo(m_ctl->path()).absolutePath();
+        const QString musicDir = QDir(videoDir + "/../music").absolutePath();
+        if (!QDir(musicDir).exists()) return;
+        m_side->addPlace(videoDir); m_side->addPlace(musicDir); m_side->navigate(videoDir); setSidebarOpen(true, false);
+    }});
+    steps->push_back({800, [this] { Theme::i().setMode(Theme::Mode::Dark); }});
     steps->push_back({500, [snap] { snap("home-dark"); }});
     steps->push_back({100, [this] { Theme::i().setMode(Theme::Mode::Light); }});
     steps->push_back({500, [snap] { snap("home-light"); }});
@@ -1532,6 +1538,43 @@ void MainWindow::runShots(const QString& dir) {
     steps->push_back({100, [this] { for (auto* s : findChildren<Sheet*>()) s->closeSheet(); }});
     steps->push_back({700, [this] { doAction("palette"); }});
     steps->push_back({500, [snap] { snap("palette-dark"); }});
+    // ---- skimming marks, music, playlists, queue (needs demo media: <demo>/video/*.avi and <demo>/music/...) ----
+    {
+        auto vids = std::make_shared<QStringList>();
+        auto musicDirP = std::make_shared<QString>();
+        steps->push_back({100, [this, vids, musicDirP] {
+            doAction("escape"); Theme::i().setMode(Theme::Mode::Light); setSidebarOpen(true, false);
+            const QString videoDir = QFileInfo(m_ctl->path()).absolutePath();
+            *musicDirP = QDir(videoDir + "/../music").absolutePath();
+            if (!QDir(*musicDirP).exists()) { musicDirP->clear(); return; }           // no demo media: only the basic shots
+            for (const QFileInfo& fi : QDir(videoDir).entryInfoList({"*.avi"}, QDir::Files, QDir::Name)) *vids << fi.absoluteFilePath();
+            m_side->addPlace(videoDir); m_side->addPlace(*musicDirP); m_side->navigate(videoDir);
+            if (vids->size() >= 4) {
+                m_ctl->toggleMark(vids->at(1), PlayerController::MarkKeep);
+                m_ctl->toggleMark(vids->at(2), PlayerController::MarkReject);
+                m_ctl->markSeen(vids->at(0), 0.45);
+                m_ctl->markSeen(vids->at(3), 1.0);
+            }
+        }});
+        steps->push_back({1500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("library-marks-light"); }});
+        steps->push_back({100, [this, musicDirP] { if (!musicDirP->isEmpty()) Theme::i().setMode(Theme::Mode::Dark); }});
+        steps->push_back({500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("library-marks-dark"); }});
+        steps->push_back({100, [this, musicDirP] { if (!musicDirP->isEmpty()) { Theme::i().setMode(Theme::Mode::Light); m_side->showTab(2); } }});
+        steps->push_back({3500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("music-artists-light"); }});
+        steps->push_back({100, [this, musicDirP] { if (!musicDirP->isEmpty()) m_side->musicDrill(QStringLiteral("Mira Lowe"), QStringLiteral("Night Drive")); }});
+        steps->push_back({500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("music-album-light"); }});
+        steps->push_back({100, [this, musicDirP] {
+            if (musicDirP->isEmpty()) return;
+            QStringList l;
+            for (const QString& a : {"Mira Lowe/Night Drive/01 - Headlights.wav", "The Quiet Hours/Long Way Home/02 - Porch Lights.wav", "Mira Lowe/Soft Light/03 - Linen.wav", "The Quiet Hours/Small Rooms/01 - Radiator.wav"}) l << *musicDirP + "/" + a;
+            Playlists::save(QStringLiteral("Evening mix"), l);
+            Playlists::save(QStringLiteral("Road trip"), l.mid(0, 2));
+            m_side->showPlaylists();
+        }});
+        steps->push_back({500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("playlists-light"); }});
+        steps->push_back({100, [this, vids, musicDirP] { if (musicDirP->isEmpty()) return; if (!vids->isEmpty()) m_ctl->setQueue(*vids, vids->first()); m_side->showQueue(true); }});
+        steps->push_back({900, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("queue-light"); }});
+    }
     steps->push_back({100, [] { QApplication::quit(); }});
     auto idx = std::make_shared<int>(0);
     auto tick = std::make_shared<std::function<void()>>();

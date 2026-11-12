@@ -38,9 +38,43 @@ It plays almost anything with no codec packs, because the engine underneath is l
 </table>
 <p align="center"><sub>First-run screens, rendered by the app itself. <code>Ctrl+D</code> switches theme, no restart needed.</sub></p>
 
+<table>
+<tr>
+<td width="50%" align="center">
+<sub>Skim fast: keep, reject, watched progress</sub><br><br>
+<img src="assets/screenshots/library-marks-light.png" alt="Library with a keep mark, a reject mark, watched-progress bars and unseen dots" width="100%">
+</td>
+<td width="50%" align="center">
+<sub>Music: artists, albums, songs, playlists</sub><br><br>
+<img src="assets/screenshots/music-album-light.png" alt="Music tab drilled into an album" width="100%">
+</td>
+</tr>
+</table>
+<p align="center"><sub><code>Y</code> keeps a file, <code>N</code> marks it to reject, <code>U</code> jumps to the next one you haven't seen, <code>1</code>-<code>9</code> jump to 10%-90%, <code>Delete</code> sends the file to the Recycle Bin after asking. Clicking through files or spamming Next opens only the last one.</sub></p>
+
 <details>
-<summary>More screenshots: command palette, Settings, About</summary>
+<summary>More screenshots: playlists, queue, setup, command palette, Settings, About</summary>
 <br>
+
+<p align="center">
+  <img src="assets/screenshots/playlists-light.png" alt="Saved playlists" width="720">
+  <br><sub>Saved playlists are plain <code>.m3u8</code> files in the data folder. Save the queue from the Queue tab or <code>Ctrl+K</code>.</sub>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/queue-light.png" alt="The queue with the save-as-playlist button" width="720">
+  <br><sub>The queue: drag to reorder, save it as a playlist, clear it.</sub>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/setup-maintenance-light.png" alt="kinoz setup: Update, Repair, Remove" width="720">
+  <br><sub>The Windows setup is drawn by kinoz itself: Install, Update, Repair (the Doctor), and Remove with an optional delete-all-my-data switch.</sub>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/setup-doctor-dark.png" alt="The Doctor checking an installation" width="720">
+  <br><sub>The Doctor checks files, shortcuts, right-click entries, settings and disk space, and fixes what it can.</sub>
+</p>
 
 <p align="center">
   <img src="assets/screenshots/palette-dark.png" alt="The Ctrl+K command palette" width="720">
@@ -115,8 +149,13 @@ Each file has a `.sha256` next to it. The in-app updater (optional) only install
 |---|---|
 | Every kind of media | MKV, MP4, AVI, WebM, HEVC, FLAC, MP3, JPG, PNG, WebP, GIF and many more, with SRT and ASS subtitles. No codec packs. |
 | A library that stays out of the way | Folders, thumbnails (cached on disk), list or grid, type filter, search, sort, queue, resume position per file, recent items. |
+| Fast skimming | Click through files or spam Next and only the last one opens (measured: 150 clicks, 2 files opened, UI never frozen more than 25 ms). Keep or reject files with `Y` / `N`, jump with `1`-`9`, see what you have already watched, and delete rejects to the Recycle Bin in one go. |
+| Music library | Artists, Albums, Songs and Playlists, read from your folders' tags once and cached. Saved playlists are plain `.m3u8` files; `.m3u`, `.m3u8` and `.pls` open as a queue. |
+| Windows media overlay | The now-playing card in the volume flyout and on the lock screen, with play, pause, next, previous and seeking. |
+| Default player | One button in Settings (and `Ctrl+K`) registers kinoz with Windows and opens its Default apps page. |
+| Setup that looks after itself | A setup window drawn by kinoz: verifies its files, rolls back on failure, repairs with the Doctor, removes everything (optionally your data too) in one switch. Safe mode starts automatically after two abnormal exits. |
 | `Ctrl+K` command palette | Find any file or command from the keyboard. |
-| Seek-bar frame preview | Hover the timeline to see the frame you are about to jump to. |
+| Seek-bar frame preview | Hover the timeline to see the frame you are about to jump to; it is served from a background-built strip, so it never waits. |
 | Playback tools | Speed with pitch correction, frame step, A-B loop, sleep timer, aspect ratio, audio and subtitle delay, track menus. |
 | Sound | 10-band equalizer with presets, loudness normalizer, output-device picker. |
 | Picture | Brightness, contrast, saturation, gamma and hue, live. |
@@ -160,6 +199,9 @@ The full list is in **Settings → Shortcuts**, and you can add your own in `key
 | `Ctrl+B` / `Ctrl+F` | Previous / next | `Ctrl+E` / `Ctrl+J` | Equalizer / adjust picture |
 | `Ctrl+H` / `Ctrl+T` | Shuffle / repeat | `Ctrl+D` | Switch theme |
 | `Ctrl+Shift+S` | Save this frame as an image | `Ctrl+,` | Settings |
+| `1` ... `9` | Jump to 10% ... 90%, `0` to the start | `` ` `` | Show / hide the library (also `Tab`) |
+| `Y` / `N` | Keep / mark to reject | `U` | Next file I haven't seen |
+| `Delete` | Move this file to the Recycle Bin (asks first) | | |
 
 On an image: mouse wheel or `=` / `-` zooms, drag pans, `R` rotates, `0` fits to the window.
 

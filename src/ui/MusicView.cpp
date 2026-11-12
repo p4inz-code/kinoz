@@ -44,6 +44,8 @@ MusicView::MusicView(PlayerController* ctl, MusicIndex* idx, QWidget* parent) : 
     rebuild();
 }
 
+void MusicView::drill(const QString& artist, const QString& album) { m_playlist.clear(); m_seg->setCurrent(0); m_artist = artist; m_album = album; rebuild(); }
+
 void MusicView::showPlaylists() { m_artist.clear(); m_album.clear(); m_playlist.clear(); m_seg->setCurrent(3); rebuild(); }
 
 void MusicView::resizeEvent(QResizeEvent*) {

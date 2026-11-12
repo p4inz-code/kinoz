@@ -3,6 +3,8 @@
 . "$PSScriptRoot\env.ps1"
 & "$PSScriptRoot\build.ps1"
 if ($LASTEXITCODE -ne 0) { throw "build failed" }
+& "$PSScriptRoot\refresh-visuals.ps1"        # every release ships fresh screenshots (docs/RELEASING.md)
+& "$PSScriptRoot\make-hero.ps1"
 & "$PSScriptRoot\make-payload.ps1"
 $iscc = Get-ChildItem "$TC\innosetup" -Filter ISCC.exe -Recurse | Select-Object -First 1
 if (-not $iscc) { throw "Inno Setup not found in .toolchain\innosetup (run scripts\setup-toolchain.ps1)" }

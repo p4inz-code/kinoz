@@ -319,6 +319,7 @@ void Sidebar::showTab(int tab) {
 }
 
 void Sidebar::showPlaylists() { showTab(2); m_music->showPlaylists(); }
+void Sidebar::musicDrill(const QString& artist, const QString& album) { showTab(2); m_music->drill(artist, album); }
 void Sidebar::refreshMusic() { m_music->refresh(); }
 
 void Sidebar::applyGrid(bool g) {

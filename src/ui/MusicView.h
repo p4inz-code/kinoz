@@ -15,6 +15,7 @@ public:
     MusicView(PlayerController* ctl, MusicIndex* idx, QWidget* parent = nullptr);
     void showPlaylists();                  // jump to the Playlists list (e.g. right after saving one)
     void refresh() { rebuild(); }
+    void drill(const QString& artist, const QString& album);    // jump straight to an artist / album (used for screenshots)
     void keepScrolled() {}
 signals:
     void toast(const QString&);

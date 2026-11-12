@@ -2,6 +2,10 @@
 
 All notable changes. Dates are release dates.
 
+## 0.1.3 — fresh visuals and release checks
+- Every screenshot and the README banner are regenerated from the current build (library marks, Music, playlists, queue, all setup pages, Settings), using generated demo media. README updated for skimming, music, playlists, the media overlay, setup and the new shortcuts.
+- Releasing now always refreshes the visuals: `scripts/refresh-visuals.ps1`, `scripts/make-hero.ps1` (run by `scripts/release.ps1`), a checklist in docs/RELEASING.md, and a CI check that fails a release tag if the images did not change since the previous release.
+
 ## 0.1.2 — fast skimming, music library, playlists, media overlay
 **Stability**
 - Crash-loop protection: if kinoz ends abnormally twice in a row (crash, driver reset, power cut) it starts in safe mode: software decoding, no glass effect, taskbar-friendly fullscreen, with a notice. Settings can switch it all back.
