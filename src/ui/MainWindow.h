@@ -40,6 +40,7 @@ public:
     QString debugState() const;
     void runSelfTest();
     void runBench();
+    void notifySafeMode() { notify(tr("kinoz ended unexpectedly the last two times, so it started in safe mode (software decoding, no glass). Change this in Settings."), true); }
     void runShots(const QString& dir);
 
 protected:

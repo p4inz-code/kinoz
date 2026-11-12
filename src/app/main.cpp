@@ -14,6 +14,7 @@
 #include <QLocalSocket>
 #include <QSurfaceFormat>
 #include <QTextStream>
+#include <QTimer>
 #include <csignal>
 #include <exception>
 #ifdef Q_OS_WIN
@@ -114,8 +115,26 @@ int main(int argc, char** argv) {
     JsonStore resume(Paths::dataDir() + QStringLiteral("/resume.json"));
     if (newWindow) { settings.setReadOnly(true); resume.setReadOnly(true); }
 
+    // Crash-loop protection: a "running" marker exists while the main window is open and is removed on a clean exit.
+    // If it is still there at the next start, the last run ended abnormally (crash, driver reset, power cut). After two
+    // abnormal ends in a row kinoz starts in safe mode: software decoding, no glass shader, taskbar-friendly fullscreen.
+    const QString marker = Paths::dataDir() + QStringLiteral("/running.marker");
+    bool safeMode = false;
+    if (!stress) {
+        const bool crashed = QFile::exists(marker);
+        const int streak = crashed ? int(settings.num("crashStreak", 0)) + 1 : 0;
+        settings.set("crashStreak", streak);
+        if (streak >= 2) {
+            safeMode = true;
+            settings.set("decode", 2); settings.set("glass", false); settings.set("fsSafe", true);
+        }
+        QFile m(marker);
+        if (m.open(QIODevice::WriteOnly)) m.write("1");
+    }
+
     MainWindow w(&settings, &resume);
     w.show();
+    if (safeMode) QTimer::singleShot(1800, &w, [&w] { w.notifySafeMode(); });
 
     QObject::connect(&server, &QLocalServer::newConnection, &w, [&] {
         while (QLocalSocket* c = server.nextPendingConnection()) {
@@ -134,5 +153,7 @@ int main(int argc, char** argv) {
     if (selftest) w.runSelfTest();
     if (bench) w.runBench();
     if (!shotsDir.isEmpty()) w.runShots(shotsDir);
-    return app.exec();
+    const int rc = app.exec();
+    if (!stress) { settings.flush(); QFile::remove(marker); }          // reaching this line means the run ended cleanly
+    return rc;
 }
