@@ -107,6 +107,7 @@ It plays almost anything with no codec packs, because the engine underneath is l
   <a href="#download-and-install">Download</a> &nbsp;|&nbsp;
   <a href="#what-makes-kinoz-different">What is different</a> &nbsp;|&nbsp;
   <a href="#make-kinoz-your-default-player">Default player</a> &nbsp;|&nbsp;
+  <a href="#compared-with-the-default-apps">Compared with the defaults</a> &nbsp;|&nbsp;
   <a href="#what-you-get">What you get</a> &nbsp;|&nbsp;
   <a href="#supported-file-types">File types</a> &nbsp;|&nbsp;
   <a href="#keyboard-shortcuts">Shortcuts</a> &nbsp;|&nbsp;
@@ -160,18 +161,54 @@ Right-click entries ("Play with kinoz", "Open folder in kinoz") and the "Open wi
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
-## Next to the player your system already has
+## Compared with the default apps
 
-| | The built-in players (Windows Media Player and Movies & TV, QuickTime and Music, the GNOME and KDE players) | kinoz |
+Every system ships players for video, music and pictures. They are fine at the basics and good at what the vendor sells (stores, cloud libraries, casting). kinoz is for the rest: your own files, played well, with one app and one look everywhere. This compares kinoz with the apps you get out of the box. They change between versions and distributions, so treat it as a guide, and [corrections are welcome](https://github.com/p4inz-code/kinoz/issues/new/choose).
+
+### Windows 11
+
+| Default app | What it is for | Where kinoz differs |
 |---|---|---|
-| Formats | Good for common files; some need extra codecs or store downloads | Plays almost anything out of the box (libmpv + FFmpeg), no codec packs |
-| Speed when you click through files | Fine one at a time | Built for it: only the last click opens, pre-reads the next file, instant hover preview |
-| Skim and clean up a folder | Open each file, delete by hand | `Y` keep, `N` reject, `U` next unseen, `Delete` to the Recycle Bin, watched marks |
-| Look and feel | Follows the system | One custom look on every system, light and dark, a real "animations off" switch |
-| Cost, ads, account | Tied to the OS and its services | Free, GPLv3, no account, no telemetry |
-| Your data | Library and history often live in a system or cloud service | Plain files in kinoz's own folder you can open, copy or delete |
+| **Media Player** (replaced Groove Music) | Music library, playlists, and video in one app | Plays almost any file with no extra codec downloads; skim tools for folders of videos (keep, reject, next unseen); frame preview on the seek bar; per-file resume; one window for video, music, images and GIFs; no Microsoft account |
+| **Movies & TV** | Video playback and the Microsoft store | Local files only, so no store or DRM video; plays MKV, AVI, WebM, FLAC and similar directly; equalizer, picture adjust, A-B loop, frame step, annotate any frame |
+| **Photos** | Pictures, albums, cloud sync | Opens images and GIFs next to your videos with zoom, pan and a slideshow; no cloud sync and no photo editing |
+| **Snipping Tool** (frame grabs) | Screenshots | Save any video frame at full resolution, or draw on it first, from the player itself |
 
-**What the built-in players have that kinoz does not (yet):** casting to TVs and speakers (AirPlay, Chromecast, DLNA), CD ripping and burning, DVD and Blu-ray menus, online music and video services, cloud sync of your library, and, on macOS and Linux, the system now-playing and media-key integration (kinoz has it on Windows). Streaming services, casting and disc features are not planned; the rest is on the [roadmap](ROADMAP.md).
+**The Windows apps do better at:** syncing with a Microsoft account, store purchases and DRM streaming, casting, and CD ripping and burning.
+
+### macOS
+
+| Default app | What it is for | Where kinoz differs |
+|---|---|---|
+| **QuickTime Player** | Playing and simple recording of video and audio | Plays formats QuickTime does not open (for example many MKV and AVI files) with no converter; a real library sidebar and queue instead of one file at a time; playlists; speed with pitch correction; equalizer |
+| **Music** | Your Apple Music and iTunes library, local files, playlists | Works straight from your folders with no library import and no Apple account; artists, albums and songs read from the files' tags; the same app plays your videos |
+| **Preview / Photos** | Images, PDFs, your photo library | Browse a folder of pictures and GIFs with the arrow keys, zoom, rotate, slideshow, next to your videos |
+
+**The Mac apps do better at:** AirPlay and iCloud, Apple Music streaming, deep system integration, and the Photos library. kinoz's Now Playing integration on macOS is not done yet.
+
+### Linux (GNOME, KDE and others)
+
+| Default app | What it is for | Where kinoz differs |
+|---|---|---|
+| **GNOME Videos / Showtime, KDE Dragon Player** | Simple video playback | A library sidebar, queue, resume, skim tools, picture adjust, equalizer and annotate; the same window plays music and images; consistent look on any desktop |
+| **Rhythmbox, Elisa** | Music libraries | Artists, albums, songs and playlists from your folders, in the same app as your videos; saved playlists are plain `.m3u8` files |
+| **Image viewers** (Eye of GNOME, Gwenview) | Pictures | Pictures and GIFs open in the same window as video and music |
+
+**The Linux apps do better at:** following your desktop theme exactly, MPRIS and desktop integration (kinoz's MPRIS support is not done yet), and being packaged by your distribution.
+
+### Across all three
+
+| | The built-in apps | kinoz |
+|---|---|---|
+| Formats | Common files; some need extensions, converters or store downloads | Almost anything out of the box (libmpv and FFmpeg) |
+| Clicking through many files | Fine one at a time | Only the last click opens; the next file is pre-read; instant hover preview; measured 0.3 s to a picture |
+| Cleaning up a folder | Open each file, delete by hand | `Y` keep, `N` reject, `U` next unseen, `Delete` to the Recycle Bin, watched marks |
+| Look | Follows the system | One look on every system, light and dark, and a real animations-off switch |
+| Cost, ads, accounts | Tied to the OS and its services | Free, GPLv3, no account, no telemetry |
+| Your data | Library and history often live in a system or cloud service | Plain files in kinoz's own folder |
+| Updates | With the OS | Its own: download in the background, then restart now or later, or switch it off |
+
+**Not in kinoz, and not planned:** casting to TVs and speakers, CD and DVD features, streaming-service integration, cloud sync.
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 
