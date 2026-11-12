@@ -136,6 +136,7 @@ bool Updater::applyPendingOnStartup(JsonStore* settings, bool dryRun) {
 
 void Updater::checkNow(bool manual) {
     if (m_state == Checking || m_state == Downloading) return;
+    if (m_state == Ready) return;                      // a verified update is already waiting: don't check (or download) again
     m_manual = manual;
     setState(Checking, {}, tr("Checking…"));
     QNetworkRequest req(QUrl(QStringLiteral("https://api.github.com/repos/%1/releases/latest").arg(QString::fromLatin1(kRepo))));

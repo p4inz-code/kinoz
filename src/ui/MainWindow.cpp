@@ -1467,6 +1467,25 @@ void MainWindow::runSelfTest() {
     S("playlist opens as a queue", [this] { m_ctl->open({Playlists::fileFor(QStringLiteral("selftest list"))}); }, [this, plCount] { return m_ctl->queue()->rowCount() == *plCount && m_ctl->hasMedia(); }, 800);
     S("playlist names are made safe", [] {}, [] { return Playlists::sanitize(QStringLiteral("a/b:c*")) == QStringLiteral("a_b_c_") && Playlists::sanitize(QStringLiteral("CON")) == QStringLiteral("Playlist"); }, 50);
     S("playlist is deleted", [] { Playlists::remove(QStringLiteral("selftest list")); }, [] { return !Playlists::exists(QStringLiteral("selftest list")); }, 100);
+    S("playlist refuses network paths (no login leak)", [this] {
+        const QString clip = Paths::dataDir() + QStringLiteral("/selftest-media/clip-1.") + QFileInfo(m_ctl->path()).suffix();
+        QFile f(Paths::dataDir() + QStringLiteral("/selftest-evil.m3u8")); f.open(QIODevice::WriteOnly | QIODevice::Truncate);
+        f.write(("\\\\127.0.0.1\\share\\a.mp4\n//attacker/share/b.mp4\nfile://attacker/share/c.mp4\nhttp://example.com/d.mp4\n" + QDir::toNativeSeparators(clip).toUtf8() + "\n"));
+    }, [this] {
+        const QStringList l = Playlists::load(Paths::dataDir() + QStringLiteral("/selftest-evil.m3u8"));
+        return l.size() == 1 && l.first().contains(QStringLiteral("clip-1."));
+    }, 100);
+    S("live list refresh keeps its scroll position", [] {}, [this] {
+        RowList list; list.resize(300, 200);
+        QVector<RowList::Row> rows; for (int i = 0; i < 100; ++i) { RowList::Row r; r.title = QStringLiteral("row %1").arg(i); rows << r; }
+        list.setRows(rows);
+        QWheelEvent ev(QPointF(50, 50), QPointF(50, 50), QPoint(), QPoint(0, -240), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+        QApplication::sendEvent(&list, &ev);
+        const int moved = list.scrollPos();
+        list.setRows(rows, true);  const int kept = list.scrollPos();
+        list.setRows(rows, false); const int reset = list.scrollPos();
+        return moved > 0 && kept == moved && reset == 0;
+    }, 100);
     auto idxp = std::make_shared<MusicIndex*>(nullptr);
     S("music index reads tags and lengths", [this, idxp] {
         const QString dir = Paths::dataDir() + QStringLiteral("/selftest-music");

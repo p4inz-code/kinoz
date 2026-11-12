@@ -2,13 +2,18 @@
 
 All notable changes. Dates are release dates.
 
-## Unreleased
+## 0.1.4 — updates that finish the job, audit fixes
 **Updates that finish the job**
 - Hit "Update" and a real progress bar shows the background download; the file is verified (SHA-256) and kinoz asks **Restart now / Later**.
 - Choose Later (or ignore it) and the verified update installs by itself the next time kinoz starts. It rechecks the file's checksum first, gives up after two attempts so it can never loop, and tells you if it couldn't.
 - A failed update reopens the previous working version instead of leaving you without a player.
 - **Settings → About → Updates**: Automatic (default: download quietly, ask to restart), Notify me, or Off. "Download page" and "Direct download" buttons are always there for doing it yourself.
 - Opting out (Off) cancels any staged update. A background download never interrupts a playing video; it shows a small notice instead.
+
+**Audit fixes**
+- The Music list no longer jumps back to the top every half second while tags are still being read.
+- Playlist files can no longer point at network paths (`\server\share`): checking such a file makes Windows sign in to that server, which could leak the user's login hash. Local files only.
+- With Automatic updates and kinoz left open for days, the daily check no longer downloads an already staged update again.
 
 ## 0.1.3 — fresh visuals and release checks
 - Every screenshot and the README banner are regenerated from the current build (library marks, Music, playlists, queue, all setup pages, Settings), using generated demo media. README updated for skimming, music, playlists, the media overlay, setup and the new shortcuts.

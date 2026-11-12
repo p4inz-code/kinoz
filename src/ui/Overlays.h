@@ -24,7 +24,8 @@ class RowList : public QWidget {
 public:
     struct Row { Icon icon = Icon::File; QString title, subtitle, hint, data; bool header = false; };
     explicit RowList(QWidget* parent = nullptr);
-    void setRows(const QVector<Row>& r);
+    void setRows(const QVector<Row>& r, bool keepScroll = false);
+    int scrollPos() const { return m_scroll; }
     const QVector<Row>& rows() const { return m_rows; }
     int current() const { return m_cur; }
     void setCurrent(int i);

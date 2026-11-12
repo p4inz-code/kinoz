@@ -2,7 +2,7 @@
 ; and starts kinoz's OWN setup window (kinoz.exe --installer), which is drawn by the app itself.
 ;   Build: scripts\release.ps1   (creates dist\payload.zip first, see scripts\make-payload.ps1)
 #define AppName "kinoz"
-#define AppVer "0.1.3"
+#define AppVer "0.1.4"
 
 [Setup]
 AppId={{B3E1D3A8-5C2F-4F1E-9B6A-7D2C4E8A1F90}

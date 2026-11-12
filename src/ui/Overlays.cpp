@@ -26,7 +26,16 @@ static QColor withA(QColor c, qreal a) { c.setAlphaF(a); return c; }
 
 // ============================================================ RowList
 RowList::RowList(QWidget* parent) : QWidget(parent) { setMouseTracking(true); setFocusPolicy(Qt::NoFocus); connect(&Theme::i(), &Theme::changed, this, qOverload<>(&QWidget::update)); }
-void RowList::setRows(const QVector<Row>& r) { m_rows = r; m_scroll = 0; m_cur = -1; m_hover = -1; for (int i = 0; i < r.size(); ++i) if (!r[i].header) { m_cur = i; break; } update(); }
+void RowList::setRows(const QVector<Row>& r, bool keepScroll) {
+    const int oldScroll = m_scroll, oldCur = m_cur;
+    m_rows = r; m_scroll = 0; m_cur = -1; m_hover = -1;
+    for (int i = 0; i < r.size(); ++i) if (!r[i].header) { m_cur = i; break; }
+    if (keepScroll) {                                    // a live refresh (e.g. while tags are still being read) must not throw the list back to the top
+        m_scroll = qBound(0, oldScroll, qMax(0, contentHeight() - height()));
+        if (oldCur >= 0 && oldCur < r.size() && !r[oldCur].header) m_cur = oldCur;
+    }
+    update();
+}
 void RowList::setCurrent(int i) { m_cur = i; ensureVisible(i); update(); }
 int RowList::contentHeight() const { int h = 0; for (const auto& r : m_rows) h += r.header ? 30 : m_rowH; return h; }
 void RowList::move(int dir) {

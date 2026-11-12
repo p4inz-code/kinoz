@@ -37,9 +37,9 @@ MusicView::MusicView(PlayerController* ctl, MusicIndex* idx, QWidget* parent) : 
     connect(m_back, &QAbstractButton::clicked, this, [this] { goBack(); });
     connect(m_list, &RowList::activated, this, [this](int r) { onActivated(r); });
     m_debounce.setSingleShot(true); m_debounce.setInterval(250);
-    connect(&m_debounce, &QTimer::timeout, this, [this] { rebuild(); });
+    connect(&m_debounce, &QTimer::timeout, this, [this] { rebuild(true); });
     connect(m_idx, &MusicIndex::changed, this, [this] { if (isVisible() && m_seg->current() != 3 && !m_debounce.isActive()) m_debounce.start(); });   // scanning updates the lists as it goes
-    connect(m_idx, &MusicIndex::scanningChanged, this, [this](bool) { update(); if (isVisible()) rebuild(); });
+    connect(m_idx, &MusicIndex::scanningChanged, this, [this](bool) { update(); if (isVisible()) rebuild(true); });
     connect(&Theme::i(), &Theme::changed, this, qOverload<>(&QWidget::update));
     rebuild();
 }
@@ -85,7 +85,7 @@ void MusicView::goBack() {
     rebuild();
 }
 
-void MusicView::rebuild() {
+void MusicView::rebuild(bool keepScroll) {
     m_tracks = m_idx->tracks();
     QVector<RowList::Row> rows;
     m_playSet.clear();
@@ -164,7 +164,7 @@ void MusicView::rebuild() {
         for (const auto& t : ts) { m_playSet << t.path; rows << trackRow(t, true, false); }
     }
     m_list->setEmptyText(m_idx->scanning() ? tr("Reading your music…") : seg == 3 ? tr("No playlists yet. Save the queue as one.") : tr("No music found. Add the folders where you keep your songs from the Library tab."));
-    m_list->setRows(rows);
+    m_list->setRows(rows, keepScroll);
     m_back->setVisible(!trail().isEmpty());
     update();
 }

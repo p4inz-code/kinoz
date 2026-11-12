@@ -14,7 +14,7 @@ class MusicView : public QWidget {
 public:
     MusicView(PlayerController* ctl, MusicIndex* idx, QWidget* parent = nullptr);
     void showPlaylists();                  // jump to the Playlists list (e.g. right after saving one)
-    void refresh() { rebuild(); }
+    void refresh() { rebuild(true); }
     void drill(const QString& artist, const QString& album);    // jump straight to an artist / album (used for screenshots)
     void keepScrolled() {}
 signals:
@@ -26,7 +26,7 @@ protected:
     void resizeEvent(QResizeEvent*) override;
     void paintEvent(QPaintEvent*) override;
 private:
-    void rebuild();
+    void rebuild(bool keepScroll = false);
     void onActivated(int row);
     void goBack();
     QString trail() const;

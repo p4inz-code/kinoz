@@ -90,8 +90,11 @@ QStringList load(const QString& file) {
             if (eq < 0) continue;
             line = line.mid(eq + 1).trimmed();
         }
-        if (line.contains(QLatin1String("://"))) continue;                                   // only local files
         if (line.startsWith(QStringLiteral("file:///"))) line = line.mid(8);
+        // Only local files. Network paths (\\server\share, //server/share) are refused outright: merely checking that such a
+        // file exists makes Windows sign in to that server, which can leak the user's login hash to whoever wrote the playlist.
+        if (line.contains(QLatin1String("://")) || line.startsWith(QLatin1String("\\\\")) || line.startsWith(QLatin1String("//"))) continue;
+        if (out.size() >= 50000) break;
         const QString abs = QFileInfo(line).isAbsolute() ? QDir::cleanPath(line) : QDir::cleanPath(base.absoluteFilePath(line));
         if (Media::isMedia(abs) && QFileInfo::exists(abs) && !out.contains(abs)) out << abs;
     }
