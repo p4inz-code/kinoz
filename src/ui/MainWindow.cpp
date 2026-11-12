@@ -655,6 +655,7 @@ void MainWindow::doAction(const QString& id) {
     else if (id == "openfile") openPicker(false);
     else if (id == "settings") openSettings();
     else if (id == "defaultplayer") { const auto r = DefaultApp::apply(); notify(r.message, !r.ok); }
+    else if (id == "uninstall") { if (!QProcess::startDetached(QCoreApplication::applicationFilePath(), {QStringLiteral("--uninstall")})) notify(tr("Couldn't open the uninstaller"), true); }
     else if (id == "doctor") { if (!QProcess::startDetached(QCoreApplication::applicationFilePath(), {QStringLiteral("--doctor")})) notify(tr("Couldn't open the Doctor"), true); }
     else if (id == "annotate") startAnnotate();
     else if (id == "newwindow") { if (!QProcess::startDetached(QCoreApplication::applicationFilePath(), {QStringLiteral("--new")})) notify(tr("Couldn't open a new window"), true); }

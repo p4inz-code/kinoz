@@ -16,6 +16,7 @@
 #include <QJsonObject>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QProcess>
 #include <QTextBrowser>
 #include <QUrl>
 
@@ -63,6 +64,12 @@ SettingsPage::SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, 
     auto* b2 = new TextButton(tr("Clear thumbnails"), this); connect(b2, &QAbstractButton::clicked, this, &SettingsPage::clearThumbs);
     auto* b3 = new TextButton(tr("Clear resume history"), this); connect(b3, &QAbstractButton::clicked, this, &SettingsPage::clearResume);
     m_pageWidgets[General] << b1 << b2 << b3;
+#ifdef Q_OS_WIN
+    auto* b4 = new TextButton(tr("Uninstall…"), this);
+    b4->setDanger(true);
+    connect(b4, &QAbstractButton::clicked, this, [] { QProcess::startDetached(QCoreApplication::applicationFilePath(), {QStringLiteral("--uninstall")}); });
+    m_pageWidgets[General] << b4;
+#endif
 
     // ---- Playback ----
     addSwitch(Playback, "resume", true, tr("Resume where you left off"), tr("Continue each video or track from its last position"));
@@ -322,7 +329,7 @@ void SettingsPage::paintEvent(QPaintEvent*) {
                 if (i == cur) { p.setBrush(Qt::NoBrush); p.setPen(QPen(c.text, 2)); p.drawEllipse(sw[i].adjusted(-4, -4, 4, 4)); }
             }
             p.setPen(c.muted); p.setFont(Theme::i().font(12));
-            p.drawText(QRectF(24, y + 56, width() - 48, 40), Qt::AlignTop | Qt::TextWordWrap, tr("Everything kinoz saves — settings, thumbnails, resume points, exports — lives in the data folder. On Windows that is next to the program, so nothing is spread over C:."));
+            p.drawText(QRectF(24, y + 54, width() - 48, 22), Qt::AlignTop | Qt::AlignLeft, QFontMetrics(p.font()).elidedText(tr("Everything kinoz saves lives in its data folder next to the program, nothing on C:."), Qt::ElideRight, width() - 48));
         }
     } else if (m_page == Shortcuts) {
         p.setPen(c.muted); p.setFont(Theme::i().font(12));

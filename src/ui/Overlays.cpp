@@ -218,7 +218,8 @@ const Cmd kCmds[] = {
     {"framestep", "Next frame", ".", Icon::Next, "step"}, {"framestepback", "Previous frame", ",", Icon::Prev, "step"}, {"rotate", "Rotate image", "R", Icon::Redo, "turn"},
     {"defaultplayer", "Make kinoz my default player", "", Icon::Play, "default app open with association file type"},
 #ifdef Q_OS_WIN
-    {"doctor", "Doctor: check and repair kinoz", "", Icon::Settings, "repair fix health uninstall setup"},
+    {"doctor", "Doctor: check and repair kinoz", "", Icon::Settings, "repair fix health setup"},
+    {"uninstall", "Uninstall kinoz…", "", Icon::Trash, "remove delete uninstall data"},
 #endif
     {"zoomreset", "Fit to window", "0", Icon::Search, "zoom reset"},{"subcycle", "Next subtitle track", "V", Icon::Subtitles, "captions cc"}, {"quit", "Quit", "Ctrl+Q", Icon::Close, "exit close"}};
 }

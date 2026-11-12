@@ -2,6 +2,9 @@
 
 All notable changes. Dates are release dates.
 
+## Unreleased
+- Uninstall is one click inside kinoz: Settings → General → Uninstall… (Windows) or `Ctrl+K` → "Uninstall kinoz…". Opens the same Remove screen with the delete-all-data switch.
+
 ## 0.1.1 — custom setup, Doctor, default player
 
 **Setup**

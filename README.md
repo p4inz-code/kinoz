@@ -92,6 +92,8 @@ Pick the file for your system from the [latest release](https://github.com/p4inz
 | macOS, Apple Silicon (M1 and newer) | `kinoz-<version>-macos.dmg` | Open it and drag kinoz into Applications. |
 | Linux | `kinoz-<version>-x86_64.AppImage` | `chmod +x` it and run it. |
 
+**Uninstall (Windows), any one of these:** Windows **Settings → Apps → Installed apps → kinoz → Uninstall**, or inside kinoz **Settings → General → Uninstall…**, or press `Ctrl+K` and type "uninstall". Leave **Delete all my data too** on to remove everything in one go (settings, resume points, thumbnails, logs, exported frames); your own media files are never touched. Silent: `kinoz.exe --uninstall --silent --delete-data`. macOS: drag kinoz out of Applications. Linux: delete the AppImage.
+
 Each file has a `.sha256` next to it. The in-app updater (optional) only installs a download whose SHA-256 matches. Your first five minutes: open kinoz, press **Add a folder**, point it at where your media lives, and click anything. Press `Ctrl+K` to search, `?`-style help is in **Settings → Shortcuts**.
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
