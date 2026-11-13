@@ -18,3 +18,5 @@ aqtinstall.log
 *.corrupt
 # private working log
 /docs/SESSION_HISTORY.md
+# private plans (kept locally, never pushed)
+/plans/
