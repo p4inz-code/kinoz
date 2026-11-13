@@ -2,11 +2,6 @@
   <img src="assets/readme/hero.png" alt="kinoz playing a video in the dark theme: the library on the left, the picture, and the control bar with seek, volume, speed, subtitles and fullscreen." width="100%">
 </p>
 
-<p align="center">
-  <a href="assets/readme/promo.mp4"><img src="assets/readme/promo-poster.png" alt="Play the 30 second tour: install, play, skim, search, privacy and the Doctor" width="62%"></a>
-  <br><sub>30-second tour: install, play, skim, search, privacy and the Doctor (4 MB video)</sub>
-</p>
-
 <h1 align="center">kinoz</h1>
 <p align="center"><b>Everything you play, in one calm window.</b><br>A free, open-source, offline media player for videos, music, images and GIFs. Windows, macOS and Linux.</p>
 
