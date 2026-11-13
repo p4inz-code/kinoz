@@ -11,6 +11,7 @@ public:
     void setRecent(const QStringList& r) { m_recent = r; relayout(); update(); }
 signals:
     void openFolderRequested();
+    void defaultPlayerRequested();
     void recentClicked(const QString& path);
 protected:
     void paintEvent(QPaintEvent*) override;
@@ -22,7 +23,7 @@ private:
     void relayout();
     QStringList m_recent;
     QVector<QRectF> m_rows;
-    QRectF m_btn;
+    QRectF m_btn, m_btn2;
     int m_hover = -1;
 };
 

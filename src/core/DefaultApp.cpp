@@ -3,6 +3,12 @@
 #include "core/DefaultApp.h"
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
+#include <QGuiApplication>
+#include <QIcon>
+#include <QPixmap>
+#include <QStandardPaths>
 #include <QDesktopServices>
 #include <QObject>
 #include <QProcess>
@@ -11,6 +17,13 @@
 #include "installer/Installer.h"
 
 namespace DefaultApp {
+#if defined(Q_OS_LINUX)
+static QStringList kLinuxTypes() {
+    return {"video/mp4", "video/x-matroska", "video/webm", "video/quicktime", "video/x-msvideo", "video/mpeg", "video/ogg", "video/x-flv", "video/3gpp",
+            "audio/mpeg", "audio/flac", "audio/x-wav", "audio/ogg", "audio/mp4", "audio/aac", "audio/x-opus+ogg", "audio/x-vorbis+ogg", "audio/x-m4a",
+            "image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "image/avif"};
+}
+#endif
 Result apply() {
 #if defined(Q_OS_WIN)
     Installer::registerDefaultApp(QCoreApplication::applicationFilePath());
@@ -18,8 +31,28 @@ Result apply() {
         return {true, QObject::tr("Windows opened. Pick kinoz, then choose “Set default”.")};
     return {false, QObject::tr("Couldn't open Windows Settings. Open Settings > Apps > Default apps and search for kinoz.")};
 #elif defined(Q_OS_LINUX)
-    const QStringList types = {"video/mp4", "video/x-matroska", "video/webm", "video/quicktime", "video/x-msvideo", "video/mpeg", "audio/mpeg", "audio/flac",
-                               "audio/x-wav", "audio/ogg", "audio/mp4", "audio/x-opus+ogg", "image/png", "image/jpeg", "image/gif", "image/webp"};
+    const QStringList types = kLinuxTypes();
+    // An AppImage has no installed .desktop file, so the desktop can't offer it as a handler. Write the small user-level
+    // entry (and icon) that a package would have installed; it points at the AppImage file itself and touches nothing else.
+    const QByteArray appImage = qgetenv("APPIMAGE");
+    if (!appImage.isEmpty()) {
+        const QString apps = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/applications");
+        const QString icons = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/icons/hicolor/256x256/apps");
+        QDir().mkpath(apps); QDir().mkpath(icons);
+        QGuiApplication::windowIcon().pixmap(256, 256).save(icons + QStringLiteral("/kinoz.png"), "PNG");
+        QFile f(apps + QStringLiteral("/kinoz.desktop"));
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+            QString exec = QString::fromLocal8Bit(appImage);
+            exec.replace(QLatin1Char('\\'), QStringLiteral("\\\\")).replace(QLatin1Char('"'), QStringLiteral("\\\"")).replace(QLatin1Char('%'), QStringLiteral("%%"));
+            const QString body = QStringLiteral("[Desktop Entry]\nType=Application\nName=kinoz\nGenericName=Media player\n"
+                                                "Comment=A calm, fast, offline player for videos, music, images and GIFs\n"
+                                                "Exec=\"") + exec + QStringLiteral("\" %F\nIcon=kinoz\nTerminal=false\nStartupWMClass=kinoz\n"
+                                                "Categories=AudioVideo;Audio;Video;Player;\nMimeType=") + types.join(QLatin1Char(';')) + QStringLiteral(";\n");
+            f.write(body.toUtf8());
+            f.close();
+        }
+        QProcess::execute(QStringLiteral("update-desktop-database"), {apps});      // harmless if the tool is missing
+    }
     QStringList args = {QStringLiteral("default"), QStringLiteral("kinoz.desktop")};
     args << types;
     if (QProcess::execute(QStringLiteral("xdg-mime"), args) == 0) return {true, QObject::tr("kinoz is now your default player.")};

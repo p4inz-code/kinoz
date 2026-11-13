@@ -14,15 +14,14 @@ class TextButton;
 class RowList;
 class QTextBrowser;
 
-// Settings: General, Playback, Shortcuts, Info, About, Legal. Every control applies live and is remembered.
+// Settings: General, Playback, Privacy, Shortcuts, Info, About, Legal. Every control applies live and is remembered.
 class SettingsPage : public QWidget {
     Q_OBJECT
 public:
     SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, Updater* updater, const QString& diagnostics, QWidget* parent = nullptr);
 signals:
     void changed(const QString& key);
-    void clearThumbs();
-    void clearResume();
+    void privacyAction(const QString& id);   // clearRecent | clearResume | clearMarks | clearThumbs | clearMusic | clearLogs | cleanIdentity | forgetFolders | openData
     void makeDefault();
     void closeRequested();
 protected:
@@ -30,13 +29,15 @@ protected:
     void resizeEvent(QResizeEvent*) override;
     void mousePressEvent(QMouseEvent*) override;
 private:
-    enum Page { General, Playback, Shortcuts, Info, About, Legal, PageCount };
+    enum Page { General, Playback, Privacy, Shortcuts, Info, About, Legal, PageCount };
     struct Row { QString key, title, desc; QWidget* w = nullptr; };
     void addSwitch(Page p, const QString& key, bool def, const QString& title, const QString& desc);
     void addSeg(Page p, const QString& key, const QStringList& labels, const QVector<double>& values, double def, const QString& title, const QString& desc);
     void buildShortcuts();
     void buildInfo();
     void buildAbout();
+    void buildPrivacy();
+    void refreshPrivacy();                     // sizes and counts shown on the Privacy page
     void refreshUpdate();
     void showPage(int p);
     QVector<QRectF> swatchRects() const;
@@ -47,7 +48,7 @@ private:
     QString m_diag;
     Segmented* m_tabs;
     IconButton* m_close;
-    QVector<Row> m_rows[2];                    // General, Playback
+    QVector<Row> m_rows[3];                    // General, Playback, Privacy
     QVector<QWidget*> m_pageWidgets[PageCount];
     int m_page = 0;
     // shortcuts / info / about / legal
@@ -60,4 +61,5 @@ private:
     Segmented* m_updMode = nullptr;
     QTextBrowser* m_legal = nullptr;
     QString m_updStatus;
+    QStringList m_stored;                      // "what kinoz stores" lines on the Privacy page
 };

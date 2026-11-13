@@ -114,6 +114,14 @@ void MusicIndex::setRoots(const QStringList& roots) {
     if (m_wanted) start();
 }
 
+void MusicIndex::clearAll() {
+    ++m_gen;                                         // a scan in progress notices and stops without writing anything back
+    { QMutexLocker l(&m_mx); m_tracks.clear(); }
+    QFile::remove(cachePath());
+    m_wanted = false;                                // the next time the Music tab opens, it scans again from scratch
+    emit changed();
+}
+
 void MusicIndex::ensureScanned() {
     if (m_wanted) return;
     m_wanted = true;

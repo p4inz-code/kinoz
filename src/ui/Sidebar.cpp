@@ -191,6 +191,10 @@ Sidebar::Sidebar(PlayerController* ctl, ThumbService* thumbs, JsonStore* setting
     m_addPlace = new IconButton(Icon::Plus, this, 30);
     m_clearQ = new IconButton(Icon::Trash, this, 30);
     m_saveQ = new IconButton(Icon::Export, this, 30);
+    m_up->setToolTip(tr("Up one folder"));
+    m_viewBtn->setToolTip(tr("List or grid"));
+    m_sortBtn->setToolTip(tr("Sort and filter"));
+    m_addPlace->setToolTip(tr("Add this folder to your places"));
     m_saveQ->setToolTip(tr("Save the queue as a playlist"));
     m_clearQ->setToolTip(tr("Clear the queue"));
     m_musicIdx = new MusicIndex(this);
@@ -255,10 +259,11 @@ Sidebar::Sidebar(PlayerController* ctl, ThumbService* thumbs, JsonStore* setting
     connect(m_queueView, &MediaView::contextRequested, this, [this](const QModelIndex& i, const QPoint& g) {
         auto* m = new PopupMenu(this);
         const QString path = i.data(Qt::DisplayRole).toString();
-        m->addItem("play", tr("Play")); m->addItem("remove", tr("Remove from queue")); m->addSeparator(); m->addItem("reveal", tr("Show in Explorer"));
+        m->addItem("play", tr("Play")); m->addItem("remove", tr("Remove from queue")); m->addItem("forget", tr("Forget this file")); m->addSeparator(); m->addItem("reveal", tr("Show in Explorer"));
         connect(m, &PopupMenu::triggered, this, [this, i, path](const QString& id) {
             if (id == "play") m_ctl->playIndex(i.row());
             else if (id == "remove") m_ctl->removeAt(i.row());
+            else if (id == "forget") { m_ctl->forgetFile(path); m_thumbs->forget(path); emit toast(tr("Forgot this file: no resume point, marks, history or thumbnail left")); }
             else if (id == "reveal") revealInFileManager(path);
         });
         m->popup(g);
@@ -323,6 +328,8 @@ void Sidebar::showTab(int tab) {
 void Sidebar::showPlaylists() { showTab(2); m_music->showPlaylists(); }
 void Sidebar::musicDrill(const QString& artist, const QString& album) { showTab(2); m_music->drill(artist, album); }
 void Sidebar::refreshMusic() { m_music->refresh(); }
+void Sidebar::clearMusicIndex() { m_musicIdx->clearAll(); m_music->refresh(); }
+void Sidebar::forgetPlaces() { m_set->remove("lastFolder"); savePlaces({}); m_model->setFolder({}); relayout(); update(); }
 
 void Sidebar::applyGrid(bool g) {
     m_grid = g;
@@ -352,6 +359,7 @@ void Sidebar::onContext(const QModelIndex& i, const QPoint& g) {
     auto* m = new PopupMenu(this);
     if (dir) { m->addItem("open", tr("Open")); m->addItem("playall", tr("Play everything in this folder")); if (!place) m->addItem("addplace", tr("Add to places")); else m->addItem("rmplace", tr("Remove from places")); }
     else { m->addItem("play", tr("Play")); m->addItem("queue", tr("Add to queue")); }
+    if (!dir) m->addItem("forget", tr("Forget this file"));
     m->addItem("newwin", tr("Open in new window"));
     m->addSeparator();
     m->addItem("reveal", tr("Show in Explorer"));
@@ -362,6 +370,7 @@ void Sidebar::onContext(const QModelIndex& i, const QPoint& g) {
         else if (id == "rmplace") removePlace(path);
         else if (id == "play") onActivated(i);
         else if (id == "queue") { m_ctl->enqueue({path}); emit toast(tr("Added to queue")); }
+        else if (id == "forget") { m_ctl->forgetFile(path); m_thumbs->forget(path); emit toast(tr("Forgot this file: no resume point, marks, history or thumbnail left")); }
         else if (id == "newwin") emit openInNewWindow(path);
         else if (id == "reveal") revealInFileManager(path);
     });

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
 #include "ui/Widgets.h"
+#include "ui/HoverTip.h"
 #include "ui/Theme.h"
 #include <QApplication>
 #include <QKeyEvent>
@@ -28,13 +29,20 @@ IconButton::IconButton(Icon ic, QWidget* parent, int size) : QAbstractButton(par
     m_anim.setDuration(Theme::i().animMs(120));
     connect(&m_anim, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) { m_hover = v.toReal(); update(); });
     connect(&Theme::i(), &Theme::changed, this, qOverload<>(&QWidget::update));
+    connect(this, &QAbstractButton::pressed, this, [] { HoverTip::cancel(); });
+}
+bool IconButton::event(QEvent* e) {
+    if (e->type() == QEvent::ToolTip) return true;                              // the themed label (HoverTip) replaces Qt's own tooltip
+    return QAbstractButton::event(e);
 }
 void IconButton::enterEvent(QEnterEvent*) {
+    if (!toolTip().isEmpty() && isEnabled()) HoverTip::request(QRect(mapToGlobal(QPoint(0, 0)), size()), toolTip());
     m_anim.stop(); m_anim.setDuration(Theme::i().animMs(120));
     if (m_anim.duration() == 0) { m_hover = 1; update(); return; }
     m_anim.setStartValue(m_hover); m_anim.setEndValue(1.0); m_anim.start();
 }
 void IconButton::leaveEvent(QEvent*) {
+    HoverTip::cancel();
     m_anim.stop(); m_anim.setDuration(Theme::i().animMs(120));
     if (m_anim.duration() == 0) { m_hover = 0; update(); return; }
     m_anim.setStartValue(m_hover); m_anim.setEndValue(0.0); m_anim.start();
@@ -321,7 +329,7 @@ void PopupMenu::paintEvent(QPaintEvent*) {
             if (it.checked) drawIcon(&p, Icon::Check, QRectF(r.left() + 6, r.center().y() - 8, 16, 16), c.accent, 2);
             p.setPen(fg); p.setFont(Theme::i().font(14));
             p.drawText(QRectF(r.left() + 30, r.top(), r.width() - 36, r.height()), Qt::AlignVCenter | Qt::AlignLeft, it.text);
-            if (!it.hint.isEmpty()) { p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(r.adjusted(0, 0, -10, 0), Qt::AlignVCenter | Qt::AlignRight, it.hint); }
+            if (!it.hint.isEmpty()) { p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(r.adjusted(0, 0, -10, 0), Qt::AlignVCenter | Qt::AlignRight, Theme::keyText(it.hint)); }
         }
         y += h;
     }

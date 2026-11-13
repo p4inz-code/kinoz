@@ -63,7 +63,7 @@ private:
     void wireController();
     void loadKeymap();
     void refreshChrome();
-    void showMoreMenu();
+    void showMoreMenu(const QPoint& anchorGlobal = QPoint(-1, -1));
     void showTracksMenu();
     void showSpeedMenu();
     void toggleFullscreen();
@@ -75,7 +75,8 @@ private:
     QTimer m_smtcTimer;
     void toggleMini();
     void togglePin();
-    void setSidebarOpen(bool open, bool animate = true);
+    void setSidebarOpen(bool open, bool animate = true, bool automatic = false);
+    bool m_sideAuto = false;                 // the library was hidden by the idle fade (it comes back at the left edge)
     void togglePanel(const QString& which);
     void closePanel();
     void poke();
@@ -86,6 +87,9 @@ private:
     void cycleTheme();
     void updateGlass();
     void openSettings();
+    void privacyAction(const QString& id);
+    void cleanIdentity(bool announce);
+    void wipeLogs();
     void confirm(const QString& title, const QString& body, const QString& okText, std::function<void()> onOk, bool danger = true, const QString& cancelText = {});
     void promptText(const QString& title, const QString& label, const QString& text, const QString& okText, std::function<void(const QString&)> onOk);
     void savePlaylist();

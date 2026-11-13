@@ -82,6 +82,12 @@ public:
     int reviewState(const QString& path) const;        // bit mask of Mark
     double watched(const QString& path) const;         // 0..1, how far you got
     void toggleMark(const QString& path, int mark);    // MarkKeep / MarkReject; choosing one clears the other
+    // privacy
+    bool privateMode() const;                           // while on: no recent list, no resume points, no watched progress is saved
+    void clearRecent();
+    void clearResume();
+    void clearMarks();                                  // keep, reject and watched progress, for every file
+    void forgetFile(const QString& path);               // one file: its resume point, marks and place in the recent list
     int nextUnwatched() const;                          // queue index of the next unseen, not-rejected file, or -1
     QStringList rejected() const;                       // queue files marked as rejected
     void dropFiles(const QStringList& files);           // forget files that were deleted (queue, marks, resume); moves playback on

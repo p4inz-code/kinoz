@@ -6,5 +6,13 @@ Comment=A calm, fast, offline player for videos, music, images and GIFs
 Exec=kinoz %F
 Icon=kinoz
 Terminal=false
+StartupWMClass=kinoz
+StartupNotify=false
+Keywords=video;movie;music;audio;player;media;gif;image;mp4;mkv;
 Categories=AudioVideo;Audio;Video;Player;
-MimeType=video/mp4;video/x-matroska;video/webm;video/x-msvideo;audio/mpeg;audio/flac;audio/x-wav;audio/ogg;image/png;image/jpeg;image/gif;image/webp;
+MimeType=video/mp4;video/x-matroska;video/webm;video/quicktime;video/x-msvideo;video/mpeg;video/ogg;video/x-flv;video/3gpp;audio/mpeg;audio/flac;audio/x-wav;audio/ogg;audio/mp4;audio/aac;audio/x-opus+ogg;audio/x-vorbis+ogg;audio/x-m4a;image/png;image/jpeg;image/gif;image/webp;image/bmp;image/avif;
+Actions=NewWindow;
+
+[Desktop Action NewWindow]
+Name=New window
+Exec=kinoz --new

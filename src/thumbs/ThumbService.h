@@ -9,6 +9,7 @@
 #include <QSet>
 #include <QThread>
 #include <QWaitCondition>
+#include <atomic>
 
 class FrameGrabber;
 
@@ -22,6 +23,9 @@ public:
     QPixmap get(const QString& path, MediaKind kind);    // null until ready (then ready() fires)
     bool failed(const QString& path) const { return m_failed.contains(path); }
     void trimDiskCache(qint64 maxBytes = 600ll * 1024 * 1024);
+    void setPrivate(bool on) { m_private = on; }       // private mode: thumbnails live in memory only, nothing is written to disk
+    void clearAll();                                    // forget every thumbnail, in memory and on disk
+    void forget(const QString& path);                   // forget one file's thumbnail
 
 signals:
     void ready(const QString& path);
@@ -38,5 +42,6 @@ private:
     QWaitCondition m_cv;
     QList<Job> m_stack;
     bool m_quit = false;
+    std::atomic<bool> m_private{false};
     QVector<QThread*> m_threads;
 };

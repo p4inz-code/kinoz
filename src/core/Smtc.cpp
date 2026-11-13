@@ -13,7 +13,78 @@
 #include <QWidget>
 #include <chrono>
 
-#ifndef _WIN32
+#if defined(__linux__) && defined(KINOZ_HAS_DBUS)
+// ---- Linux: MPRIS over the session bus (media keys, the GNOME / KDE now-playing card, playerctl) ----
+#include "core/MprisAdaptors.h"
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QCoreApplication>
+
+void MprisRoot::Raise() { if (!m_s->window) return; m_s->window->showNormal(); m_s->window->raise(); m_s->window->activateWindow(); }
+void MprisPlayer::Next() { emit m_s->owner->nextRequested(); }
+void MprisPlayer::Previous() { emit m_s->owner->previousRequested(); }
+void MprisPlayer::Pause() { emit m_s->owner->pauseRequested(); }
+void MprisPlayer::Play() { emit m_s->owner->playRequested(); }
+void MprisPlayer::PlayPause() { if (m_s->status == QLatin1String("Playing")) emit m_s->owner->pauseRequested(); else emit m_s->owner->playRequested(); }
+void MprisPlayer::Stop() { emit m_s->owner->stopRequested(); }
+void MprisPlayer::Seek(qlonglong offsetUs) { emit m_s->owner->seekRequested(qMax(0.0, double(m_s->posUs + offsetUs) / 1e6)); }
+void MprisPlayer::SetPosition(const QDBusObjectPath&, qlonglong posUs) { emit m_s->owner->seekRequested(qMax(0.0, double(posUs) / 1e6)); }
+
+struct Smtc::Impl {
+    MprisShared sh;
+    bool registered = false;
+    QString lastStatus;
+    QVariantMap lastMeta;
+};
+Smtc::Smtc(QWidget* window, QObject* parent) : QObject(parent), d(new Impl) {
+    d->sh.owner = this; d->sh.window = window;
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    if (!bus.isConnected()) return;                                             // no session bus (SSH, minimal setups): quietly skip
+    new MprisRoot(&d->sh, this);
+    new MprisPlayer(&d->sh, this);
+    QString name = QStringLiteral("org.mpris.MediaPlayer2.kinoz");
+    if (!bus.registerService(name)) {                                           // a second kinoz window gets its own name
+        name += QStringLiteral(".instance%1").arg(QCoreApplication::applicationPid());
+        if (!bus.registerService(name)) return;
+    }
+    d->registered = bus.registerObject(QStringLiteral("/org/mpris/MediaPlayer2"), this, QDBusConnection::ExportAdaptors);
+}
+Smtc::~Smtc() = default;
+bool Smtc::ok() const { return d->registered; }
+void Smtc::update(const State& s) {
+    if (!d->registered) return;
+    MprisShared& sh = d->sh;
+    sh.hasMedia = s.hasMedia;
+    sh.status = !s.hasMedia ? QStringLiteral("Stopped") : s.playing ? QStringLiteral("Playing") : QStringLiteral("Paused");
+    sh.posUs = qlonglong(s.pos * 1e6);
+    QVariantMap m;
+    if (s.hasMedia) {
+        m.insert(QStringLiteral("mpris:trackid"), QVariant::fromValue(QDBusObjectPath(QStringLiteral("/org/kinoz/track/1"))));
+        m.insert(QStringLiteral("mpris:length"), qlonglong(s.dur * 1e6));
+        m.insert(QStringLiteral("xesam:title"), s.title);
+        if (!s.artist.isEmpty()) m.insert(QStringLiteral("xesam:artist"), QStringList{s.artist});
+        if (!s.album.isEmpty()) m.insert(QStringLiteral("xesam:album"), s.album);
+    }
+    sh.metadata = m;
+    QVariantMap changed;
+    if (sh.status != d->lastStatus) changed.insert(QStringLiteral("PlaybackStatus"), sh.status);
+    if (m != d->lastMeta) changed.insert(QStringLiteral("Metadata"), m);
+    d->lastStatus = sh.status; d->lastMeta = m;
+    if (changed.isEmpty()) return;
+    QDBusMessage sig = QDBusMessage::createSignal(QStringLiteral("/org/mpris/MediaPlayer2"), QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("PropertiesChanged"));
+    sig << QStringLiteral("org.mpris.MediaPlayer2.Player") << changed << QStringList();
+    QDBusConnection::sessionBus().send(sig);
+}
+#elif defined(__APPLE__)
+// ---- macOS: Now Playing + media keys, implemented in SmtcMac.mm ----
+void macMediaInit(Smtc* owner);
+void macMediaUpdate(const Smtc::State& s);
+struct Smtc::Impl { bool ok = false; };
+Smtc::Smtc(QWidget*, QObject* parent) : QObject(parent), d(new Impl) { macMediaInit(this); d->ok = true; }
+Smtc::~Smtc() = default;
+bool Smtc::ok() const { return d->ok; }
+void Smtc::update(const State& s) { macMediaUpdate(s); }
+#elif !defined(_WIN32)
 struct Smtc::Impl {};
 Smtc::Smtc(QWidget*, QObject* parent) : QObject(parent) {}
 Smtc::~Smtc() = default;

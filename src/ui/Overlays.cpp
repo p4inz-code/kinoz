@@ -87,7 +87,7 @@ void RowList::paintEvent(QPaintEvent*) {
                     p.setPen(c.muted); p.setFont(Theme::i().font(12));
                     p.drawText(QRectF(rc.left() + tx0, rc.top() + 23, tw, 16), Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(p.font()).elidedText(r.subtitle, Qt::ElideMiddle, int(tw)));
                 }
-                if (!r.hint.isEmpty()) { p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(QRectF(rc.right() - hw - 4, rc.top(), hw - 4, rc.height()), Qt::AlignVCenter | Qt::AlignRight, QFontMetrics(p.font()).elidedText(r.hint, Qt::ElideLeft, int(hw - 8))); }
+                if (!r.hint.isEmpty()) { p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(QRectF(rc.right() - hw - 4, rc.top(), hw - 4, rc.height()), Qt::AlignVCenter | Qt::AlignRight, QFontMetrics(p.font()).elidedText(Theme::keyText(r.hint), Qt::ElideLeft, int(hw - 8))); }
             }
         }
         y += h;

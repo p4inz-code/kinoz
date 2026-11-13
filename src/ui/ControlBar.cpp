@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
 #include "ui/ControlBar.h"
+#include "ui/HoverTip.h"
 #include "ui/Theme.h"
 #include <QLinearGradient>
 #include <QMouseEvent>
@@ -86,6 +87,25 @@ void ControlBar::relayout() {
     }
     if (timeline && !m_compact) { rx -= 52; Btn b{"speed", Icon::Speed, QRectF(rx, cy - 14, 52, 28)}; b.label = m_s.speed == 1.0 ? QStringLiteral("1×") : QStringLiteral("%1×").arg(m_s.speed, 0, 'g', 3); b.active = m_s.speed != 1.0; m_btns << b; }
     if (picture && !m_s.zoomText.isEmpty()) { rx -= 60; Btn b{"zoom", Icon::Search, QRectF(rx, cy - 14, 60, 28)}; b.label = m_s.zoomText; m_btns << b; }
+}
+
+static QString tipFor(const QString& id, bool playing, bool fullscreen, bool picture) {
+    if (id == "prev") return QObject::tr("Previous\tCtrl+B");
+    if (id == "play") return playing ? QObject::tr("Pause\tSpace") : QObject::tr("Play\tSpace");
+    if (id == "next") return QObject::tr("Next\tCtrl+F");
+    if (id == "repeat") return QObject::tr("Repeat\tCtrl+T");
+    if (id == "shuffle") return QObject::tr("Shuffle\tCtrl+H");
+    if (id == "mute") return QObject::tr("Mute\tM");
+    if (id == "fullscreen") return fullscreen ? QObject::tr("Exit fullscreen\tEsc") : QObject::tr("Fullscreen\tF");
+    if (id == "mini") return QObject::tr("Mini player\tCtrl+M");
+    if (id == "more") return QObject::tr("More");
+    if (id == "rotate") return QObject::tr("Rotate\tR");
+    if (id == "adjust") return QObject::tr("Adjust picture\tCtrl+J");
+    if (id == "eq") return QObject::tr("Equalizer\tCtrl+E");
+    if (id == "tracks") return QObject::tr("Audio and subtitles");
+    if (id == "speed") return QObject::tr("Playback speed\t] [");
+    if (id == "zoom") return picture ? QObject::tr("Fit to window\t0") : QString();
+    return {};
 }
 
 int ControlBar::hitBtn(const QPointF& p) const {
@@ -180,6 +200,7 @@ void ControlBar::paintEvent(QPaintEvent*) {
 }
 
 void ControlBar::mousePressEvent(QMouseEvent* e) {
+    HoverTip::cancel();
     if (e->button() != Qt::LeftButton) return;
     const QPointF pt = e->position();
     if (!m_seek.isNull() && m_seek.adjusted(-6, -8, 6, 8).contains(pt)) {
@@ -202,6 +223,10 @@ void ControlBar::mouseMoveEvent(QMouseEvent* e) {
     const bool hot = !m_seek.isNull() && m_seek.adjusted(-6, -8, 6, 8).contains(pt);
     if (hot) { m_hoverFrac = qBound(0.0, (pt.x() - m_seek.left()) / m_seek.width(), 1.0); emit hoverSeek(m_hoverFrac, e->globalPosition().toPoint()); }
     else if (m_seekHot) { m_hoverFrac = -1; emit hoverLeft(); }
+    if (h != m_hover) {                                                       // a label names the icon after a short pause
+        HoverTip::cancel();
+        if (h >= 0) { const QRect g(mapToGlobal(m_btns[h].r.topLeft().toPoint()), m_btns[h].r.size().toSize()); HoverTip::request(g, tipFor(m_btns[h].id, m_s.playing, window()->isFullScreen(), m_s.kind == MediaKind::Image || m_s.kind == MediaKind::Gif)); }
+    }
     if (h != m_hover || hot != m_seekHot) { m_hover = h; m_seekHot = hot; setCursor((h >= 0 || hot || (!m_vol.isNull() && m_vol.adjusted(-6, -8, 6, 8).contains(pt))) ? Qt::PointingHandCursor : Qt::ArrowCursor); }
     update();
 }
@@ -212,6 +237,7 @@ void ControlBar::mouseReleaseEvent(QMouseEvent*) {
 }
 
 void ControlBar::leaveEvent(QEvent*) {
+    HoverTip::cancel();
     m_hover = -1; m_seekHot = false; m_hoverFrac = -1;
     emit hoverLeft();
     update();

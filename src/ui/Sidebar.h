@@ -61,6 +61,8 @@ public:
     void showPlaylists();
     void musicDrill(const QString& artist, const QString& album);
     void refreshMusic();
+    void clearMusicIndex();                 // privacy: forget the music index
+    void forgetPlaces();                    // privacy: forget the library folders and the last folder
     void navigate(const QString& folder);
     void refreshFolder();
     bool isCaptionAt(const QPoint& localPos) const { return localPos.y() < 44; }

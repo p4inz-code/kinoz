@@ -17,8 +17,17 @@ if(APPLE)
 endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGL OpenGLWidgets Network Concurrent)
+if(UNIX AND NOT APPLE)
+  find_package(Qt6 OPTIONAL_COMPONENTS DBus)      # media keys and the desktop now-playing card (MPRIS); the player works without it
+endif()
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.cpp" "${CMAKE_SOURCE_DIR}/src/*.h")
+if(APPLE)
+  enable_language(OBJCXX)
+  file(GLOB MAC_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*/*.mm")      # Now Playing / media keys
+  list(APPEND SOURCES ${MAC_SOURCES})
+  set_source_files_properties(${MAC_SOURCES} PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+endif()
 
 if(WIN32)
   # libmpv comes from the project-local toolchain (scripts/setup-toolchain.ps1)
@@ -35,16 +44,33 @@ else()
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
   if(APPLE)
+    # app icon (.icns) built from the PNG with macOS' own tools, and a plist that declares the file types kinoz opens
+    set(KINOZ_ICNS "${CMAKE_BINARY_DIR}/kinoz.icns")
+    execute_process(COMMAND sh "${CMAKE_SOURCE_DIR}/packaging/macos/make-icns.sh" "${CMAKE_SOURCE_DIR}/packaging/linux/kinoz.png" "${KINOZ_ICNS}" RESULT_VARIABLE ICNS_RESULT)
     add_executable(${APP_EXE} MACOSX_BUNDLE ${SOURCES})
     set_target_properties(${APP_EXE} PROPERTIES
+      MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/packaging/macos/Info.plist.in"
       MACOSX_BUNDLE_BUNDLE_NAME "${APP_NAME}"
       MACOSX_BUNDLE_GUI_IDENTIFIER "com.p4inz.kinoz"
       MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
       MACOSX_BUNDLE_COPYRIGHT "Copyright (C) 2026 Atharva Patil. GNU GPL v3.")
+    if(ICNS_RESULT EQUAL 0 AND EXISTS "${KINOZ_ICNS}")
+      target_sources(${APP_EXE} PRIVATE "${KINOZ_ICNS}")
+      set_source_files_properties("${KINOZ_ICNS}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    else()
+      message(WARNING "kinoz.icns could not be built; the app will use the default icon")
+    endif()
   else()
     add_executable(${APP_EXE} ${SOURCES})
   endif()
   target_link_libraries(${APP_EXE} PRIVATE PkgConfig::MPV)
+  if(APPLE)
+    target_link_libraries(${APP_EXE} PRIVATE "-framework Foundation" "-framework MediaPlayer")
+  endif()
+  if(TARGET Qt6::DBus)
+    target_link_libraries(${APP_EXE} PRIVATE Qt6::DBus)
+    target_compile_definitions(${APP_EXE} PRIVATE KINOZ_HAS_DBUS)
+  endif()
 endif()
 
 if(APPLE)

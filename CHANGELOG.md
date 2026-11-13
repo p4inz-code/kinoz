@@ -2,6 +2,21 @@
 
 All notable changes. Dates are release dates.
 
+## Unreleased (0.2.1)
+**Easy to use**
+- Settings and the "⋯" menu are always in the title bar, including on the empty first screen. Settings has a real gear icon.
+- Every icon has a short label with its shortcut after a brief hover (Windows, macOS and Linux key names are shown natively).
+- The controls fade out after 2 seconds of stillness while playing, leaving the plain picture, like the Windows 11 media player. The library hides with them (switch off under Settings → Playback) and returns when you touch the left edge.
+- The empty screen offers "Make kinoz your default".
+
+**Privacy**
+- New Settings → Privacy page: Private mode, Forget on exit, Clean identity, one button per kind of history, "Forget this file", and `kinoz --wipe`. History stays on by default.
+
+**macOS and Linux**
+- macOS: opening files from Finder and "Open With", a proper app icon and document types, traffic-light window buttons, ⌘ ⌥ ⇧ shortcut labels, Now Playing and media keys.
+- Linux: a fuller desktop entry (file types, keywords, "New window"), "Make kinoz your default" works from an AppImage, and MPRIS for media keys and the desktop's now-playing card.
+- CI runs the self-test on macOS and Linux as an informational step.
+
 ## 0.2.0 — first public release
 Everything from 0.1.1 to 0.1.4 (setup with Doctor, fast skimming, Music and playlists, media overlay, updates that finish the job) plus:
 - Licensing and credit made airtight: the fonts' OFL license texts now ship next to the fonts, `THIRD_PARTY_NOTICES.md` lists exact versions and where each component's source is (with a written source offer), every source file carries a copyright and SPDX line, README explains the credit in plain words.

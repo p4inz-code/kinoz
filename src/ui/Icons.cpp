@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
 #include "ui/Icons.h"
 #include <QPainterPath>
+#include <cmath>
 #include <QPolygonF>
 
 namespace {
@@ -63,8 +64,14 @@ void drawIcon(QPainter* p, Icon ic, const QRectF& r, const QColor& c, qreal sw) 
     case Icon::Restore: s.addRoundedRect(5.5, 9, 9.5, 9.5, 1.5, 1.5); poly(s, {{9, 9}, {9, 6}, {18.5, 6}, {18.5, 15.5}, {15, 15.5}}); break;
     case Icon::Plus: line(s, 12, 5, 12, 19); line(s, 5, 12, 19, 12); break;
     case Icon::Minus: line(s, 5, 12, 19, 12); break;
-    case Icon::Settings:
-        line(s, 4, 7, 20, 7); line(s, 4, 17, 20, 17); s.addEllipse(QPointF(9, 7), 2.4, 2.4); s.addEllipse(QPointF(15, 17), 2.4, 2.4); break;
+    case Icon::Settings: {                                  // a gear: eight teeth and a hub, the sign everyone looks for
+        QPainterPath g;
+        for (int k = 0; k < 8; ++k) {
+            const qreal a = k * 3.14159265 / 4;
+            const qreal ang[4] = {a - 0.245, a - 0.14, a + 0.14, a + 0.245}, rad[4] = {7.4, 9.7, 9.7, 7.4};
+            for (int i = 0; i < 4; ++i) { const QPointF pt(12 + rad[i] * std::cos(ang[i]), 12 + rad[i] * std::sin(ang[i])); if (k == 0 && i == 0) g.moveTo(pt); else g.lineTo(pt); }
+        }
+        g.closeSubpath(); g.addEllipse(QPointF(12, 12), 3.1, 3.1); s = g; } break;
     case Icon::More: f.addEllipse(QPointF(5.5, 12), 1.7, 1.7); f.addEllipse(QPointF(12, 12), 1.7, 1.7); f.addEllipse(QPointF(18.5, 12), 1.7, 1.7); break;
     case Icon::List: line(s, 9, 7, 20, 7); line(s, 9, 12, 20, 12); line(s, 9, 17, 20, 17); f.addEllipse(QPointF(5, 7), 1.2, 1.2); f.addEllipse(QPointF(5, 12), 1.2, 1.2); f.addEllipse(QPointF(5, 17), 1.2, 1.2); break;
     case Icon::Grid: s.addRoundedRect(4, 4, 6.5, 6.5, 1.5, 1.5); s.addRoundedRect(13.5, 4, 6.5, 6.5, 1.5, 1.5); s.addRoundedRect(4, 13.5, 6.5, 6.5, 1.5, 1.5); s.addRoundedRect(13.5, 13.5, 6.5, 6.5, 1.5, 1.5); break;

@@ -167,7 +167,7 @@ void PlayerController::load(const QString& path) {
     if (m_history.isEmpty() || m_history.last() != path) m_history << path;
     if (m_history.size() > 200) m_history.removeFirst();
     double start = -1;
-    if ((m_kind == MediaKind::Video || m_kind == MediaKind::Audio) && m_set->flag("resume", true)) {
+    if ((m_kind == MediaKind::Video || m_kind == MediaKind::Audio) && m_set->flag("resume", true) && !privateMode()) {
         const QJsonObject r = m_resume->get(key(path)).toObject();
         const double pos = r.value("pos").toDouble(), dur = r.value("dur").toDouble();
         if (pos > 10 && (dur <= 0 || pos < dur - 12)) start = pos;
@@ -402,6 +402,7 @@ void PlayerController::loadSubtitleFile(const QString& p) { m_mpv->command({QStr
 
 // ---------- history ----------
 void PlayerController::addRecent(const QString& p) {
+    if (privateMode()) return;
     QJsonArray a = m_set->get("recent").toArray();
     for (int i = a.size() - 1; i >= 0; --i) if (a[i].toString() == p) a.removeAt(i);
     a.prepend(p);
@@ -413,6 +414,23 @@ QStringList PlayerController::recent() const {
     for (const auto& v : m_set->get("recent").toArray()) l << v.toString();
     return l;
 }
+// ---------- privacy ----------
+bool PlayerController::privateMode() const { return m_set->flag("privateMode", false); }
+
+void PlayerController::clearRecent() { m_set->remove("recent"); }
+void PlayerController::clearResume() { m_resume->clear(); }
+void PlayerController::clearMarks() { m_marks->clear(); emit markChanged(QString()); }
+
+void PlayerController::forgetFile(const QString& path) {
+    if (path.isEmpty()) return;
+    m_resume->remove(key(path));
+    m_marks->remove(key(path));
+    QJsonArray a = m_set->get("recent").toArray();
+    for (int i = a.size() - 1; i >= 0; --i) if (key(a[i].toString()) == key(path)) a.removeAt(i);
+    m_set->set("recent", a);
+    emit markChanged(path);
+}
+
 // ---------- review marks (always on, no mode) ----------
 int PlayerController::reviewState(const QString& path) const {
     const QJsonObject o = m_marks->get(key(path)).toObject();
@@ -433,7 +451,7 @@ void PlayerController::toggleMark(const QString& path, int mark) {
 }
 
 void PlayerController::markSeen(const QString& path, double frac) {
-    if (path.isEmpty()) return;
+    if (path.isEmpty() || privateMode()) return;
     frac = qBound(0.0, std::round(frac * 100) / 100, 1.0);
     QJsonObject o = m_marks->get(key(path)).toObject();
     const double old = o.value("f").toDouble();
@@ -482,7 +500,7 @@ void PlayerController::dropFiles(const QStringList& files) {
 void PlayerController::saveResumeNow() {
     // Always the file mpv really has open (not the one the user just clicked), with the kind of THAT file.
     const MediaKind k = Media::kindFor(m_mpvPath);
-    if (m_mpvPath.isEmpty() || (k != MediaKind::Video && k != MediaKind::Audio)) return;
+    if (m_mpvPath.isEmpty() || (k != MediaKind::Video && k != MediaKind::Audio) || privateMode()) return;      // private mode leaves no resume point
     const double pos = m_mpv->position(), dur = m_mpv->duration();
     if (dur > 0 && pos >= 0.5) markSeen(m_mpvPath, pos / dur);
     if (dur < 30) return;

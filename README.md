@@ -296,6 +296,8 @@ If something in the install looks broken, `kinoz.exe --doctor` on Windows checks
 
 kinoz works fully offline. Settings, resume points, thumbnails and exports are stored in its data folder on your own computer, and nothing is sent anywhere. The only network request it can make is the optional update check to `github.com`, a plain request for the latest release with no user data, which you can turn off in **Settings → About**. Full details: [PRIVACY.md](PRIVACY.md).
 
+History is saved by default so videos resume where you stopped. When you want less, **Settings → Privacy** has a Private mode (nothing about what you watch is written to disk), a "Forget on exit" switch, and a **Clean identity** button that wipes recent files, resume points, marks, thumbnails and logs in one click while keeping your settings and playlists. Right-click any file for **Forget this file**.
+
 ## Build from source
 
 Everything needed is in this repository. Qt and libmpv are downloaded by a script, not committed.

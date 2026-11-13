@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleExecutable</key><string>${MACOSX_BUNDLE_EXECUTABLE_NAME}</string>
+  <key>CFBundleIconFile</key><string>kinoz</string>
+  <key>CFBundleIdentifier</key><string>${MACOSX_BUNDLE_GUI_IDENTIFIER}</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleName</key><string>${MACOSX_BUNDLE_BUNDLE_NAME}</string>
+  <key>CFBundleDisplayName</key><string>${MACOSX_BUNDLE_BUNDLE_NAME}</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>${MACOSX_BUNDLE_SHORT_VERSION_STRING}</string>
+  <key>CFBundleVersion</key><string>${MACOSX_BUNDLE_SHORT_VERSION_STRING}</string>
+  <key>NSHumanReadableCopyright</key><string>${MACOSX_BUNDLE_COPYRIGHT}</string>
+  <key>LSMinimumSystemVersion</key><string>11.0</string>
+  <key>LSApplicationCategoryType</key><string>public.app-category.video</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+  <key>NSPrincipalClass</key><string>NSApplication</string>
+
+  <!-- Files kinoz can open: this is what makes it appear in Finder's "Open With" and in Get Info > Open with.
+       The rank is Alternate on purpose: kinoz never takes over a file type by itself. -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key><string>Video</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>public.movie</string></array>
+      <key>CFBundleTypeExtensions</key>
+      <array><string>mp4</string><string>m4v</string><string>mkv</string><string>avi</string><string>webm</string><string>mov</string><string>wmv</string><string>flv</string><string>ts</string><string>m2ts</string><string>mts</string><string>mpg</string><string>mpeg</string><string>3gp</string><string>ogv</string><string>vob</string><string>divx</string><string>f4v</string><string>asf</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>Audio</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>public.audio</string></array>
+      <key>CFBundleTypeExtensions</key>
+      <array><string>mp3</string><string>flac</string><string>wav</string><string>ogg</string><string>oga</string><string>opus</string><string>m4a</string><string>aac</string><string>wma</string><string>aiff</string><string>aif</string><string>ape</string><string>alac</string><string>mka</string><string>wv</string><string>mpc</string><string>dsf</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>Image</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>public.image</string></array>
+      <key>CFBundleTypeExtensions</key>
+      <array><string>jpg</string><string>jpeg</string><string>png</string><string>bmp</string><string>tif</string><string>tiff</string><string>webp</string><string>avif</string><string>heic</string><string>heif</string><string>jxl</string><string>ico</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>Animated image</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>com.compuserve.gif</string></array>
+      <key>CFBundleTypeExtensions</key><array><string>gif</string><string>apng</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>Playlist</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>CFBundleTypeExtensions</key><array><string>m3u</string><string>m3u8</string><string>pls</string></array>
+    </dict>
+  </array>
+</dict>
+</plist>

@@ -87,8 +87,18 @@ QImage ThumbService::make(const Job& j, FrameGrabber*& grabber) {
         if (!grabber) grabber = new FrameGrabber();
         if (grabber->ok() && grabber->open(j.path)) img = grabber->grab(-1, kThumb, kThumb);
     }
-    if (!img.isNull()) img.save(cf, "JPG", 82);
+    if (!img.isNull() && !m_private) img.save(cf, "JPG", 82);        // private mode: never written to disk
     return img;
+}
+
+void ThumbService::clearAll() {
+    m_mem.clear(); m_failed.clear();
+    for (const QFileInfo& f : QDir(Paths::thumbsDir()).entryInfoList({QStringLiteral("*.jpg")}, QDir::Files)) QFile::remove(f.absoluteFilePath());
+}
+
+void ThumbService::forget(const QString& path) {
+    m_mem.remove(path); m_failed.remove(path);
+    QFile::remove(cacheFile(path));
 }
 
 void ThumbService::trimDiskCache(qint64 maxBytes) {

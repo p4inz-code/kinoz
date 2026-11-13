@@ -12,6 +12,9 @@
 #include <QClipboard>
 #include <QDesktopServices>
 #include <QDir>
+#include <QDirIterator>
+#include <QFileInfo>
+#include <QLocale>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -19,6 +22,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QProcess>
+#include <QTimer>
 #include <QTextBrowser>
 #include <QUrl>
 
@@ -47,8 +51,9 @@ static QColor swatchColor(int i) { return Theme::accentSample(i, pal().dark); }
 
 SettingsPage::SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, Updater* updater, const QString& diagnostics, QWidget* parent)
     : QWidget(parent), m_set(set), m_up(updater), m_keys(keys), m_diag(diagnostics) {
-    m_tabs = new Segmented({tr("General"), tr("Playback"), tr("Shortcuts"), tr("Info"), tr("About"), tr("Legal")}, this);
+    m_tabs = new Segmented({tr("General"), tr("Playback"), tr("Privacy"), tr("Shortcuts"), tr("Info"), tr("About"), tr("Legal")}, this);
     m_close = new IconButton(Icon::Close, this, 32);
+    m_close->setToolTip(tr("Close\tEsc"));
     connect(m_close, &QAbstractButton::clicked, this, &SettingsPage::closeRequested);
     connect(m_tabs, &Segmented::currentChanged, this, [this](int i) { showPage(i); });
 
@@ -66,9 +71,7 @@ SettingsPage::SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, 
     m_rows[General].push_back({"defaultPlayer", tr("Default player"), tr("Open your videos, music and pictures with kinoz"), defBtn});
     auto* b1 = new TextButton(tr("Open data folder"), this);
     connect(b1, &QAbstractButton::clicked, this, [] { QDesktopServices::openUrl(QUrl::fromLocalFile(Paths::dataDir())); });
-    auto* b2 = new TextButton(tr("Clear thumbnails"), this); connect(b2, &QAbstractButton::clicked, this, &SettingsPage::clearThumbs);
-    auto* b3 = new TextButton(tr("Clear resume history"), this); connect(b3, &QAbstractButton::clicked, this, &SettingsPage::clearResume);
-    m_pageWidgets[General] << b1 << b2 << b3;
+    m_pageWidgets[General] << b1;
 #ifdef Q_OS_WIN
     auto* b4 = new TextButton(tr("Uninstall…"), this);
     b4->setDanger(true);
@@ -86,8 +89,10 @@ SettingsPage::SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, 
     addSeg(Playback, "seekLarge", {tr("30 s"), tr("1 min"), tr("2 min")}, {30, 60, 120}, 30, tr("Large seek step"), tr("Shift + Left / Right"));
     addSeg(Playback, "volStep", {tr("2"), tr("5"), tr("10")}, {2, 5, 10}, 5, tr("Volume step"), tr("Up / Down arrows and the mouse wheel"));
     addSeg(Playback, "hideDelay", {tr("2 s"), tr("3 s"), tr("5 s"), tr("Never")}, {2, 3, 5, 0}, 2, tr("Hide controls after"), tr("While a video plays and the mouse is still"));
+    addSwitch(Playback, "autoHideLibrary", true, tr("Hide the library with the controls"), tr("The video gets the whole window; move to the left edge to bring the library back"));
     addSeg(Playback, "slideshow", {tr("Off"), tr("3 s"), tr("5 s"), tr("10 s")}, {0, 3, 5, 10}, 0, tr("Image slideshow"), tr("Advance pictures automatically"));
 
+    buildPrivacy();
     buildShortcuts();
     buildInfo();
     buildAbout();
@@ -109,6 +114,50 @@ void SettingsPage::addSeg(Page p, const QString& key, const QStringList& labels,
     s->setCurrent(idx);
     connect(s, &Segmented::currentChanged, this, [this, key, values](int i) { m_set->set(key, values[i]); emit changed(key); });
     m_rows[p].push_back({key, title, desc, s});
+}
+
+void SettingsPage::buildPrivacy() {
+    addSwitch(Privacy, "privateMode", false, tr("Private mode"), tr("Remember nothing you play: no recent list, resume points, progress or saved thumbnails"));
+    addSwitch(Privacy, "forgetOnExit", false, tr("Clean identity when kinoz closes"), tr("Wipes your history every time you close kinoz"));
+    struct PB { const char* id; QString label; bool primary; };
+    const PB items[] = {
+        {"clearRecent", tr("Clear recent files"), false}, {"clearResume", tr("Clear resume points"), false}, {"clearMarks", tr("Clear watched marks"), false},
+        {"clearThumbs", tr("Clear thumbnails"), false}, {"clearMusic", tr("Clear music index"), false}, {"clearLogs", tr("Clear logs"), false},
+        {"cleanIdentity", tr("Clean identity…"), true}, {"forgetFolders", tr("Forget my folders…"), false}, {"openData", tr("Open data folder"), false}};
+    for (const PB& it : items) {
+        auto* b = new TextButton(it.label, this, it.primary);
+        if (it.primary) b->setDanger(true);
+        const QString id = QString::fromLatin1(it.id);
+        connect(b, &QAbstractButton::clicked, this, [this, id] { emit privacyAction(id); if (id != "openData") QTimer::singleShot(900, this, [this] { refreshPrivacy(); }); });
+        m_pageWidgets[Privacy] << b;
+    }
+}
+
+// What kinoz keeps on disk, with sizes, so nothing is a mystery.
+void SettingsPage::refreshPrivacy() {
+    auto sizeOf = [](const QString& dir, const QStringList& filters, int* count) {
+        qint64 total = 0; int n = 0;
+        for (const QFileInfo& f : QDir(dir).entryInfoList(filters, QDir::Files)) { total += f.size(); ++n; }
+        if (count) *count = n;
+        return total;
+    };
+    auto keysIn = [](const QString& file) { QFile f(file); if (!f.open(QIODevice::ReadOnly)) return 0; return int(QJsonDocument::fromJson(f.readAll()).object().size()); };
+    const QString d = Paths::dataDir();
+    int nThumb = 0;
+    const qint64 thumbs = sizeOf(Paths::thumbsDir(), {QStringLiteral("*.jpg")}, &nThumb);
+    qint64 total = 0;
+    QDirIterator it(d, QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext()) { it.next(); total += it.fileInfo().size(); }
+    const QLocale loc;
+    m_stored.clear();
+    m_stored << tr("Recent files: %1").arg(m_set->get("recent").toArray().size());
+    m_stored << tr("Resume points: %1").arg(keysIn(d + QStringLiteral("/resume.json")));
+    m_stored << tr("Watched and keep/reject marks: %1 files").arg(keysIn(d + QStringLiteral("/marks.json")));
+    m_stored << tr("Thumbnails: %1 (%2 pictures)").arg(loc.formattedDataSize(thumbs, 1), QString::number(nThumb));
+    m_stored << tr("Music index: %1").arg(loc.formattedDataSize(QFileInfo(d + QStringLiteral("/music.json")).size(), 1));
+    m_stored << tr("Logs: %1").arg(loc.formattedDataSize(sizeOf(Paths::logsDir(), {QStringLiteral("*")}, nullptr), 1));
+    m_stored << tr("Everything in the data folder: %1").arg(loc.formattedDataSize(total, 1));
+    update();
 }
 
 void SettingsPage::buildShortcuts() {
@@ -257,9 +306,10 @@ void SettingsPage::refreshUpdate() {
 
 void SettingsPage::showPage(int p) {
     m_page = p;
-    for (int i = 0; i < 2; ++i) for (const Row& r : m_rows[i]) if (r.w) r.w->setVisible(p == i);
+    for (int i = 0; i < 3; ++i) for (const Row& r : m_rows[i]) if (r.w) r.w->setVisible(p == i);
     for (int i = 0; i < PageCount; ++i) for (auto* w : m_pageWidgets[i]) w->setVisible(p == i);
     m_tabs->setCurrent(p);
+    if (p == Privacy) refreshPrivacy();
     update();
 }
 
@@ -291,7 +341,7 @@ void SettingsPage::resizeEvent(QResizeEvent*) {
     m_tabs->setGeometry(24, 64, m_tabs->sizeHint().width(), 30);
     m_close->move(width() - 16 - 32, 14);
     const int right = width() - 28;
-    for (int pg = 0; pg < 2; ++pg) {
+    for (int pg = 0; pg < 3; ++pg) {
         const int rh = pg == General ? 56 : 48;
         int y = 118;
         for (const Row& r : m_rows[pg]) {
@@ -301,6 +351,15 @@ void SettingsPage::resizeEvent(QResizeEvent*) {
         if (pg == General) {
             int x = 24; y += 8;
             for (auto* w : m_pageWidgets[General]) { const QSize s = w->sizeHint(); w->setGeometry(x, y, s.width(), s.height()); x += s.width() + 10; }
+        }
+        if (pg == Privacy) {                                                           // three rows of buttons under the two switches
+            const auto& pb = m_pageWidgets[Privacy];
+            const int rowsY[3] = {252, 298, 350};
+            for (int i = 0; i < pb.size(); ++i) {
+                const int rowIdx = i / 3;
+                int x = 24; for (int j = rowIdx * 3; j < i; ++j) x += pb[j]->sizeHint().width() + 10;
+                const QSize s = pb[i]->sizeHint(); pb[i]->setGeometry(x, rowsY[qMin(rowIdx, 2)], s.width(), 38);
+            }
         }
     }
     const QRect content(24, 116, width() - 48, height() - 116 - 68);
@@ -327,13 +386,23 @@ void SettingsPage::paintEvent(QPaintEvent*) {
     p.drawText(QRectF(24, 14, 300, 40), Qt::AlignVCenter, tr("Settings"));
     p.setPen(c.border); p.drawLine(24, 104, width() - 24, 104);
 
-    if (m_page == General || m_page == Playback) {
+    if (m_page == General || m_page == Playback || m_page == Privacy) {
         const int rh = m_page == General ? 56 : 48;
         int y = 118;
         for (const Row& r : m_rows[m_page]) {
             p.setPen(c.text); p.setFont(Theme::i().font(15, QFont::Medium)); p.drawText(QRectF(24, y + (rh == 56 ? 6 : 4), width() * 0.52, 22), Qt::AlignVCenter, r.title);
             p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(QRectF(24, y + (rh == 56 ? 28 : 25), width() * 0.5, 18), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(r.desc, Qt::ElideRight, int(width() * 0.5)));
             y += rh;
+        }
+        if (m_page == Privacy) {
+            p.setPen(c.text); p.setFont(Theme::i().font(14, QFont::DemiBold)); p.drawText(QRectF(24, 222, width() - 48, 24), Qt::AlignVCenter, tr("Clean up now"));
+            p.setPen(c.muted); p.setFont(Theme::i().font(12));
+            p.drawText(QRectF(24, 396, width() - 48, 34), Qt::AlignTop | Qt::TextWordWrap, tr("Clean identity clears all of the above and forgets your last folder. Your folders, settings, playlists and saved frames stay."));
+            p.setPen(c.text); p.setFont(Theme::i().font(14, QFont::DemiBold)); p.drawText(QRectF(24, 446, width() - 48, 24), Qt::AlignVCenter, tr("What kinoz stores on this computer"));
+            int ty = 474; p.setFont(Theme::i().font(13));
+            for (const QString& line : m_stored) { p.setPen(c.muted); p.drawText(QRectF(24, ty, width() - 48, 22), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(line, Qt::ElideRight, width() - 48)); ty += 24; }
+            p.setPen(c.muted); p.setFont(Theme::i().font(12));
+            p.drawText(QRectF(24, ty + 2, width() - 48, 20), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(QDir::toNativeSeparators(Paths::dataDir()), Qt::ElideMiddle, width() - 48));
         }
         if (m_page == General) {
             const auto sw = swatchRects();

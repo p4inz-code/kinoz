@@ -27,6 +27,7 @@ public:
 
     void setRoots(const QStringList& roots);        // call whenever the library folders change; rescans in the background
     void ensureScanned();                           // starts the first scan (lazy: only when the Music tab is opened)
+    void clearAll();                                // stop scanning, forget every track and delete the cache file
     QVector<Track> tracks() const;                  // a copy of what has been read so far
     bool scanning() const { return m_scanning; }
     int total() const { return m_total; }

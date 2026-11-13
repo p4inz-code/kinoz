@@ -16,6 +16,17 @@ Everything kinoz remembers is stored locally, in its data folder (shown in Setti
 
 Delete the data folder and all of it is gone. kinoz only reads the folders you add or files you open.
 
+## Wiping what kinoz remembers
+History is saved by default, because most people want "continue where I stopped". When you want less, **Settings → Privacy** has everything in one place:
+
+- **Private mode** (also in the top bar's "⋯" menu): while it is on, kinoz does not record recent files, resume points, review marks or thumbnails to disk. A small "Private" tag shows in the title bar so you always know. It is off by default.
+- **Forget on exit**: wipes the history below every time kinoz closes.
+- **Clean identity**: one button that forgets everything kinoz has learned about you (recent files, resume points, marks, thumbnails, the music index, logs and the last folder). It keeps your settings, the folders you added, your playlists and anything you exported.
+- Separate buttons for each kind of history, with the amount stored shown next to them. Right-click a file and choose **Forget this file** to remove just that one.
+- From a terminal: `kinoz --wipe` does the same as Clean identity (close kinoz first).
+
+Nothing here talks to a server. It only deletes or avoids writing files on your own computer.
+
 ## The one network request
 kinoz can check for updates. This is the only thing it ever sends over the network:
 

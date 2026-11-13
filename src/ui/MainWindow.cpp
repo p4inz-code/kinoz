@@ -32,6 +32,7 @@
 #include "ui/Sidebar.h"
 #include "ui/Stages.h"
 #include "ui/Theme.h"
+#include "ui/HoverTip.h"
 #include "ui/TopBar.h"
 #include "ui/VideoWidget.h"
 #include "ui/Widgets.h"
@@ -143,6 +144,8 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
 
     m_idle.setSingleShot(true);
     applyHideDelay();
+    m_thumbs->setPrivate(m_set->flag("privateMode", false));
+    m_top->setPrivate(m_set->flag("privateMode", false));
     connect(&m_idle, &QTimer::timeout, this, &MainWindow::idleTick);
     m_slide.setSingleShot(true);
     connect(&m_slide, &QTimer::timeout, this, [this] { if (m_ctl->kind() == MediaKind::Image) m_ctl->next(); });
@@ -212,10 +215,16 @@ void MainWindow::buildUi() {
 
     connect(m_top, &TopBar::action, this, [this](const QString& id) {
         if (id == "min") showMinimized();
+#ifdef Q_OS_MACOS
+        else if (id == "max") doAction("fullscreen");                  // the green button means full screen on a Mac
+#else
         else if (id == "max") { if (!m_full) isMaximized() ? showNormal() : showMaximized(); }
+#endif
         else if (id == "close") close();
         else if (id == "pin") togglePin();
         else if (id == "sidebar") doAction("sidebar");
+        else if (id == "settings") doAction("settings");
+        else if (id == "more") { const QRect r = m_top->globalButtonRect("more"); showMoreMenu(QPoint(r.left(), r.bottom() + 6)); }
     });
     connect(m_bar, &ControlBar::action, this, [this](const QString& id) { doAction(id); });
     connect(m_bar, &ControlBar::scrubbed, this, [this](double f) { m_ctl->seekFrac(f, false); });
@@ -259,6 +268,7 @@ void MainWindow::buildUi() {
     connect(m_video, &VideoWidget::dragged, this, [this](const QPoint& d) { m_ctl->panByPixels(d, m_video->size(), m_video->devicePixelRatioF()); });
     connect(m_empty, &EmptyState::recentClicked, this, [this](const QString& p) { m_ctl->play(p); });
     connect(m_empty, &EmptyState::openFolderRequested, this, [this] { openPicker(true); });
+    connect(m_empty, &EmptyState::defaultPlayerRequested, this, [this] { doAction("defaultplayer"); });
 
     connect(m_side, &Sidebar::addFolderRequested, this, [this] { openPicker(true); });
     connect(m_side, &Sidebar::toast, this, [this](const QString& t) { notify(t); });
@@ -314,6 +324,7 @@ void MainWindow::loadKeymap() {
 void MainWindow::refreshChrome() {
     const MediaKind k = m_ctl->kind();
     const bool has = m_ctl->hasMedia();
+    if (m_sideAuto && (!(k == MediaKind::Video || k == MediaKind::Gif) || m_mpv->paused())) { m_sideAuto = false; setSidebarOpen(true, true, true); }   // paused, stopped or switched to music/pictures: the library returns
     m_empty->setVisible(!has);
     if (!has) m_empty->setRecent(m_ctl->recent());
     const bool audioCard = has && k == MediaKind::Audio;
@@ -376,7 +387,16 @@ void MainWindow::idleTick() {
         m_bar->reveal(false);
         m_top->reveal(false);
         m_tip->hide();
+        HoverTip::cancel();
         m_video->setCursor(Qt::BlankCursor);
+    }
+    // Like the Windows 11 player: after the pause, a playing video gets the whole window. The library slides away too,
+    // unless the pointer is on it, and returns when the pointer reaches the left edge.
+    if (!m_selfTest && (k == MediaKind::Video || k == MediaKind::Gif) && m_set->flag("autoHideLibrary", true) && m_sidebarOpen && !m_mini && !m_full
+        && !(m_side->isVisible() && m_side->rect().contains(m_side->mapFromGlobal(QCursor::pos())))
+        && !m_side->isAncestorOf(focusWidget()) && !QApplication::activePopupWidget()) {      // not while typing in the library or with a menu open
+        m_sideAuto = true;
+        setSidebarOpen(false, true, true);
     }
 }
 
@@ -401,6 +421,10 @@ bool MainWindow::eventFilter(QObject* o, QEvent* e) {
         if (w && (w == this || isAncestorOf(w))) {
             const QPoint g = static_cast<QMouseEvent*>(e)->globalPosition().toPoint();
             if ((g - m_lastMouse).manhattanLength() > 2) { m_lastMouse = g; poke(); }
+            if (m_sideAuto && !m_sidebarOpen) {                                   // pointer at the left edge: bring the library back
+                const QPoint lp = mapFromGlobal(g);
+                if (lp.x() >= 0 && lp.x() <= 6) { m_sideAuto = false; setSidebarOpen(true, true, true); }
+            }
         }
     }
     return QWidget::eventFilter(o, e);
@@ -474,6 +498,7 @@ void MainWindow::closeEvent(QCloseEvent* e) {
 #endif
     saveGeometryNow();
     m_ctl->saveResumeNow();
+    if (m_set->flag("forgetOnExit", false)) cleanIdentity(false);               // "clean identity when kinoz closes"
     m_set->flush();
     m_resume->flush();
     hide();                      // vanish instantly; teardown happens behind the scenes
@@ -520,7 +545,7 @@ void MainWindow::showEvent(QShowEvent* e) {
     setGeometry(m_normalGeo);                                  // frame change can shift the window: re-apply
     if (m_wasMax) QTimer::singleShot(0, this, [this] { showMaximized(); });
     QTimer::singleShot(0, this, [this] { m_cover->run(1.0, 0.0, 300); });   // gentle fade-in on launch
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS) || defined(KINOZ_HAS_DBUS)
     if (!qEnvironmentVariableIsSet("KINOZ_SILENT")) {                       // tests stay invisible to the system media overlay
         m_smtc = new Smtc(this, this);
         if (m_smtc->ok()) {
@@ -541,7 +566,7 @@ void MainWindow::showEvent(QShowEvent* e) {
 }
 
 void MainWindow::updateSmtc() {
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS) || defined(KINOZ_HAS_DBUS)
     if (!m_smtc || !m_smtc->ok()) return;
     Smtc::State s;
     s.hasMedia = m_ctl->hasMedia() && Media::family(m_ctl->kind()) == 1;      // pictures don't belong in the media overlay
@@ -872,9 +897,9 @@ void MainWindow::togglePin() {
     notify(m_pinned ? tr("Always on top") : tr("Not on top"));
 }
 
-void MainWindow::setSidebarOpen(bool open, bool animate) {
+void MainWindow::setSidebarOpen(bool open, bool animate, bool automatic) {
     m_sidebarOpen = open;
-    m_set->set("sidebarOpen", open);
+    if (!automatic) { m_sideAuto = false; m_set->set("sidebarOpen", open); }       // only the user's own choice is remembered, never the automatic hide
     m_sideAnim.stop();
     m_sideAnim.setDuration(Theme::i().animMs(320));
     if (animate && m_sideAnim.duration() > 0 && !m_full && !m_mini) {
@@ -960,6 +985,11 @@ void MainWindow::applySetting(const QString& key) {
     else if (key == "compact") Theme::i().setCompact(m_set->num("compact", 0) > 0);
     else if (key == "glass") { Theme::i().setGlass(m_set->flag("glass", true)); updateGlass(); }
     else if (key == "hideDelay") { applyHideDelay(); poke(); }
+    else if (key == "privateMode") {
+        const bool on = m_set->flag("privateMode", false);
+        m_thumbs->setPrivate(on); m_top->setPrivate(on);
+        notify(on ? tr("Private mode is on: nothing you play is remembered") : tr("Private mode is off: history is saved again"));
+    }
     else if (key == "slideshow") restartSlideshow();
     else if (key == "normalize") m_ctl->applyEq();
     else if (key == "decode") { m_ctl->applyDecode(); notify(tr("Decoding changes apply to the next file")); }
@@ -1095,6 +1125,41 @@ void MainWindow::trashFiles(const QStringList& files) {
     });
 }
 
+// ---------------- privacy: wipe history, private mode, clean identity ----------------
+void MainWindow::wipeLogs() {
+    // Everything in the logs folder except the log that is open right now (it is replaced at the next start anyway).
+    for (const QFileInfo& f : QDir(Paths::logsDir()).entryInfoList(QDir::Files)) if (f.fileName() != QLatin1String("app.log")) QFile::remove(f.absoluteFilePath());
+}
+
+// Like Tor's "new identity": forgets what you played and where you looked. Your folders, settings, playlists and saved frames stay.
+void MainWindow::cleanIdentity(bool announce) {
+    m_ctl->clearRecent();
+    m_ctl->clearResume();
+    m_ctl->clearMarks();
+    m_thumbs->clearAll();
+    m_side->clearMusicIndex();
+    wipeLogs();
+    m_set->remove("lastFolder");
+    m_empty->setRecent({});
+    m_side->update();
+    if (announce) notify(tr("Clean identity done: history, marks, thumbnails, the music index and logs are gone"));
+}
+
+void MainWindow::privacyAction(const QString& id) {
+    if (id == "clearRecent") { m_ctl->clearRecent(); m_empty->setRecent({}); notify(tr("Recent files cleared")); }
+    else if (id == "clearResume") { m_ctl->clearResume(); notify(tr("Resume points cleared")); }
+    else if (id == "clearMarks") { m_ctl->clearMarks(); notify(tr("Watched and keep/reject marks cleared")); }
+    else if (id == "clearThumbs") { m_thumbs->clearAll(); m_side->update(); notify(tr("Thumbnails cleared")); }
+    else if (id == "clearMusic") { m_side->clearMusicIndex(); notify(tr("Music index cleared")); }
+    else if (id == "clearLogs") { wipeLogs(); notify(tr("Logs cleared")); }
+    else if (id == "openData") QDesktopServices::openUrl(QUrl::fromLocalFile(Paths::dataDir()));
+    else if (id == "forgetFolders")
+        confirm(tr("Forget your folders?"), tr("The library goes back to empty. Your files are not touched."), tr("Forget folders"), [this] { m_side->forgetPlaces(); notify(tr("Library folders forgotten")); });
+    else if (id == "cleanIdentity")
+        confirm(tr("Clean identity?"), tr("Clears your recent files, resume points, watched and keep/reject marks, thumbnails, the music index, logs and your last folder. Your folders, settings, playlists and saved frames stay. This can't be undone."),
+                tr("Clean identity"), [this] { cleanIdentity(true); });
+}
+
 void MainWindow::openSettings() {
     auto* sh = new Sheet(this);
     auto* pg = new SettingsPage(m_set, m_keys, m_updater, diagnosticsText());
@@ -1102,12 +1167,7 @@ void MainWindow::openSettings() {
     connect(pg, &SettingsPage::closeRequested, sh, &Sheet::closeSheet);
     connect(pg, &SettingsPage::makeDefault, this, [this] { doAction("defaultplayer"); });
     connect(pg, &SettingsPage::changed, this, [this](const QString& key) { applySetting(key); });
-    connect(pg, &SettingsPage::clearThumbs, this, [this] {
-        int n = 0;
-        for (const QFileInfo& f : QDir(Paths::thumbsDir()).entryInfoList({"*.jpg"}, QDir::Files)) n += QFile::remove(f.absoluteFilePath());
-        notify(tr("Cleared %1 thumbnails").arg(n));
-    });
-    connect(pg, &SettingsPage::clearResume, this, [this] { m_resume->clear(); notify(tr("Resume history cleared")); });
+    connect(pg, &SettingsPage::privacyAction, this, [this](const QString& id) { privacyAction(id); });
     sh->openSheet();
 }
 
@@ -1126,7 +1186,7 @@ void MainWindow::openPicker(bool folder) {
     sh->openSheet();
 }
 
-void MainWindow::showMoreMenu() {
+void MainWindow::showMoreMenu(const QPoint& anchorGlobal) {
     auto* m = new PopupMenu(this);
     const MediaKind k = m_ctl->kind();
     const bool has = m_ctl->hasMedia();
@@ -1149,8 +1209,11 @@ void MainWindow::showMoreMenu() {
     m->addItem("pin", tr("Always on top"), m_pinned);
     m->addItem("theme", tr("Switch theme"), false, "Ctrl+D");
     m->addItem("settings", tr("Settings…"), false, "Ctrl+,");
+    m->addItem("defaultplayer", tr("Make kinoz the default player…"));
     connect(m, &PopupMenu::triggered, this, [this](const QString& id) { QTimer::singleShot(0, this, [this, id] { doAction(id); }); });
-    if (m_bar->isVisible()) m->popupAbove(m_bar->buttonRect("more")); else m->popup(QCursor::pos());
+    if (anchorGlobal.x() >= 0) m->popup(anchorGlobal);                       // opened from the top bar button
+    else if (m_bar->isVisible()) m->popupAbove(m_bar->buttonRect("more"));
+    else m->popup(QCursor::pos());
 }
 
 void MainWindow::showSpeedMenu() {
@@ -1462,6 +1525,28 @@ void MainWindow::runSelfTest() {
     }, 900);
     S("reject then delete list excludes unmarked", [this] { doAction("reject"); }, [this] { return m_ctl->rejected().size() == 1; }, 200);
     S("drop forgets files and moves playback on", [this] { m_ctl->dropFiles(m_ctl->rejected()); }, [this] { return m_ctl->queue()->rowCount() == 5 && m_ctl->rejected().isEmpty(); }, 500);
+    // ---- privacy: history is saved by default, and every wipe really wipes ----
+    S("history is saved by default", [this] { m_ctl->forgetFile(m_ctl->path()); m_set->set("privateMode", false); m_ctl->saveResumeNow(); m_ctl->markSeen(m_ctl->path(), 0.5); },
+      [this] { return m_ctl->watched(m_ctl->path()) > 0.4 && !m_ctl->recent().isEmpty(); }, 200);
+    S("private mode saves no progress or recent file", [this] {
+        m_ctl->clearRecent(); m_ctl->forgetFile(m_ctl->path()); m_set->set("privateMode", true); applySetting("privateMode");
+        m_ctl->markSeen(m_ctl->path(), 0.9); m_ctl->saveResumeNow(); m_ctl->next(); },
+      [this] { return m_ctl->recent().isEmpty() && m_ctl->watched(m_ctl->path()) < 0.01; }, 900);
+    S("private mode off again", [this] { m_set->set("privateMode", false); applySetting("privateMode"); }, [this] { return !m_ctl->privateMode(); }, 100);
+    S("forget this file removes its traces", [this] { m_ctl->markSeen(m_ctl->path(), 0.8); m_ctl->toggleMark(m_ctl->path(), PlayerController::MarkKeep); m_ctl->forgetFile(m_ctl->path()); },
+      [this] { return m_ctl->reviewState(m_ctl->path()) == 0 && m_ctl->watched(m_ctl->path()) == 0.0; }, 100);
+    S("clear recent, resume and marks", [this] {
+        m_ctl->markSeen(m_ctl->path(), 0.7); m_ctl->toggleMark(m_ctl->path(), PlayerController::MarkReject);
+        privacyAction("clearRecent"); privacyAction("clearResume"); privacyAction("clearMarks"); },
+      [this] { return m_ctl->recent().isEmpty() && m_ctl->reviewState(m_ctl->path()) == 0 && !m_resume->has(m_ctl->path().toLower()); }, 200);
+    S("clean identity wipes everything it promises", [this] {
+        m_ctl->markSeen(m_ctl->path(), 0.6); m_set->set("lastFolder", QStringLiteral("X:/somewhere"));
+        QFile f(Paths::logsDir() + QStringLiteral("/old-crash.dmp")); f.open(QIODevice::WriteOnly); f.write("x"); f.close();
+        cleanIdentity(false); },
+      [this] { return m_ctl->recent().isEmpty() && m_ctl->watched(m_ctl->path()) == 0.0 && !m_set->has("lastFolder") && !QFile::exists(Paths::logsDir() + QStringLiteral("/old-crash.dmp")) && !QFile::exists(Paths::dataDir() + QStringLiteral("/music.json")); }, 300);
+    S("--wipe style cleanup leaves settings and playlists alone", [this] { Playlists::save(QStringLiteral("keepme"), {m_ctl->path()}); cleanIdentity(false); },
+      [this] { const bool ok = Playlists::exists(QStringLiteral("keepme")) && m_set->has("decode"); Playlists::remove(QStringLiteral("keepme")); return ok; }, 200);
+
     // ---- playlists and the music library ----
     auto plCount = std::make_shared<int>(0);
     S("playlist saves", [this, plCount] { *plCount = m_ctl->queue()->rowCount(); Playlists::save(QStringLiteral("selftest list"), m_ctl->queue()->stringList()); },
@@ -1582,14 +1667,16 @@ void MainWindow::runShots(const QString& dir) {
     steps->push_back({100, [page] { page(1); }});
     steps->push_back({400, [snap] { snap("settings-playback-light"); }});
     steps->push_back({100, [page] { page(2); }});
-    steps->push_back({400, [snap] { snap("settings-shortcuts-light"); }});
+    steps->push_back({600, [snap] { snap("settings-privacy-light"); }});
     steps->push_back({100, [page] { page(3); }});
-    steps->push_back({400, [snap] { snap("settings-info-light"); }});
+    steps->push_back({400, [snap] { snap("settings-shortcuts-light"); }});
     steps->push_back({100, [page] { page(4); }});
-    steps->push_back({400, [snap] { snap("about-light"); }});
+    steps->push_back({400, [snap] { snap("settings-info-light"); }});
     steps->push_back({100, [page] { page(5); }});
+    steps->push_back({400, [snap] { snap("about-light"); }});
+    steps->push_back({100, [page] { page(6); }});
     steps->push_back({400, [snap] { snap("legal-light"); }});
-    steps->push_back({100, [this, page] { Theme::i().setMode(Theme::Mode::Dark); page(4); }});
+    steps->push_back({100, [this, page] { Theme::i().setMode(Theme::Mode::Dark); page(5); }});
     steps->push_back({500, [snap] { snap("about-dark"); }});
     steps->push_back({100, [this] { for (auto* s : findChildren<Sheet*>()) s->closeSheet(); }});
     steps->push_back({700, [this] { doAction("palette"); }});

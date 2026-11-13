@@ -82,6 +82,13 @@ jobs:
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build -j 4
+      - name: Smoke test (self-test, informational)
+        continue-on-error: true       # reports what works on macOS; never blocks a release by itself
+        run: |
+          brew install ffmpeg
+          ffmpeg -loglevel error -f lavfi -i testsrc2=size=1280x720:rate=30 -f lavfi -i sine=frequency=440 -t 12 -pix_fmt yuv420p -c:v libx264 -c:a aac clip.mp4
+          KINOZ_SILENT=1 KINOZ_OFFSCREEN=1 KINOZ_DATA_DIR="$RUNNER_TEMP/kdata" perl -e 'alarm 240; exec @ARGV' dist/app/kinoz.app/Contents/MacOS/kinoz --selftest clip.mp4 || true
+          cat "$RUNNER_TEMP/kdata/logs/selftest.txt" 2>/dev/null | tail -60 || true
       - name: Package (.dmg)
         run: |
           cd dist/app
@@ -112,6 +119,13 @@ jobs:
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build
+      - name: Smoke test (self-test, informational)
+        continue-on-error: true       # reports what works on Linux; never blocks a release by itself
+        run: |
+          sudo apt-get install -y ffmpeg xvfb libgl1-mesa-dri
+          ffmpeg -loglevel error -f lavfi -i testsrc2=size=1280x720:rate=30 -f lavfi -i sine=frequency=440 -t 12 -pix_fmt yuv420p -c:v libx264 -c:a aac clip.mp4
+          LIBGL_ALWAYS_SOFTWARE=1 KINOZ_SILENT=1 KINOZ_DATA_DIR="$RUNNER_TEMP/kdata" timeout 240 xvfb-run -a dist/app/kinoz --selftest clip.mp4 || true
+          cat "$RUNNER_TEMP/kdata/logs/selftest.txt" 2>/dev/null | tail -60 || true
       - name: Package (AppImage)
         run: |
           mkdir -p tools && cd tools

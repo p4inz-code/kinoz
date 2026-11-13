@@ -18,6 +18,7 @@ public:
     void setActive(bool a) { m_active = a; update(); }
     QSize sizeHint() const override { return {m_size, m_size}; }
 protected:
+    bool event(QEvent*) override;
     void paintEvent(QPaintEvent*) override;
     void enterEvent(QEnterEvent*) override;
     void leaveEvent(QEvent*) override;

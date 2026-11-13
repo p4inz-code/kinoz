@@ -45,6 +45,14 @@ public:
     qreal radius() const { return 8; }
     int rowH() const { return m_compact ? 28 : 34; }
     int animMs(int ms) const { return m_reduceMotion ? 0 : ms; }
+    // Shortcut text as the platform writes it: Ctrl+K is Cmd+K on a Mac (Qt already maps the key), so show the symbols Mac users know.
+    static QString keyText(QString s) {
+#ifdef Q_OS_MACOS
+        s.replace(QStringLiteral("Ctrl+"), QStringLiteral("⌘")).replace(QStringLiteral("Alt+"), QStringLiteral("⌥"))
+         .replace(QStringLiteral("Shift+"), QStringLiteral("⇧")).replace(QStringLiteral("Meta+"), QStringLiteral("⌃"));
+#endif
+        return s;
+    }
     // Motion curves. easeMac is Apple's standard "fast in, long soft landing" curve (cubic-bezier .32,.72,0,1);
     // easeSpring overshoots slightly and settles, for toggles and small controls.
     static QEasingCurve easeMac() { QEasingCurve c(QEasingCurve::BezierSpline); c.addCubicBezierSegment(QPointF(0.32, 0.72), QPointF(0.0, 1.0), QPointF(1.0, 1.0)); return c; }

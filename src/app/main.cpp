@@ -15,6 +15,8 @@
 #include <QJsonDocument>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QFileOpenEvent>
+#include <functional>
 #include <QSurfaceFormat>
 #include <QTextStream>
 #include <QTimer>
@@ -46,6 +48,29 @@ static void logHandler(QtMsgType, const QMessageLogContext&, const QString& msg)
     g_log->flush();
 }
 
+// macOS hands files to an app through "open file" events (Finder double-click, Open With, dropping on the Dock icon),
+// not through the command line. Collect a burst of them (several selected files arrive one by one) and open them together.
+// Files that arrive before the window exists are kept and opened as soon as it does.
+class OpenFilter : public QObject {
+public:
+    std::function<void(const QStringList&)> sink;
+    QStringList pending;
+    bool eventFilter(QObject*, QEvent* e) override {
+        if (e->type() != QEvent::FileOpen) return false;
+        const QString f = static_cast<QFileOpenEvent*>(e)->file();
+        if (f.isEmpty()) return false;
+        pending << f;
+        if (sink && !m_timer) {
+            m_timer = true;
+            QTimer::singleShot(150, this, [this] { m_timer = false; flush(); });
+        }
+        return true;
+    }
+    void flush() { if (sink && !pending.isEmpty()) { const QStringList p = pending; pending.clear(); sink(p); } }
+private:
+    bool m_timer = false;
+};
+
 int main(int argc, char** argv) {
 #ifdef Q_OS_WIN
     // Libraries are only ever loaded from kinoz's own folder and System32 (blocks "DLL planting" from the current directory or PATH).
@@ -64,8 +89,23 @@ int main(int argc, char** argv) {
     app.setApplicationName(QStringLiteral(APP_NAME));
     app.setOrganizationName(QStringLiteral("local"));
     app.setQuitOnLastWindowClosed(true);
+    static OpenFilter openFilter;
+    app.installEventFilter(&openFilter);
+#ifdef Q_OS_LINUX
+    QGuiApplication::setDesktopFileName(QStringLiteral("kinoz"));      // lets Wayland and the shell match the window to kinoz.desktop (icon, name)
+#endif
     if (Installer::wanted(app.arguments())) return Installer::run(app.arguments());      // our own setup wizard
     Paths::ensure();
+
+    // `kinoz --wipe` forgets what kinoz remembers (recent files, resume points, marks, music index, thumbnails, logs) and exits.
+    // Close kinoz first. Your folders, settings, playlists and saved frames are left alone.
+    if (app.arguments().contains(QStringLiteral("--wipe"))) {
+        { JsonStore s(Paths::dataDir() + QStringLiteral("/settings.json")); s.remove("recent"); s.remove("lastFolder"); s.flush(); }
+        for (const char* f : {"resume.json", "marks.json", "music.json"}) QFile::remove(Paths::dataDir() + QLatin1Char('/') + QString::fromLatin1(f));
+        for (const QFileInfo& fi : QDir(Paths::thumbsDir()).entryInfoList({QStringLiteral("*.jpg")}, QDir::Files)) QFile::remove(fi.absoluteFilePath());
+        for (const QFileInfo& fi : QDir(Paths::logsDir()).entryInfoList(QDir::Files)) QFile::remove(fi.absoluteFilePath());
+        return 0;
+    }
 
     QFile log(Paths::logsDir() + QStringLiteral("/app.log"));
     if (log.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) { g_log = &log; qInstallMessageHandler(logHandler); }
@@ -145,6 +185,8 @@ int main(int argc, char** argv) {
     MainWindow w(&settings, &resume);
     w.show();
     if (safeMode) QTimer::singleShot(1800, &w, [&w] { w.notifySafeMode(); });
+    openFilter.sink = [&w](const QStringList& p) { w.openPaths(p); };      // macOS file-open events from now on go straight to the window
+    openFilter.flush();                                                       // ... and the ones that arrived while it was starting
 
     QObject::connect(&server, &QLocalServer::newConnection, &w, [&] {
         while (QLocalSocket* c = server.nextPendingConnection()) {

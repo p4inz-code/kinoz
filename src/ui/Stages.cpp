@@ -18,6 +18,7 @@ void EmptyState::relayout() {
     const qreal cw = qMin<qreal>(520, width() - 48), x = (width() - cw) / 2;
     qreal y = height() / 2.0 - 70;
     m_btn = QRectF(x, y + 96, 150, 36);
+    m_btn2 = QRectF(x + 162, y + 96, 210, 36);
     qreal ry = y + 170;
     for (int i = 0; i < qMin(5, m_recent.size()); ++i) { m_rows << QRectF(x, ry, cw, 34); ry += 36; }
 }
@@ -38,6 +39,11 @@ void EmptyState::paintEvent(QPaintEvent*) {
     p.drawRoundedRect(m_btn, 8, 8);
     p.setPen(c.onAccent); p.setFont(Theme::i().font(14, QFont::DemiBold));
     p.drawText(m_btn, Qt::AlignCenter, tr("Add a folder"));
+    const bool hb2 = m_hover == 101;                                           // quiet, always there, never nags
+    p.setPen(QPen(hb2 ? c.accent : c.border, 1)); p.setBrush(hb2 ? c.accentSubtle : Qt::transparent);
+    p.drawRoundedRect(m_btn2.adjusted(0.5, 0.5, -0.5, -0.5), 8, 8);
+    p.setPen(c.text); p.setFont(Theme::i().font(14, QFont::DemiBold));
+    p.drawText(m_btn2, Qt::AlignCenter, tr("Make kinoz your default"));
     if (!m_recent.isEmpty()) {
         p.setPen(c.muted); p.setFont(Theme::i().font(11, QFont::DemiBold));
         p.drawText(QRectF(x, y + 146, cw, 20), Qt::AlignVCenter, tr("RECENT"));
@@ -54,11 +60,13 @@ void EmptyState::paintEvent(QPaintEvent*) {
 void EmptyState::mouseMoveEvent(QMouseEvent* e) {
     int h = -1;
     if (m_btn.contains(e->position())) h = 100;
+    if (m_btn2.contains(e->position())) h = 101;
     for (int i = 0; i < m_rows.size(); ++i) if (m_rows[i].contains(e->position())) h = i;
     if (h != m_hover) { m_hover = h; setCursor(h >= 0 ? Qt::PointingHandCursor : Qt::ArrowCursor); update(); }
 }
 void EmptyState::mousePressEvent(QMouseEvent* e) {
     if (m_btn.contains(e->position())) { emit openFolderRequested(); return; }
+    if (m_btn2.contains(e->position())) { emit defaultPlayerRequested(); return; }
     for (int i = 0; i < m_rows.size(); ++i) if (m_rows[i].contains(e->position())) { emit recentClicked(m_recent[i]); return; }
 }
 
