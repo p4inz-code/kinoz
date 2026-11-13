@@ -392,7 +392,7 @@ void MainWindow::idleTick() {
     }
     // Like the Windows 11 player: after the pause, a playing video gets the whole window. The library slides away too,
     // unless the pointer is on it, and returns when the pointer reaches the left edge.
-    if (!m_selfTest && (k == MediaKind::Video || k == MediaKind::Gif) && m_set->flag("autoHideLibrary", true) && m_sidebarOpen && !m_mini && !m_full
+    if (!m_selfTest && !m_shots && (k == MediaKind::Video || k == MediaKind::Gif) && m_set->flag("autoHideLibrary", true) && m_sidebarOpen && !m_mini && !m_full
         && !(m_side->isVisible() && m_side->rect().contains(m_side->mapFromGlobal(QCursor::pos())))
         && !m_side->isAncestorOf(focusWidget()) && !QApplication::activePopupWidget()) {      // not while typing in the library or with a menu open
         m_sideAuto = true;
@@ -1646,6 +1646,7 @@ void MainWindow::runSelfTest() {
 
 // Renders the app's own screens to PNGs for the README (off-screen; uses no third-party media).
 void MainWindow::runShots(const QString& dir) {
+    m_shots = true;
     QDir().mkpath(dir);
     auto tabsOf = [this]() { auto* pg = findChild<SettingsPage*>(); return pg ? pg->findChild<Segmented*>() : nullptr; };
     auto snap = [this, dir](const QString& n) { grab().save(dir + "/" + n + ".png"); };

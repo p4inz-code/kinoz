@@ -2,7 +2,7 @@
 
 All notable changes. Dates are release dates.
 
-## Unreleased (0.2.1)
+## 0.2.1 — easier to use, private on request, ready for macOS and Linux
 **Easy to use**
 - Settings and the "⋯" menu are always in the title bar, including on the empty first screen. Settings has a real gear icon.
 - Every icon has a short label with its shortcut after a brief hover (Windows, macOS and Linux key names are shown natively).
@@ -16,6 +16,7 @@ All notable changes. Dates are release dates.
 - macOS: opening files from Finder and "Open With", a proper app icon and document types, traffic-light window buttons, ⌘ ⌥ ⇧ shortcut labels, Now Playing and media keys.
 - Linux: a fuller desktop entry (file types, keywords, "New window"), "Make kinoz your default" works from an AppImage, and MPRIS for media keys and the desktop's now-playing card.
 - CI runs the self-test on macOS and Linux as an informational step.
+- Fixes found by those runs: the playback engine could refuse to start under a locale that writes decimals with a comma, and files would not open at all with libmpv older than 0.38 (Ubuntu 22.04 ships 0.34).
 
 ## 0.2.0 — first public release
 Everything from 0.1.1 to 0.1.4 (setup with Doctor, fast skimming, Music and playlists, media overlay, updates that finish the job) plus:

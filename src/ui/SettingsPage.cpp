@@ -117,7 +117,7 @@ void SettingsPage::addSeg(Page p, const QString& key, const QStringList& labels,
 }
 
 void SettingsPage::buildPrivacy() {
-    addSwitch(Privacy, "privateMode", false, tr("Private mode"), tr("Remember nothing you play: no recent list, resume points, progress or saved thumbnails"));
+    addSwitch(Privacy, "privateMode", false, tr("Private mode"), tr("No recent list, resume points or saved thumbnails"));
     addSwitch(Privacy, "forgetOnExit", false, tr("Clean identity when kinoz closes"), tr("Wipes your history every time you close kinoz"));
     struct PB { const char* id; QString label; bool primary; };
     const PB items[] = {
@@ -354,7 +354,7 @@ void SettingsPage::resizeEvent(QResizeEvent*) {
         }
         if (pg == Privacy) {                                                           // three rows of buttons under the two switches
             const auto& pb = m_pageWidgets[Privacy];
-            const int rowsY[3] = {252, 298, 350};
+            const int rowsY[3] = {252, 296, 340};
             for (int i = 0; i < pb.size(); ++i) {
                 const int rowIdx = i / 3;
                 int x = 24; for (int j = rowIdx * 3; j < i; ++j) x += pb[j]->sizeHint().width() + 10;
@@ -397,12 +397,10 @@ void SettingsPage::paintEvent(QPaintEvent*) {
         if (m_page == Privacy) {
             p.setPen(c.text); p.setFont(Theme::i().font(14, QFont::DemiBold)); p.drawText(QRectF(24, 222, width() - 48, 24), Qt::AlignVCenter, tr("Clean up now"));
             p.setPen(c.muted); p.setFont(Theme::i().font(12));
-            p.drawText(QRectF(24, 396, width() - 48, 34), Qt::AlignTop | Qt::TextWordWrap, tr("Clean identity clears all of the above and forgets your last folder. Your folders, settings, playlists and saved frames stay."));
-            p.setPen(c.text); p.setFont(Theme::i().font(14, QFont::DemiBold)); p.drawText(QRectF(24, 446, width() - 48, 24), Qt::AlignVCenter, tr("What kinoz stores on this computer"));
-            int ty = 474; p.setFont(Theme::i().font(13));
-            for (const QString& line : m_stored) { p.setPen(c.muted); p.drawText(QRectF(24, ty, width() - 48, 22), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(line, Qt::ElideRight, width() - 48)); ty += 24; }
-            p.setPen(c.muted); p.setFont(Theme::i().font(12));
-            p.drawText(QRectF(24, ty + 2, width() - 48, 20), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(QDir::toNativeSeparators(Paths::dataDir()), Qt::ElideMiddle, width() - 48));
+            p.drawText(QRectF(24, 386, width() - 48, 34), Qt::AlignTop | Qt::TextWordWrap, tr("Clean identity clears all of the above and forgets your last folder. Folders, settings, playlists and saved frames stay."));
+            p.setPen(c.text); p.setFont(Theme::i().font(14, QFont::DemiBold)); p.drawText(QRectF(24, 428, width() - 48, 24), Qt::AlignVCenter, tr("What kinoz stores on this computer"));
+            int ty = 456; p.setFont(Theme::i().font(13));
+            for (const QString& line : m_stored) { p.setPen(c.muted); p.drawText(QRectF(24, ty, width() - 48, 22), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(line, Qt::ElideRight, width() - 48)); ty += 22; }
         }
         if (m_page == General) {
             const auto sw = swatchRects();

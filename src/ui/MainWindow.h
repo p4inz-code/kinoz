@@ -76,6 +76,7 @@ private:
     void toggleMini();
     void togglePin();
     void setSidebarOpen(bool open, bool animate = true, bool automatic = false);
+    bool m_shots = false;                      // screenshot run: keep the library open
     bool m_sideAuto = false;                 // the library was hidden by the idle fade (it comes back at the left edge)
     void togglePanel(const QString& which);
     void closePanel();
