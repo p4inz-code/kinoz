@@ -163,6 +163,8 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
     m_mpv->initAsync(m_ctl->decodeMode() != 2);
     connect(m_mpv, &MpvPlayer::ready, this, [this] {
         m_mpv->setVolume(m_set->num("volume", 80));
+        if (m_set->flag("rememberMute", true) && m_set->flag("muted", false)) m_mpv->setMute(true);   // the last session ended muted
+        m_muteRestored = true;
         refreshChrome();
         if (!m_pendingOpen.isEmpty()) { const auto p = m_pendingOpen; m_pendingOpen.clear(); m_ctl->open(p); }
     });
@@ -298,7 +300,12 @@ void MainWindow::wireController() {
     connect(m_ctl, &PlayerController::message, this, [this](const QString& t) { notify(t); });
     connect(m_mpv, &MpvPlayer::pauseChanged, this, [this](bool) { refreshChrome(); poke(); });
     connect(m_mpv, &MpvPlayer::volumeChanged, this, [this](double) { refreshChrome(); });
-    connect(m_mpv, &MpvPlayer::muteChanged, this, [this](bool) { refreshChrome(); });
+    connect(m_mpv, &MpvPlayer::muteChanged, this, [this](bool on) {
+        // Remember the mute state for the next start. Not before the saved state has been applied (the engine
+        // reports "not muted" once at startup), and Clean identity clears it again.
+        if (m_muteRestored && m_set->flag("rememberMute", true)) { if (on) m_set->set("muted", true); else m_set->remove("muted"); }
+        refreshChrome();
+    });
     connect(m_mpv, &MpvPlayer::speedChanged, this, [this](double) { refreshChrome(); });
     connect(m_mpv, &MpvPlayer::metadataChanged, this, &MainWindow::refreshChrome);
     connect(m_mpv, &MpvPlayer::tracksChanged, this, &MainWindow::refreshChrome);
@@ -646,7 +653,7 @@ void MainWindow::keyPressEvent(QKeyEvent* e) {
     const QString ks = keyString(e);
     const QString act = m_keys.value(ks);
     if (act.isEmpty()) { QWidget::keyPressEvent(e); return; }
-    static const QSet<QString> repeatable{"seekback", "seekfwd", "seekback30", "seekfwd30", "seekback10", "seekfwd10", "volup", "voldown", "framestep", "framestepback", "zoomin", "zoomout", "next", "prev"};
+    static const QSet<QString> repeatable{"seekback", "seekfwd", "seekback30", "seekfwd30", "seekback10", "seekfwd10", "volup", "voldown", "framestep", "framestepback", "zoomin", "zoomout", "next", "prev", "nextfile", "prevfile"};
     if (e->isAutoRepeat() && !repeatable.contains(act)) return;
     doAction(act);
     e->accept();
@@ -680,6 +687,8 @@ void MainWindow::doAction(const QString& id) {
     else if (id == "stop") m_ctl->stop();
     else if (id == "next") m_ctl->next();
     else if (id == "prev") m_ctl->prev();
+    else if (id == "nextfile") m_ctl->next();
+    else if (id == "prevfile") m_ctl->prevFile();
     else if (id == "seekfwd") seek(m_set->num("seekSmall", 5));
     else if (id == "seekback") seek(-m_set->num("seekSmall", 5));
     else if (id == "seekfwd30") seek(m_set->num("seekLarge", 30));
@@ -703,9 +712,8 @@ void MainWindow::doAction(const QString& id) {
     else if (id == "copypath") { if (m_ctl->hasMedia()) { QGuiApplication::clipboard()->setText(QDir::toNativeSeparators(m_ctl->path())); notify(tr("Path copied")); } }
     else if (id == "seekfwd10") seek(10);
     else if (id == "seekback10") seek(-10);
-    else if (id == "volup") m_ctl->volumeStep(1);
-    else if (id == "voldown") m_ctl->volumeStep(-1);
-    else if (id == "mute" ) m_ctl->toggleMute();
+    else if (id == "volup" || id == "voldown") { if (!m_ctl->hasMedia() || (m_ctl->kind() != MediaKind::Image && m_ctl->kind() != MediaKind::Gif)) m_ctl->volumeStep(id == "volup" ? 1 : -1); }   // pictures have no sound
+    else if (id == "mute" ) { if (!m_ctl->hasMedia() || m_ctl->kind() == MediaKind::Video || m_ctl->kind() == MediaKind::Audio) m_ctl->toggleMute(); }   // pictures have no sound
     else if (id == "fullscreen") toggleFullscreen();
     else if (id == "escape") {
         if (m_palette->isOpen()) m_palette->closePalette();
@@ -741,7 +749,7 @@ void MainWindow::doAction(const QString& id) {
     else if (id == "subcycle") m_mpv->command({"cycle", "sub"});
     else if (id == "quit") close();
     else if (id == "sidebar") setSidebarOpen(!m_sidebarOpen);
-    else if (id == "adjust" || id == "eq") togglePanel(id);
+    else if (id == "adjust" || id == "eq") { const MediaKind k = m_ctl->kind(); if (!m_ctl->hasMedia() || (id == "eq" ? (k == MediaKind::Video || k == MediaKind::Audio) : (k == MediaKind::Video || k == MediaKind::Gif))) togglePanel(id); }
     else if (id == "palette") { if (m_palette->isOpen()) m_palette->closePalette(); else m_palette->openPalette(); }
     else if (id == "openfolder") openPicker(true);
     else if (id == "openfile") openPicker(false);
@@ -990,6 +998,7 @@ void MainWindow::applySetting(const QString& key) {
         m_thumbs->setPrivate(on); m_top->setPrivate(on);
         notify(on ? tr("Private mode is on: nothing you play is remembered") : tr("Private mode is off: history is saved again"));
     }
+    else if (key == "rememberMute") { if (m_set->flag("rememberMute", true) && m_mpv->muted()) m_set->set("muted", true); else m_set->remove("muted"); }
     else if (key == "slideshow") restartSlideshow();
     else if (key == "normalize") m_ctl->applyEq();
     else if (key == "decode") { m_ctl->applyDecode(); notify(tr("Decoding changes apply to the next file")); }
@@ -1140,6 +1149,7 @@ void MainWindow::cleanIdentity(bool announce) {
     m_side->clearMusicIndex();
     wipeLogs();
     m_set->remove("lastFolder");
+    m_set->remove("muted");                                                       // a remembered mute is part of "what you did last time"
     m_empty->setRecent({});
     m_side->update();
     if (announce) notify(tr("Clean identity done: history, marks, thumbnails, the music index and logs are gone"));
@@ -1201,7 +1211,7 @@ void MainWindow::showMoreMenu(const QPoint& anchorGlobal) {
     if (has && (k == MediaKind::Video || k == MediaKind::Gif)) m->addItem("aspect", tr("Aspect ratio…"));
     if (k == MediaKind::Video) m->addItem("tracks", tr("Audio & subtitles…"));
     if (k == MediaKind::Video || k == MediaKind::Gif) m->addItem("adjust", tr("Adjust picture…"), m_panel->isOpen() && m_panel->page() == "adjust", "Ctrl+J");
-    m->addItem("eq", tr("Equalizer…"), m_panel->isOpen() && m_panel->page() == "eq", "Ctrl+E");
+    if (k == MediaKind::Video || k == MediaKind::Audio) m->addItem("eq", tr("Equalizer…"), m_panel->isOpen() && m_panel->page() == "eq", "Ctrl+E");
     if (has && k != MediaKind::Audio) { m->addItem("annotate", tr("Annotate frame"), false, "A"); m->addItem("screenshot", tr("Save frame as image"), false, "Ctrl+Shift+S"); }
     m->addSeparator();
     if (has) { m->addItem("reveal", tr("Show in folder")); m->addItem("copypath", tr("Copy file path")); m->addSeparator(); }
@@ -1427,7 +1437,8 @@ void MainWindow::runSelfTest() {
     S("volume down", [this] { doAction("voldown"); }, [this] { return m_mpv->volume() <= 50.1; });
     S("volume rapid x10 is exact", [this] { m_ctl->setVolume(20); for (int i = 0; i < 10; ++i) doAction("volup"); }, [this] { return qAbs(m_mpv->volume() - 70) < 0.5; }, 500);
     S("mute", [this] { doAction("mute"); }, [this] { return m_mpv->muted(); });
-    S("unmute", [this] { doAction("mute"); }, [this] { return !m_mpv->muted(); });
+    S("mute is remembered for the next start", [] {}, [this] { return m_mpv->muted() && m_set->flag("muted", false); });
+    S("unmute", [this] { doAction("mute"); }, [this] { return !m_mpv->muted() && !m_set->flag("muted", false); });
     S("speed up", [this] { doAction("speedup"); }, [this] { return m_mpv->speed() > 1.0; });
     S("speed reset", [this] { doAction("speedreset"); }, [this] { return qFuzzyCompare(m_mpv->speed(), 1.0); });
     S("shuffle on", [this] { doAction("shuffle"); }, [this] { return m_ctl->shuffle(); });
@@ -1436,6 +1447,8 @@ void MainWindow::runSelfTest() {
     S("repeat off", [this] { doAction("repeat"); doAction("repeat"); }, [this] { return m_ctl->repeat() == PlayerController::RepeatOff; });
     S("next", [this] { doAction("next"); }, [this] { return m_ctl->hasMedia(); }, 800);
     S("prev", [this] { m_mpv->seek(0, true); doAction("prev"); }, [this] { return m_ctl->hasMedia(); }, 800);
+    S("right arrow goes to the next file", [this] { m_selfPath = m_ctl->path(); doAction("nextfile"); }, [this] { return m_ctl->hasMedia() && m_ctl->path() != m_selfPath; }, 800);
+    S("left arrow goes back, even deep into a file", [this] { m_selfPath = m_ctl->path(); m_mpv->seek(2.0, true); doAction("prevfile"); }, [this] { return m_ctl->hasMedia() && m_ctl->path() != m_selfPath; }, 800);
     S("frame step", [this] { doAction("framestep"); }, [this] { return m_mpv->paused(); });
     S("play again", [this] { doAction("playpause"); }, [this] { return !m_mpv->paused(); });
     S("sidebar forced open", [this] { setSidebarOpen(true, false); }, [this] { return m_sidebarOpen && m_sideT > 0.99 && m_side->isVisible(); }, 400);
@@ -1540,10 +1553,10 @@ void MainWindow::runSelfTest() {
         privacyAction("clearRecent"); privacyAction("clearResume"); privacyAction("clearMarks"); },
       [this] { return m_ctl->recent().isEmpty() && m_ctl->reviewState(m_ctl->path()) == 0 && !m_resume->has(m_ctl->path().toLower()); }, 200);
     S("clean identity wipes everything it promises", [this] {
-        m_ctl->markSeen(m_ctl->path(), 0.6); m_set->set("lastFolder", QStringLiteral("X:/somewhere"));
+        m_ctl->markSeen(m_ctl->path(), 0.6); m_set->set("lastFolder", QStringLiteral("X:/somewhere")); m_set->set("muted", true);
         QFile f(Paths::logsDir() + QStringLiteral("/old-crash.dmp")); f.open(QIODevice::WriteOnly); f.write("x"); f.close();
         cleanIdentity(false); },
-      [this] { return m_ctl->recent().isEmpty() && m_ctl->watched(m_ctl->path()) == 0.0 && !m_set->has("lastFolder") && !QFile::exists(Paths::logsDir() + QStringLiteral("/old-crash.dmp")) && !QFile::exists(Paths::dataDir() + QStringLiteral("/music.json")); }, 300);
+      [this] { return m_ctl->recent().isEmpty() && m_ctl->watched(m_ctl->path()) == 0.0 && !m_set->has("lastFolder") && !m_set->has("muted") && !QFile::exists(Paths::logsDir() + QStringLiteral("/old-crash.dmp")) && !QFile::exists(Paths::dataDir() + QStringLiteral("/music.json")); }, 300);
     S("--wipe style cleanup leaves settings and playlists alone", [this] { Playlists::save(QStringLiteral("keepme"), {m_ctl->path()}); cleanIdentity(false); },
       [this] { const bool ok = Playlists::exists(QStringLiteral("keepme")) && m_set->has("decode"); Playlists::remove(QStringLiteral("keepme")); return ok; }, 200);
 

@@ -275,6 +275,18 @@ void FolderPicker::paintEvent(QPaintEvent*) {
 // ============================================================ CommandPalette
 namespace {
 struct Cmd { const char* id; const char* title; const char* hint; Icon icon; const char* keywords; };
+// Commands that make no sense for what is open right now stay out of the list (no volume for a picture, no rotate for a song).
+bool cmdFits(const QString& id, bool has, MediaKind k) {
+    if (!has) return id != QLatin1String("rotate") && id != QLatin1String("framestep") && id != QLatin1String("framestepback");
+    const bool pic = k == MediaKind::Image || k == MediaKind::Gif;
+    if ((id == "mute" || id == "eq" || id == "subcycle") && pic) return false;
+    if ((id == "speedup" || id == "speeddown" || id == "speedreset" || id == "framestep" || id == "framestepback") && k == MediaKind::Image) return false;
+    if (id == "subcycle" && k == MediaKind::Audio) return false;
+    if (id == "adjust" && (k == MediaKind::Image || k == MediaKind::Audio)) return false;
+    if ((id == "annotate" || id == "screenshot" || id == "framestep" || id == "framestepback") && k == MediaKind::Audio) return false;
+    if (id == "rotate" && k != MediaKind::Image) return false;
+    return true;
+}
 const Cmd kCmds[] = {
     {"playpause", "Play / pause", "Space", Icon::Play, "toggle"}, {"next", "Next", "Ctrl+F", Icon::Next, "skip"}, {"prev", "Previous", "Ctrl+B", Icon::Prev, "back"},
     {"stop", "Stop", "Ctrl+S", Icon::Stop, ""}, {"shuffle", "Toggle shuffle", "Ctrl+H", Icon::Shuffle, "random"}, {"repeat", "Cycle repeat", "Ctrl+T", Icon::Repeat, "loop"},
@@ -333,6 +345,7 @@ void CommandPalette::refresh() {
     int nCmd = 0;
     QVector<RowList::Row> cmds;
     for (const auto& c : kCmds) {
+        if (!cmdFits(QString::fromLatin1(c.id), m_ctl->hasMedia(), m_ctl->kind())) continue;
         const QString hay = (QString::fromLatin1(c.title) + ' ' + QString::fromLatin1(c.keywords)).toLower();
         bool ok = true; for (const auto& t : toks) if (!hay.contains(t)) { ok = false; break; }
         if (!ok) continue;

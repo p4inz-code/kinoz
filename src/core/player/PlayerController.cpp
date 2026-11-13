@@ -297,6 +297,11 @@ void PlayerController::prev() {
     if (i >= 0) playIndex(i);
 }
 
+void PlayerController::prevFile() {
+    const int i = pickNext(-1);
+    if (i >= 0) playIndex(i);
+}
+
 void PlayerController::onEof() {
     if (m_kind != MediaKind::Video && m_kind != MediaKind::Audio) return;
     if (m_pending.has || m_mpvPath != m_path) return;       // a late "ended" from the file we just replaced

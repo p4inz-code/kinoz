@@ -48,6 +48,7 @@ public:
     void stop();
     void next();
     void prev();
+    void prevFile();                                    // always the previous file (prev() restarts a song/video that is past 3 s)
     void seekFrac(double f, bool exact);
     void seekBy(double sec);
     void setShuffle(bool s);

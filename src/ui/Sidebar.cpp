@@ -173,7 +173,7 @@ void MediaDelegate::paint(QPainter* p, const QStyleOptionViewItem& opt, const QM
     else { sub = kindLabel(kind); if (size >= 0) sub += QStringLiteral(" · ") + QLocale().formattedDataSize(size, 1); else if (m_queue) sub += QStringLiteral(" · ") + QFileInfo(path).dir().dirName(); }
     p->drawText(QRectF(tx, r.top() + 24, r.right() - tx - 26, 18), Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics(p->font()).elidedText(sub, Qt::ElideMiddle, int(r.right() - tx - 26)));
     if (dir) drawIcon(p, Icon::ChevronRight, QRectF(r.right() - 24, r.center().y() - 8, 16, 16), c.muted);
-    else if (playing) drawIcon(p, Icon::Audio, QRectF(r.right() - 26, r.center().y() - 8, 16, 16), c.accent);
+    else if (playing && (kind == MediaKind::Audio || kind == MediaKind::Video)) drawIcon(p, Icon::Audio, QRectF(r.right() - 26, r.center().y() - 8, 16, 16), c.accent);
     p->restore();
 }
 

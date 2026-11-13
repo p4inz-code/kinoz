@@ -29,7 +29,7 @@
 namespace {
 struct ActionInfo { const char* id; const char* label; const char* group; };
 const ActionInfo kActions[] = {
-    {"playpause", "Play / pause", "Playback"}, {"stop", "Stop", "Playback"}, {"next", "Next", "Playback"}, {"prev", "Previous (or restart)", "Playback"},
+    {"playpause", "Play / pause", "Playback"}, {"stop", "Stop", "Playback"}, {"next", "Next", "Playback"}, {"prev", "Previous (or restart)", "Playback"}, {"nextfile", "Next file", "Playback"}, {"prevfile", "Previous file", "Playback"},
     {"seekfwd", "Forward (small step)", "Playback"}, {"seekback", "Back (small step)", "Playback"}, {"seekfwd30", "Forward (large step)", "Playback"}, {"seekback30", "Back (large step)", "Playback"},
     {"seekfwd10", "Forward 10 s", "Playback"}, {"seekback10", "Back 10 s", "Playback"}, {"speedup", "Faster", "Playback"}, {"speeddown", "Slower", "Playback"},
     {"speedreset", "Normal speed", "Playback"}, {"framestep", "Next frame", "Playback"}, {"framestepback", "Previous frame", "Playback"},
@@ -83,13 +83,14 @@ SettingsPage::SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, 
     addSwitch(Playback, "resume", true, tr("Resume where you left off"), tr("Continue each video or track from its last position"));
     addSwitch(Playback, "autoplayNext", true, tr("Play next automatically"), tr("Move on to the next item when one ends"));
     addSwitch(Playback, "siblings", true, tr("Queue the whole folder"), tr("Opening one file lines up the others beside it"));
+    addSwitch(Playback, "rememberMute", true, tr("Remember mute"), tr("Quit muted, start muted. Clean identity resets it"));
     addSwitch(Playback, "normalize", false, tr("Normalize loudness"), tr("Even out quiet and loud tracks"));
     addSeg(Playback, "defaultSpeed", {tr("0.75×"), tr("1×"), tr("1.25×"), tr("1.5×")}, {0.75, 1.0, 1.25, 1.5}, 1.0, tr("Starting speed"), tr("Speed used when a file starts"));
-    addSeg(Playback, "seekSmall", {tr("5 s"), tr("10 s"), tr("15 s")}, {5, 10, 15}, 5, tr("Small seek step"), tr("Left / Right arrows"));
+    addSeg(Playback, "seekSmall", {tr("5 s"), tr("10 s"), tr("15 s")}, {5, 10, 15}, 5, tr("Small seek step"), tr("Ctrl + Left / Right"));
     addSeg(Playback, "seekLarge", {tr("30 s"), tr("1 min"), tr("2 min")}, {30, 60, 120}, 30, tr("Large seek step"), tr("Shift + Left / Right"));
     addSeg(Playback, "volStep", {tr("2"), tr("5"), tr("10")}, {2, 5, 10}, 5, tr("Volume step"), tr("Up / Down arrows and the mouse wheel"));
     addSeg(Playback, "hideDelay", {tr("2 s"), tr("3 s"), tr("5 s"), tr("Never")}, {2, 3, 5, 0}, 2, tr("Hide controls after"), tr("While a video plays and the mouse is still"));
-    addSwitch(Playback, "autoHideLibrary", true, tr("Hide the library with the controls"), tr("The video gets the whole window; move to the left edge to bring the library back"));
+    addSwitch(Playback, "autoHideLibrary", true, tr("Hide the library with the controls"), tr("Move to the left edge to bring it back"));
     addSeg(Playback, "slideshow", {tr("Off"), tr("3 s"), tr("5 s"), tr("10 s")}, {0, 3, 5, 10}, 0, tr("Image slideshow"), tr("Advance pictures automatically"));
 
     buildPrivacy();
@@ -342,7 +343,7 @@ void SettingsPage::resizeEvent(QResizeEvent*) {
     m_close->move(width() - 16 - 32, 14);
     const int right = width() - 28;
     for (int pg = 0; pg < 3; ++pg) {
-        const int rh = pg == General ? 56 : 48;
+        const int rh = pg == General ? 56 : pg == Playback ? 44 : 48;
         int y = 118;
         for (const Row& r : m_rows[pg]) {
             if (r.w) { const QSize s = r.w->sizeHint(); r.w->setGeometry(right - s.width(), y + (rh - s.height()) / 2, s.width(), s.height()); }
@@ -387,7 +388,7 @@ void SettingsPage::paintEvent(QPaintEvent*) {
     p.setPen(c.border); p.drawLine(24, 104, width() - 24, 104);
 
     if (m_page == General || m_page == Playback || m_page == Privacy) {
-        const int rh = m_page == General ? 56 : 48;
+        const int rh = m_page == General ? 56 : m_page == Playback ? 44 : 48;
         int y = 118;
         for (const Row& r : m_rows[m_page]) {
             p.setPen(c.text); p.setFont(Theme::i().font(15, QFont::Medium)); p.drawText(QRectF(24, y + (rh == 56 ? 6 : 4), width() * 0.52, 22), Qt::AlignVCenter, r.title);

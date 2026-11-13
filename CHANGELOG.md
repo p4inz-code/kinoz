@@ -2,6 +2,11 @@
 
 All notable changes. Dates are release dates.
 
+## 0.2.2 — arrow keys that mean the same everywhere, remembered mute
+- Left and Right arrows now go to the previous and next file for every kind of media: video, music, GIF and pictures. Holding the key flips quickly through a folder. Seeking moves to Ctrl+Left / Ctrl+Right (small step), Shift+Left / Shift+Right (large step) and J / L (10 s). If you have your own keymap.json, it still wins.
+- New setting, Settings → Playback → "Remember mute" (on by default): if you quit muted, kinoz starts muted next time. Clean identity resets it.
+- Pictures no longer show sound things: no speaker icon on the playing row in the queue, Up and Down do nothing to the volume, and M, Equalizer, speed and similar commands are left out of the palette and menus where they make no sense.
+
 ## 0.2.1 — easier to use, private on request, ready for macOS and Linux
 **Easy to use**
 - Settings and the "⋯" menu are always in the title bar, including on the empty first screen. Settings has a real gear icon.
