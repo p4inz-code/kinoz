@@ -89,6 +89,7 @@ jobs:
           ffmpeg -loglevel error -f lavfi -i testsrc2=size=1280x720:rate=30 -f lavfi -i sine=frequency=440 -t 12 -pix_fmt yuv420p -c:v libx264 -c:a aac clip.mp4
           KINOZ_SILENT=1 KINOZ_OFFSCREEN=1 KINOZ_DATA_DIR="$RUNNER_TEMP/kdata" perl -e 'alarm 240; exec @ARGV' dist/app/kinoz.app/Contents/MacOS/kinoz --selftest clip.mp4 || true
           cat "$RUNNER_TEMP/kdata/logs/selftest.txt" 2>/dev/null | tail -60 || true
+          echo "--- app.log ---"; tail -30 "$RUNNER_TEMP/kdata/logs/app.log" 2>/dev/null || true
       - name: Package (.dmg)
         run: |
           cd dist/app
@@ -126,6 +127,7 @@ jobs:
           ffmpeg -loglevel error -f lavfi -i testsrc2=size=1280x720:rate=30 -f lavfi -i sine=frequency=440 -t 12 -pix_fmt yuv420p -c:v libx264 -c:a aac clip.mp4
           LIBGL_ALWAYS_SOFTWARE=1 KINOZ_SILENT=1 KINOZ_DATA_DIR="$RUNNER_TEMP/kdata" timeout 240 xvfb-run -a dist/app/kinoz --selftest clip.mp4 || true
           cat "$RUNNER_TEMP/kdata/logs/selftest.txt" 2>/dev/null | tail -60 || true
+          echo "--- app.log ---"; tail -30 "$RUNNER_TEMP/kdata/logs/app.log" 2>/dev/null || true
       - name: Package (AppImage)
         run: |
           mkdir -p tools && cd tools

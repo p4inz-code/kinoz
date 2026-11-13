@@ -20,6 +20,7 @@
 #include <QSurfaceFormat>
 #include <QTextStream>
 #include <QTimer>
+#include <clocale>
 #include <csignal>
 #include <exception>
 #ifdef Q_OS_WIN
@@ -86,6 +87,7 @@ int main(int argc, char** argv) {
     QApplication::setAttribute(Qt::AA_UseDesktopOpenGL);
 
     QApplication app(argc, argv);
+    std::setlocale(LC_NUMERIC, "C");                                  // libmpv refuses to start under a locale with a decimal comma
     app.setApplicationName(QStringLiteral(APP_NAME));
     app.setOrganizationName(QStringLiteral("local"));
     app.setQuitOnLastWindowClosed(true);
