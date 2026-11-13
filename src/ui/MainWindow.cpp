@@ -1703,6 +1703,8 @@ void MainWindow::runShots(const QString& dir) {
         steps->push_back({1500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("library-marks-light"); }});
         steps->push_back({100, [this, musicDirP] { if (!musicDirP->isEmpty()) Theme::i().setMode(Theme::Mode::Dark); }});
         steps->push_back({500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("library-marks-dark"); }});
+        steps->push_back({150, [this] { m_toast->hide(); poke(); }});                       // the banner picture: no toast, controls shown
+        steps->push_back({450, [snap] { snap("hero-dark"); }});
         steps->push_back({100, [this, musicDirP] { if (!musicDirP->isEmpty()) { Theme::i().setMode(Theme::Mode::Light); m_side->showTab(2); } }});
         steps->push_back({3500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("music-artists-light"); }});
         steps->push_back({100, [this, musicDirP] { if (!musicDirP->isEmpty()) m_side->musicDrill(QStringLiteral("Mira Lowe"), QStringLiteral("Night Drive")); }});

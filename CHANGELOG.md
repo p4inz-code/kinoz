@@ -15,6 +15,7 @@ All notable changes. Dates are release dates.
 **macOS and Linux**
 - macOS: opening files from Finder and "Open With", a proper app icon and document types, traffic-light window buttons, ⌘ ⌥ ⇧ shortcut labels, Now Playing and media keys.
 - Linux: a fuller desktop entry (file types, keywords, "New window"), "Make kinoz your default" works from an AppImage, and MPRIS for media keys and the desktop's now-playing card.
+- A 30-second video tour and a larger, clearer README banner.
 - CI runs the self-test on macOS and Linux as an informational step.
 - Fixes found by those runs: the playback engine could refuse to start under a locale that writes decimals with a comma, and files would not open at all with libmpv older than 0.38 (Ubuntu 22.04 ships 0.34).
 

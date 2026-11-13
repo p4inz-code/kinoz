@@ -1,5 +1,10 @@
 <p align="center">
-  <img src="assets/readme/hero.png" alt="kinoz screens arranged like prints on a wall: the dark home screen, a light theme, the Ctrl+K command palette, Settings and About." width="100%">
+  <img src="assets/readme/hero.png" alt="kinoz playing a video in the dark theme: the library on the left, the picture, and the control bar with seek, volume, speed, subtitles and fullscreen." width="100%">
+</p>
+
+<p align="center">
+  <a href="assets/readme/promo.mp4"><img src="assets/readme/promo-poster.png" alt="Play the 30 second tour: install, play, skim, search, privacy and the Doctor" width="62%"></a>
+  <br><sub>30-second tour: install, play, skim, search, privacy and the Doctor (4 MB video)</sub>
 </p>
 
 <h1 align="center">kinoz</h1>
@@ -34,9 +39,9 @@ Take the file for your system from the [latest release](https://github.com/p4inz
 - macOS on Apple Silicon: `kinoz-<version>-macos.dmg`. Open it and drag kinoz to Applications.
 - Linux on x86-64: `kinoz-<version>-x86_64.AppImage`. Run `chmod +x` on it, then run it.
 
-> **Status: 0.2, usable every day on Windows.** Windows is the one I test hardest, with an automated self-test of 94 checks and a speed benchmark. The macOS and Linux builds come from CI and have not been run on real machines yet, so expect rough edges there. What's missing is listed honestly in [Known issues](docs/KNOWN_ISSUES.md) and the [roadmap](ROADMAP.md).
+> **Status: 0.2, usable every day on Windows.** Windows is the one I test hardest, with an automated self-test of 101 checks and a speed benchmark. The macOS and Linux builds come from CI, which builds them and runs a smoke test, but I haven't used them on real machines yet, so expect rough edges there. What's missing is listed in [Known issues](docs/KNOWN_ISSUES.md) and the [roadmap](ROADMAP.md).
 >
-> If you're on macOS or Linux, you're the testers. [Open an issue](https://github.com/p4inz-code/kinoz/issues/new/choose) and tell me what worked and what didn't: moving and resizing the window, fullscreen, media keys, opening your files.
+> If you're on macOS or Linux, you're the testers. [Open a test report](https://github.com/p4inz-code/kinoz/issues/new?template=platform_test.md) and tell me what worked and what didn't: moving and resizing the window, fullscreen, media keys, opening your files.
 
 <table>
 <tr>
@@ -62,7 +67,7 @@ Take the file for your system from the [latest release](https://github.com/p4inz
 </table>
 
 <details>
-<summary>More screenshots: playlists, queue, setup, command palette, Settings, About</summary>
+<summary>More screenshots: playlists, queue, setup, command palette, Settings, Privacy, About</summary>
 <br>
 
 <p align="center">
@@ -97,7 +102,12 @@ Take the file for your system from the [latest release](https://github.com/p4inz
 
 <p align="center">
   <img src="assets/screenshots/settings-playback-light.png" alt="Settings, Playback: resume, autoplay, starting speed, seek steps, slideshow" width="720">
-  <br><sub>Settings, Playback: resume, autoplay, starting speed, seek steps, volume step, controls auto-hide, slideshow.</sub>
+  <br><sub>Settings, Playback: resume, autoplay, starting speed, seek steps, volume step, how soon the controls fade, slideshow.</sub>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/settings-privacy-light.png" alt="Settings, Privacy: private mode, clean identity, one button per kind of history, and what kinoz stores" width="720">
+  <br><sub>Settings, Privacy: private mode, clean identity, a button for each kind of history, and a list of what kinoz stores and how much.</sub>
 </p>
 
 <p align="center">
@@ -132,6 +142,8 @@ Press the **+** in the sidebar and pick the folder where your media lives. Thumb
 
 When you're sorting through a folder, `Y` keeps a file, `N` marks it to reject, and `U` jumps to the next one you haven't seen. `Delete` moves the current file to the Recycle Bin, and it asks first. Once you've marked a pile, `Ctrl+K` and "Delete all rejected files" clears it.
 
+While a video plays, the controls and the library fade away after two seconds, so the picture gets the whole window like in the Windows 11 player. Move the mouse to bring the controls back, or touch the left edge for the library. Settings (the gear) and the **⋯** menu are always in the top corner, even before you open anything.
+
 `Ctrl+K` also searches every file under your folders and every command. The **Music** tab shows artists, albums and songs read from your files' tags, and the **Queue** tab can save what's playing as a playlist. `Ctrl+D` flips between light and dark, **Settings → Animations → Off** stops all motion, and **Settings → General → Default player** makes kinoz open your files.
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
@@ -140,7 +152,7 @@ When you're sorting through a folder, `Y` keeps a file, `N` marks it to reject, 
 
 No program can quietly take over your file types, and kinoz doesn't try. It does the part that's allowed and makes the rest one click.
 
-On Windows, go to **Settings → General → Default player → Make default**, or press `Ctrl+K` and choose "Make kinoz my default player". kinoz registers itself and opens its page in Windows **Settings → Apps → Default apps**, where you pick it for video, music and pictures. The last page of the installer has the same button. On macOS, select a video in Finder, press `Cmd+I`, set **Open with** to kinoz and click **Change All**. On Linux, the same menu entry runs `xdg-mime` for the common video, audio and image types.
+On Windows, go to **Settings → General → Default player → Make default**, or press `Ctrl+K` and choose "Make kinoz my default player". kinoz registers itself and opens its page in Windows **Settings → Apps → Default apps**, where you pick it for video, music and pictures. The last page of the installer has the same button. On macOS, select a video in Finder, press `Cmd+I`, set **Open with** to kinoz and click **Change All**. On Linux, the same menu entry runs `xdg-mime` for the common video, audio and image types, and from an AppImage it first writes the small launcher entry a package would have installed. The empty start screen has a "Make kinoz your default" button too.
 
 The Windows setup also adds "Play with kinoz" and "Open folder in kinoz" to the right-click menu, and kinoz to the "Open with" list. **Settings → General → Uninstall…** removes all of it.
 
@@ -168,7 +180,7 @@ Music is built around your Apple Music and iTunes library, and it handles local 
 
 Preview and Photos handle images, PDFs and your photo library. kinoz browses a folder of pictures and GIFs with the arrow keys, with zoom, rotate and a slideshow, next to your videos.
 
-The Mac apps do better at AirPlay and iCloud, Apple Music streaming, deep system integration and the Photos library. kinoz's Now Playing integration on macOS isn't done yet.
+The Mac apps do better at AirPlay and iCloud, Apple Music streaming, deep system integration and the Photos library. kinoz has Now Playing and media keys on macOS, but they haven't been tried on a real Mac yet.
 
 ### Linux (GNOME, KDE and others)
 
@@ -178,7 +190,7 @@ Rhythmbox and Elisa are music libraries. kinoz gives you artists, albums, songs 
 
 Image viewers such as Eye of GNOME and Gwenview only show pictures. In kinoz, pictures and GIFs open in the same window as video and music.
 
-The Linux apps do better at following your desktop theme exactly, at MPRIS and other desktop integration (kinoz's MPRIS support isn't done yet), and at being packaged by your distribution.
+The Linux apps do better at following your desktop theme exactly, at desktop integration and at being packaged by your distribution. kinoz has MPRIS (media keys and the desktop's now-playing card), but it hasn't been tried on a real desktop yet.
 
 ### What stays the same on all three
 
@@ -194,11 +206,11 @@ kinoz opens MKV, MP4, AVI, WebM, HEVC, FLAC, MP3, JPG, PNG, WebP, GIF and many m
 
 For skimming, click through files or spam Next and only the last one opens. In the benchmark that was 150 clicks, 2 files opened and no freeze longer than 25 ms. The next file is pre-read, the seek-bar preview comes from a strip built in the background so it never waits, and `1` to `9` jump to 10% to 90% of a video. Keep or reject files with `Y` and `N`, see what you've already watched, and delete the rejects to the Recycle Bin in one go.
 
-Music has Artists, Albums, Songs and Playlists, read from your folders' tags once and cached. Saved playlists are plain `.m3u8` files, and `.m3u`, `.m3u8` and `.pls` files open as a queue. On Windows there's a now-playing card in the volume flyout and on the lock screen, with play, pause, next, previous and seeking.
+Music has Artists, Albums, Songs and Playlists, read from your folders' tags once and cached. Saved playlists are plain `.m3u8` files, and `.m3u`, `.m3u8` and `.pls` files open as a queue. On Windows there's a now-playing card in the volume flyout and on the lock screen, with play, pause, next, previous and seeking. macOS (Now Playing) and Linux (MPRIS) have the same controls, still to be confirmed on real machines.
 
 The playback tools are speed with pitch correction, frame step, A-B loop, a sleep timer, aspect ratio, audio and subtitle delay and track menus. For sound there's a 10-band equalizer with presets, a loudness normalizer and an output-device picker. For picture you get brightness, contrast, saturation, gamma and hue, live. Images and GIFs have zoom, pan, rotate, folder browsing with the arrow keys and an optional slideshow. You can draw on a paused frame or an image and export a full-resolution PNG or copy it.
 
-There's fullscreen, a mini always-on-top player, several independent windows, and "Safe fullscreen" if your display blinks. The look has a light and dark theme, six accent colours, a glass effect, compact density, and animations set to System, On or Off. Settings has six tabs: General, Playback, Shortcuts, Info (system, graphics, engine, current file, copy diagnostics), About and Legal.
+There's fullscreen, a mini always-on-top player, several independent windows, and "Safe fullscreen" if your display blinks. The look has a light and dark theme, six accent colours, a glass effect, compact density, and animations set to System, On or Off. Settings has seven tabs: General, Playback, Privacy, Shortcuts, Info (system, graphics, engine, current file, copy diagnostics), About and Legal. Hover any icon for a second and a small label tells you its name and shortcut.
 
 The setup is drawn by kinoz. It verifies its files, rolls back on failure, repairs with the Doctor, and removes everything (your data too, if you choose) with one switch. If kinoz ends abnormally twice, it starts in safe mode on its own. A broken or missing file is skipped with a clear message instead of stopping the queue, and kinoz only plays local files and runs no external tools or scripts. The only network request is the optional, SHA-256-verified update check.
 
@@ -296,7 +308,7 @@ If something in the install looks broken, `kinoz.exe --doctor` on Windows checks
 
 kinoz works fully offline. Settings, resume points, thumbnails and exports are stored in its data folder on your own computer, and nothing is sent anywhere. The only network request it can make is the optional update check to `github.com`, a plain request for the latest release with no user data, which you can turn off in **Settings → About**. Full details: [PRIVACY.md](PRIVACY.md).
 
-History is saved by default so videos resume where you stopped. When you want less, **Settings → Privacy** has a Private mode (nothing about what you watch is written to disk), a "Forget on exit" switch, and a **Clean identity** button that wipes recent files, resume points, marks, thumbnails and logs in one click while keeping your settings and playlists. Right-click any file for **Forget this file**.
+kinoz saves history by default, so videos resume where you stopped. When you want less, **Settings → Privacy** has a Private mode (nothing about what you watch is written to disk), a "Forget on exit" switch, and a **Clean identity** button. Clean identity wipes recent files, resume points, marks, thumbnails, the music index and logs in one click, and keeps your settings, folders and playlists. Each kind of history also has its own clear button, and right-clicking a file gives you **Forget this file**. From a terminal, `kinoz --wipe` does the same as Clean identity.
 
 ## Build from source
 
@@ -317,7 +329,7 @@ More in [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/DEVELOPMENT.md](docs/DEVELO
 
 ## Documentation
 
-[Known issues](docs/KNOWN_ISSUES.md) · [Changelog](CHANGELOG.md) · [History](docs/HISTORY.md) · [Maintaining](docs/MAINTAINING.md) · [Releasing](docs/RELEASING.md) · [Roadmap](ROADMAP.md) · [Architecture](docs/ARCHITECTURE.md) · [Design notes](docs/DESIGN.md) · [Performance notes](docs/PERFORMANCE.md) · [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [Support](SUPPORT.md) · [Contributing](CONTRIBUTING.md)
+[Known issues](docs/KNOWN_ISSUES.md) · [Testing on macOS and Linux](docs/TESTING.md) · [Changelog](CHANGELOG.md) · [History](docs/HISTORY.md) · [Maintaining](docs/MAINTAINING.md) · [Releasing](docs/RELEASING.md) · [Roadmap](ROADMAP.md) · [Architecture](docs/ARCHITECTURE.md) · [Design notes](docs/DESIGN.md) · [Performance notes](docs/PERFORMANCE.md) · [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [Support](SUPPORT.md) · [Contributing](CONTRIBUTING.md)
 
 ## Support and feedback
 
