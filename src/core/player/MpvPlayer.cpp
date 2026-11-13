@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
 #include "core/player/MpvPlayer.h"
 #include "core/Paths.h"
+#include "core/player/MpvCompat.h"
 #include <QMetaObject>
 #include <QThread>
 #include <QtConcurrent>
@@ -258,7 +259,8 @@ void MpvPlayer::loadFile(const QString& path, double startSec, bool loopFile) {
     QStringList opts;
     if (startSec > 1) opts << QStringLiteral("start=%1").arg(startSec, 0, 'f', 2);
     opts << QStringLiteral("loop-file=%1").arg(loopFile ? "inf" : "no");
-    command({QStringLiteral("loadfile"), path, QStringLiteral("replace"), QStringLiteral("-1"), opts.join(',')});
+    if (mpvLoadfileHasIndex(m_h)) command({QStringLiteral("loadfile"), path, QStringLiteral("replace"), QStringLiteral("-1"), opts.join(',')});
+    else command({QStringLiteral("loadfile"), path, QStringLiteral("replace"), opts.join(',')});
 }
 
 void MpvPlayer::appendFile(const QString& path) { command({QStringLiteral("loadfile"), path, QStringLiteral("append")}); }

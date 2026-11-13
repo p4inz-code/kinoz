@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
 #include "thumbs/FrameGrabber.h"
+#include "core/player/MpvCompat.h"
 #include <QElapsedTimer>
 #include <QByteArray>
 
@@ -49,8 +50,9 @@ bool FrameGrabber::open(const QString& path) {
     if (!ok()) return false;
     m_path = path; m_dur = 0;
     const QByteArray p = path.toUtf8();
-    const char* argv[] = {"loadfile", p.constData(), "replace", "-1", "pause=yes", nullptr};
-    if (mpv_command(m_h, argv) < 0) return false;
+    const char* argvNew[] = {"loadfile", p.constData(), "replace", "-1", "pause=yes", nullptr};
+    const char* argvOld[] = {"loadfile", p.constData(), "replace", "pause=yes", nullptr};      // libmpv before 0.38 has no index argument
+    if (mpv_command(m_h, mpvLoadfileHasIndex(m_h) ? argvNew : argvOld) < 0) return false;
     if (!waitFor(MPV_EVENT_PLAYBACK_RESTART, 6.0)) { m_path.clear(); return false; }
     double d = 0;
     if (mpv_get_property(m_h, "duration", MPV_FORMAT_DOUBLE, &d) >= 0) m_dur = d;
