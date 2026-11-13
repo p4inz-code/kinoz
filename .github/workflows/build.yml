@@ -178,6 +178,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4         # for the release notes file
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -186,7 +187,4 @@ jobs:
         with:
           files: artifacts/*
           generate_release_notes: true
-          body: |
-            Downloads: `kinoz-Setup-*.exe` (Windows), `kinoz-*-macos.dmg` (macOS), `kinoz-*-x86_64.AppImage` (Linux).
-            Each file has a `.sha256` next to it; the in-app updater only installs a file whose checksum matches.
-            macOS and Linux builds are new and not yet tested by hand — see docs/KNOWN_ISSUES.md.
+          body_path: .github/release-notes.md
