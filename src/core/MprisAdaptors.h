@@ -3,7 +3,7 @@
 // Linux: the two D-Bus faces of a media player (MPRIS 2). Desktop shells (GNOME, KDE, ...) and media keys talk to these.
 #pragma once
 #include <QtGlobal>
-#ifdef KINOZ_HAS_DBUS
+#if defined(__linux__) && defined(KINOZ_HAS_DBUS)
 #include "core/Smtc.h"
 #include <QDBusAbstractAdaptor>
 #include <QDBusObjectPath>
