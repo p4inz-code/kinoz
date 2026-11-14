@@ -150,6 +150,10 @@ void VideoWidget::initializeGL() {
 
 void VideoWidget::createContext() {
     if (m_ctx || !m_player->handle()) return;
+    // Qt's own start-up probing leaves an OpenGL error flag set in a core-profile context (glGetString(GL_EXTENSIONS) is not allowed there).
+    // The engine checks that flag after its first texture and would report "libmpv_render: after creating texture: OpenGL error
+    // INVALID_ENUM" although nothing is wrong. Clearing the flags first keeps the engine's own messages meaningful.
+    while (glGetError() != GL_NO_ERROR) {}
     mpv_opengl_init_params gl{getProcAddress, nullptr};
     mpv_render_param params[] = {
         {MPV_RENDER_PARAM_API_TYPE, const_cast<char*>(MPV_RENDER_API_TYPE_OPENGL)},
@@ -168,6 +172,7 @@ void VideoWidget::paintGL() {
         glClear(GL_COLOR_BUFFER_BIT);
         return;
     }
+    while (glGetError() != GL_NO_ERROR) {}                  // leftovers from Qt's painting or the glass pass: the engine must start from a clean flag
     mpv_opengl_fbo fbo{static_cast<int>(defaultFramebufferObject()), int(width() * dpr), int(height() * dpr), 0};
     int flip = 1, block = 0;   // Qt's swap already waits for vsync: don't make mpv wait a second time
     mpv_render_param params[] = {

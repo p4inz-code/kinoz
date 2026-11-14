@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.21)
 set(APP_NAME "kinoz" CACHE STRING "Display name of the app")
 set(APP_EXE  "kinoz" CACHE STRING "Executable base name")
 
-project(${APP_EXE} VERSION 0.3.1 LANGUAGES CXX)
+project(${APP_EXE} VERSION 0.3.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -112,7 +112,36 @@ target_compile_definitions(${APP_EXE} PRIVATE APP_NAME="${APP_NAME}" APP_VERSION
 if(MSVC)
   target_compile_options(${APP_EXE} PRIVATE /utf-8 /permissive- /Zc:__cplusplus /W3 /MP /GS /guard:cf)
   # Exploit mitigations: Control Flow Guard, ASLR (high entropy), DEP, CET shadow stacks where the CPU has them.
-  target_link_options(${APP_EXE} PRIVATE /GUARD:CF /DYNAMICBASE /HIGHENTROPYVA /NXCOMPAT /CETCOMPAT)
+  target_link_options(${APP_EXE} PRIVATE /GUARD:CF /DYNAMICBASE /HIGHENTROPYVA /NXCOMPAT /CETCOMPAT
+    /DEPENDENTLOADFLAG:0xA00)      # dependent DLLs (Qt, libmpv) are only loaded from the app folder and System32 (on top of the runtime restriction in main.cpp)
+else()
+  # GCC / Clang (Linux and macOS): stack protector, fortified libc calls, stack clash protection, position independent code,
+  # and on Linux read-only relocations (RELRO, bind now) plus CET landmarks on x86_64.
+  include(CheckCXXCompilerFlag)
+  foreach(f -fstack-protector-strong -fstack-clash-protection -fPIE)
+    string(MAKE_C_IDENTIFIER "KINOZ_HAS${f}" var)
+    check_cxx_compiler_flag(${f} ${var})
+    if(${var})
+      target_compile_options(${APP_EXE} PRIVATE ${f})
+    endif()
+  endforeach()
+  target_compile_definitions(${APP_EXE} PRIVATE $<$<NOT:$<CONFIG:Debug>>:_FORTIFY_SOURCE=2>)
+  if(UNIX AND NOT APPLE)
+    target_link_options(${APP_EXE} PRIVATE -Wl,-z,relro,-z,now -pie)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+      check_cxx_compiler_flag(-fcf-protection=full KINOZ_HAS_CFP)
+      if(KINOZ_HAS_CFP)
+        target_compile_options(${APP_EXE} PRIVATE -fcf-protection=full)
+      endif()
+    endif()
+  endif()
+endif()
+
+# Optional: build with the address and undefined-behaviour sanitizers (CI runs the self-test this way): -DKINOZ_SANITIZE=ON
+option(KINOZ_SANITIZE "Build with AddressSanitizer and UBSan" OFF)
+if(KINOZ_SANITIZE AND NOT MSVC)
+  target_compile_options(${APP_EXE} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined)
+  target_link_options(${APP_EXE} PRIVATE -fsanitize=address,undefined)
 endif()
 
 # Everything lands in <project>/dist/app

@@ -25,7 +25,7 @@ dist\app\kinoz.exe --selftest <a video of 10 seconds or more>
 dist\app\kinoz.exe --bench <a video>
 ```
 
-The self-test runs 118 checks and writes `data\logs\selftest.txt`. With a very short clip alone in its folder, four checks fail for that reason only: pause and resume race with the end of the clip, and thumbnails and the index need other files in the folder. The benchmark writes `data\logs\bench.txt` and prints PASS or FAIL against budgets (see [PERFORMANCE.md](PERFORMANCE.md)). `--shots <dir>` and `--installer-shots <dir>` render the screenshots; `scripts/refresh-visuals.ps1` runs them with generated demo media. `KINOZ_TEST_FULLSCREEN` and `KINOZ_TEST_HIRES` exist for the two tests that touch the real display or stress the GPU, and are off by default.
+The self-test runs 120 checks and writes `data\logs\selftest.txt`. With a very short clip alone in its folder, four checks fail for that reason only: pause and resume race with the end of the clip, and thumbnails and the index need other files in the folder. The benchmark writes `data\logs\bench.txt` and prints PASS or FAIL against budgets (see [PERFORMANCE.md](PERFORMANCE.md)). `--shots <dir>` and `--installer-shots <dir>` render the screenshots; `scripts/refresh-visuals.ps1` runs them with generated demo media. `KINOZ_TEST_FULLSCREEN` and `KINOZ_TEST_HIRES` exist for the two tests that touch the real display or stress the GPU, and are off by default.
 
 ## Things that bit us
 

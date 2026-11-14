@@ -14,7 +14,7 @@ permissions:
 
 env:
   QT_VERSION: 6.8.3
-  APP_VERSION: 0.3.1
+  APP_VERSION: 0.3.2
   MPV_TAG: '20261111'
   MPV_ASSET: mpv-dev-x86_64-20261111-git-bcde6b93cc.7z
   MPV_SHA256: 273c079b11ea5575822f972756f4c9a71149a5c10130353abeb8586738938452
@@ -170,6 +170,36 @@ jobs:
         with:
           name: linux-${{ matrix.arch }}
           path: dist/out/*
+
+  # Builds with AddressSanitizer + UBSan and runs the self-test headless. Informational: it never blocks a release, and it
+  # does not run for tags. It exists to catch memory errors the normal builds would not show.
+  sanitize:
+    if: github.ref_type != 'tag'
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: linux_gcc_64
+          cache: true
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmpv-dev libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0 pkg-config ninja-build ffmpeg xvfb libgl1-mesa-dri
+      - name: Build with sanitizers
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DKINOZ_SANITIZE=ON
+          cmake --build build
+      - name: Self-test under the sanitizers (informational)
+        continue-on-error: true
+        run: |
+          ffmpeg -loglevel error -f lavfi -i testsrc2=size=640x360:rate=30 -f lavfi -i sine=frequency=440 -t 8 -pix_fmt yuv420p -c:v libx264 -c:a aac clip.mp4
+          export ASAN_OPTIONS=detect_leaks=0:abort_on_error=0 UBSAN_OPTIONS=print_stacktrace=1
+          LIBGL_ALWAYS_SOFTWARE=1 KINOZ_SILENT=1 KINOZ_DATA_DIR="$RUNNER_TEMP/kdata" timeout 420 xvfb-run -a dist/app/kinoz --selftest clip.mp4 > "$RUNNER_TEMP/san.txt" 2>&1 || true
+          grep -n -E "ERROR: AddressSanitizer|runtime error:" "$RUNNER_TEMP/san.txt" | head -40 || true
+          echo "--- self-test result ---"; tail -5 "$RUNNER_TEMP/kdata/logs/selftest.txt" 2>/dev/null || true
 
   # A release must carry fresh screenshots (docs/RELEASING.md): fail the tag if the images and the hero were not
   # updated since the previous release, so this step can never be forgotten.

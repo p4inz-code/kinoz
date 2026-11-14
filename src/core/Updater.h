@@ -92,6 +92,10 @@ private:
     void stage();
     static void discardStaged();
     static bool urlAllowed(const QUrl& u);
+public:
+    static bool redirectAllowed(const QUrl& u);                 // a redirect may only lead to https on github.com or githubusercontent.com
+private:
+    void guard(QNetworkReply* r);                               // abort the request if it is sent anywhere else
     static bool launchApply(const QString& file);               // platform specific: hand over to the new version
     QNetworkAccessManager* net();
 

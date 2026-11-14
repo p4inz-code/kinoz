@@ -19,6 +19,7 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSaveFile>
+#include <QSslConfiguration>
 #include <QStorageInfo>
 #include <QSysInfo>
 #include <QTimer>
@@ -30,7 +31,10 @@ Updater::Updater(JsonStore* settings, QObject* parent) : QObject(parent), m_set(
 QNetworkAccessManager* Updater::net() {
     if (!m_net) {
         m_net = new QNetworkAccessManager(this);
-        m_net->setRedirectPolicy(QNetworkRequest::NoLessSafeRedirectPolicy);
+        m_net->setRedirectPolicy(QNetworkRequest::NoLessSafeRedirectPolicy);     // https never falls back to http; guard() also keeps every hop on GitHub
+        QSslConfiguration ssl = QSslConfiguration::defaultConfiguration();
+        ssl.setProtocol(QSsl::TlsV1_2OrLater);
+        QSslConfiguration::setDefaultConfiguration(ssl);
     }
     return m_net;
 }
@@ -59,6 +63,19 @@ bool Updater::isNewer(const QString& a, const QString& b) {
 bool Updater::urlAllowed(const QUrl& u) {
     const QString prefix = QStringLiteral("/%1/releases/").arg(QString::fromLatin1(kRepo));
     return u.scheme() == "https" && u.host() == "github.com" && u.path().startsWith(prefix);
+}
+
+bool Updater::redirectAllowed(const QUrl& u) {
+    const QString h = u.host().toLower();
+    const bool ok = h == QLatin1String("github.com") || h == QLatin1String("api.github.com") || h.endsWith(QLatin1String(".github.com")) || h == QLatin1String("githubusercontent.com") || h.endsWith(QLatin1String(".githubusercontent.com"));
+    return u.scheme() == QLatin1String("https") && ok && u.userInfo().isEmpty() && (u.port() == -1 || u.port() == 443);
+}
+
+// Every request the updater makes: TLS 1.2 or newer, and a redirect to anywhere but GitHub is cut off (the checksum is checked anyway; this keeps the request itself on GitHub).
+void Updater::guard(QNetworkReply* r) {
+    connect(r, &QNetworkReply::redirected, r, [r](const QUrl& to) {
+        if (!redirectAllowed(to)) { Log::warn("updater", QStringLiteral("blocked a redirect to %1").arg(to.host())); r->abort(); }
+    });
 }
 
 bool Updater::isSkipped(JsonStore* settings, const QString& version) { return !version.isEmpty() && settings->str("skippedVersion") == version; }
@@ -258,6 +275,7 @@ void Updater::checkNow(bool manual) {
     req.setRawHeader("User-Agent", QByteArray("kinoz/") + APP_VERSION);
     req.setTransferTimeout(15000);
     m_reply = net()->get(req);
+    guard(m_reply);
     connect(m_reply, &QNetworkReply::finished, this, [this, r = m_reply] { onChecked(r); });
 }
 
@@ -377,6 +395,7 @@ void Updater::afterAssetChosen(const QString& shaUrl) {
         req.setRawHeader("User-Agent", QByteArray("kinoz/") + APP_VERSION);
         req.setTransferTimeout(15000);
         auto* rr = net()->get(req);
+        guard(rr);
         connect(rr, &QNetworkReply::finished, this, [this, rr] {
             rr->deleteLater();
             const QString txt = QString::fromUtf8(rr->readAll()).trimmed();
@@ -452,6 +471,7 @@ void Updater::startDownload() {
     if (m_resumeFrom > 0) req.setRawHeader("Range", "bytes=" + QByteArray::number(m_resumeFrom) + "-");
     req.setTransferTimeout(30000);
     m_reply = net()->get(req);
+    guard(m_reply);
     connect(m_reply, &QNetworkReply::readyRead, this, [this, r = m_reply] {
         if (!m_reply || !m_out) return;
         if (!m_statusChecked) {

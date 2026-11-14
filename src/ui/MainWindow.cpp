@@ -128,7 +128,7 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
     loadKeymap();
     wireController();
 
-    m_sidebarOpen = m_set->flag("sidebarOpen", true);
+    m_sidebarOpen = false;                                  // the library sidebar is closed every time kinoz starts (Tab or the top-left button opens it)
     m_sidebarW = qBound(260, int(m_set->num("sidebarW", 320)), 480);
     m_sideT = m_sidebarOpen ? 1.0 : 0.0;
     m_sideAnim.setEasingCurve(Theme::easeMac());
@@ -180,7 +180,10 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
         if (!m_pendingOpen.isEmpty()) { const auto p = m_pendingOpen; m_pendingOpen.clear(); m_ctl->open(p); }
     });
     connect(m_mpv, &MpvPlayer::initFailed, this, [this] { notify(tr("The playback engine failed to start. Check that libmpv-2.dll sits next to the app."), true); });
-    connect(m_mpv, &MpvPlayer::logLine, this, [](const QString& s) { qWarning().noquote() << "[mpv]" << s; });
+    connect(m_mpv, &MpvPlayer::logLine, this, [](const QString& s) {
+        if (s.contains(QLatin1String("UDTA parsing failed"))) return;      // a harmless FFmpeg note about an odd MP4 metadata box, repeated for every such file
+        qWarning().noquote() << "[mpv]" << s;
+    });
 
     // library index for the command palette
     connect(m_side, &Sidebar::placesChanged, this, [this] { m_index->rebuild(m_side->places()); });
@@ -978,7 +981,7 @@ QString MainWindow::diagnosticsText() const {
     L << QStringLiteral("Hardware decoding: ") + (m_set->flag("hwdec", true) ? QStringLiteral("on (%1)").arg(prop("hwdec-current").toString().isEmpty() ? QStringLiteral("not in use for this file") : prop("hwdec-current").toString()) : QStringLiteral("off"));
     if (m_ctl->hasMedia()) {
         L << "## Current media";
-        L << QStringLiteral("File: ") + QDir::toNativeSeparators(m_ctl->path());
+        L << QStringLiteral("File type: .") + QFileInfo(m_ctl->path()).suffix().toLower();      // never the name or folder: this text is meant to be pasted into a bug report
         const QVariantMap vp = prop("video-params").toMap();
         if (m_mpv->videoW() > 0) L << QStringLiteral("Picture: %1×%2, %3").arg(m_mpv->videoW()).arg(m_mpv->videoH()).arg(vp.value("pixelformat").toString());
         const QString vc = prop("video-codec").toString(), ac = prop("audio-codec-name").toString();
@@ -1567,6 +1570,14 @@ void MainWindow::runSelfTest() {
         if (ok) QDir(Paths::tmpDir() + QStringLiteral("/arttest")).removeRecursively();
         return ok;
     }, 900);
+    S("updater: a redirect may only lead to https on GitHub", [] {},
+      [] {
+          return Updater::redirectAllowed(QUrl("https://objects.githubusercontent.com/x/y")) && Updater::redirectAllowed(QUrl("https://github.com/p4inz-code/kinoz/releases/download/v1/a"))
+              && Updater::redirectAllowed(QUrl("https://release-assets.githubusercontent.com/z"))
+              && !Updater::redirectAllowed(QUrl("http://github.com/x")) && !Updater::redirectAllowed(QUrl("https://evil.example.com/github.com"))
+              && !Updater::redirectAllowed(QUrl("https://github.com.evil.example.com/x")) && !Updater::redirectAllowed(QUrl("https://notgithub.com/x"))
+              && !Updater::redirectAllowed(QUrl("https://user:pw@github.com/x")) && !Updater::redirectAllowed(QUrl("https://github.com:8443/x"));
+      }, 20);
     S("keymap file keeps only what changed", [] {},
       [] {
           const QHash<QString, QString> def{{"J", "skipback"}, {"L", "skipfwd"}, {"M", "mute"}};
@@ -1768,6 +1779,29 @@ void MainWindow::runSelfTest() {
     S("turning updates off discards a staged one", [this, stageFake] { stageFake(QStringLiteral("99.0.0"), false); m_updater->setMode(Updater::Off); }, [this, staged] { const bool ok = !staged() && m_updater->mode() == Updater::Off; m_updater->setMode(Updater::Automatic); return ok && m_updater->mode() == Updater::Automatic; }, 150);
 #endif
     S("rapid next x30", [this] { for (int i = 0; i < 30; ++i) m_ctl->next(); }, [this] { return m_ctl->hasMedia(); }, 1200);
+    S("garbage input never crashes the parsers (seeded random files and URLs)", [this] {
+        QRandomGenerator rng(20261114);                                       // fixed seed: the same inputs every run
+        const QString d = Paths::tmpDir() + QStringLiteral("/fuzz");
+        QDir(d).removeRecursively(); QDir().mkpath(d);
+        const QByteArray alphabet = QByteArray("{}[]\":,\n\r\t #=/.:-_%0aA\xff\x00\xc3\xa9", 26);
+        for (int i = 0; i < 400; ++i) {
+            QByteArray junk;
+            const int n = int(rng.bounded(1, 2000));
+            for (int k = 0; k < n; ++k) junk.append(rng.bounded(3) ? alphabet.at(int(rng.bounded(alphabet.size()))) : char(rng.bounded(256)));
+            const QString f = d + QLatin1String("/f.json");
+            { QFile w(f); w.open(QIODevice::WriteOnly | QIODevice::Truncate); w.write(junk); }
+            { JsonStore js(f); js.object(); }                                 // settings, resume points, marks: any bytes in a store file
+            { QFile w(d + QLatin1String("/p.m3u8")); w.open(QIODevice::WriteOnly | QIODevice::Truncate); w.write(junk); }
+            (void)Playlists::load(d + QLatin1String("/p.m3u8"));              // playlists
+            (void)Updater::tagFromLocation(QUrl(QString::fromUtf8(junk.left(120))));
+            (void)Updater::redirectAllowed(QUrl(QString::fromUtf8(junk.left(120))));
+            (void)Updater::isNewer(QString::fromUtf8(junk.left(30)), QStringLiteral("0.3.1"));
+            QHash<QString, QString> cur{{QString::fromUtf8(junk.left(10)), QString::fromUtf8(junk.mid(10, 10))}};
+            (void)SettingsPage::keymapOverrides(cur, cur);
+        }
+        QDir(d).removeRecursively();
+        m_selfOk = true;                                                      // reaching this line without a crash is the test
+    }, [this] { return m_selfOk; }, 50);
     S("gapless: two songs are queued, the first is playing", [this] {
         const QString d = Paths::tmpDir() + QStringLiteral("/gaptest");
         QDir(d).removeRecursively(); QDir().mkpath(d);

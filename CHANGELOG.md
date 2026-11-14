@@ -2,6 +2,12 @@
 
 All notable changes. Dates are release dates.
 
+## 0.3.2 — closed sidebar on start, a quieter engine log, security hardening
+- The library sidebar is closed every time kinoz starts. Tab (or the button at the top left) opens it.
+- The engine no longer logs a bogus "OpenGL error INVALID_ENUM" at start: it came from a flag Qt leaves set in a core-profile OpenGL context, not from a real problem. The harmless FFmpeg "UDTA parsing failed" note is no longer logged for every such file.
+- Hardening: more compiler and linker protections on every system (RELRO, stack clash protection, fortify, CET, DLL load flags), Windows refuses DLLs from network shares and ends the process on heap corruption, the single-instance channel is private to your user, the updater needs TLS 1.2 or newer and refuses redirects away from GitHub, and parsers are tested with random garbage. CI also builds with the memory sanitizers and runs the self-test under them.
+- The bug report template now asks for Copy diagnostics, which is the quickest way to help.
+
 ## 0.3.1 — album art, gapless songs, keyboard and screen-reader basics, more builds
 - Album art in the Music lists (artists, albums, songs) and the library: embedded covers, or folder.jpg / cover.jpg / front.png next to the songs, cached as small pictures.
 - Gapless songs: a song that follows another in the queue is handed to the engine ahead of time, so they run into each other without a pause. Settings → Playback → Gapless songs (on by default). Not used with shuffle, repeat-one or video.

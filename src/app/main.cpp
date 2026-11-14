@@ -71,6 +71,13 @@ int main(int argc, char** argv) {
 #ifdef Q_OS_WIN
     // Libraries are only ever loaded from kinoz's own folder and System32 (blocks "DLL planting" from the current directory or PATH).
     SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+    SetDllDirectoryW(L"");                                                       // and never the current directory
+    HeapSetInformation(nullptr, HeapEnableTerminationOnCorruption, nullptr, 0);  // a corrupted heap ends the process instead of being exploitable
+    {   // never load a DLL from a network share or a low-integrity location, and prefer System32 copies of system DLLs
+        PROCESS_MITIGATION_IMAGE_LOAD_POLICY ilp{};
+        ilp.NoRemoteImages = 1; ilp.NoLowMandatoryLabelImages = 1; ilp.PreferSystem32Images = 1;
+        SetProcessMitigationPolicy(ProcessImageLoadPolicy, &ilp, sizeof ilp);     // a refusal (older Windows) is fine
+    }
 #endif
     QSurfaceFormat fmt;
     fmt.setVersion(3, 3);
@@ -153,6 +160,7 @@ int main(int argc, char** argv) {
         }
     }
     QLocalServer server;
+    server.setSocketOptions(QLocalServer::UserAccessOption);     // only this user's processes can hand files to the running player
     QLocalServer::removeServer(pipeName());
     if (!stress) server.listen(pipeName());
 
