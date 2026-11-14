@@ -171,6 +171,19 @@ jobs:
           name: linux-${{ matrix.arch }}
           path: dist/out/*
 
+  # Cheap rules that protect the one promise users care about: updating never sends them to a web page.
+  guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: The updater never opens a web page
+        run: |
+          if grep -n -E "openUrl|QDesktopServices" src/core/Updater.cpp src/core/Updater.h; then
+            echo "::error::Updater code must never open a browser: updates happen inside the app (docs/MAINTAINING.md)."
+            exit 1
+          fi
+          echo "ok: no browser calls in the updater"
+
   # Builds with AddressSanitizer + UBSan and runs the self-test headless. Informational: it never blocks a release, and it
   # does not run for tags. It exists to catch memory errors the normal builds would not show.
   sanitize:
@@ -238,6 +251,22 @@ jobs:
           files: artifacts/*
           generate_release_notes: true
           body_path: .github/release-notes.md
+      # The in-app updater downloads these files and compares each with its .sha256. Download them back from the release
+      # (the way a user's kinoz does) and check that every file really matches its checksum file.
+      - name: Every published file matches its checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir verify && cd verify
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY"
+          bad=0
+          for s in *.sha256; do
+            f="${s%.sha256}"
+            want=$(tr -d '\r' < "$s" | awk '{print tolower($1)}')
+            got=$(sha256sum "$f" | awk '{print $1}')
+            if [ "$want" = "$got" ]; then echo "ok   $f"; else echo "::error::$f does not match $s ($got vs $want)"; bad=1; fi
+          done
+          exit $bad
       # The in-app updater looks for exactly these file names. Fail the release if any is missing.
       - name: Every file the updater needs is attached
         env:
