@@ -81,6 +81,14 @@ QString keyString(QKeyEvent* e) {
 }
 }
 
+static void writeSilentWav(const QString& path, int seconds) {          // 8 kHz, mono, 16 bit silence (tests only)
+    QByteArray pcm(8000 * 2 * seconds, '\0'), h;
+    auto le32 = [&h](quint32 v) { for (int i = 0; i < 4; ++i) h.append(char((v >> (8 * i)) & 0xff)); };
+    auto le16 = [&h](quint16 v) { h.append(char(v & 0xff)); h.append(char(v >> 8)); };
+    h.append("RIFF"); le32(36 + pcm.size()); h.append("WAVEfmt "); le32(16); le16(1); le16(1); le32(8000); le32(16000); le16(2); le16(16); h.append("data"); le32(pcm.size());
+    QFile w(path); w.open(QIODevice::WriteOnly | QIODevice::Truncate); w.write(h); w.write(pcm);
+}
+
 MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr, Qt::Window | Qt::FramelessWindowHint), m_set(settings), m_resume(resume) {
     setWindowTitle(QStringLiteral(APP_NAME));
     setAcceptDrops(true);
@@ -100,6 +108,7 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
     m_preview = new PreviewService(this);
     m_index = new LibraryIndex(this);
     m_updater = new Updater(m_set, this);
+    connect(m_updater, &Updater::aboutToRestart, this, [this] { saveHandoff(); });
     connect(m_updater, &Updater::updateFound, this, [this](const QString& v) { notify(tr("kinoz %1 is available. Settings → About to update.").arg(v)); });
     // A verified update is ready: ask to restart now or later. "Later" is safe: the update installs by itself the next time kinoz starts.
     connect(m_updater, &Updater::readyToInstall, this, [this](const QString& v, bool automatic) {
@@ -117,9 +126,12 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
         QTimer::singleShot(8000, this, [this] { m_updater->startBackground(); });
     {   // first start after an update: say so once
         const QString last = m_set->str("lastRunVersion");
+        m_handoff = Handoff::take(m_set, Updater::current(), QDateTime::currentSecsSinceEpoch());      // read once, then it is gone
+        const bool launchedWithFiles = QCoreApplication::arguments().size() > 1 && !QCoreApplication::arguments().value(1).startsWith('-');
+        if (launchedWithFiles) m_handoff = {};                                                          // the user asked for something else
         if (!last.isEmpty() && Updater::isNewer(Updater::current(), last)) {
             Log::info("app", QStringLiteral("updated from %1 to %2").arg(last, Updater::current()));
-            QTimer::singleShot(3500, this, [this] { notify(tr("kinoz was updated to version %1. What's new is under Settings → About → Release notes.").arg(Updater::current())); });
+            if (!m_handoff.valid()) QTimer::singleShot(3500, this, [this] { notify(tr("kinoz was updated to version %1. What's new is under Settings → About → Release notes.").arg(Updater::current())); });
         }
         m_set->set("lastRunVersion", Updater::current());
     }
@@ -178,6 +190,7 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
         m_muteRestored = true;
         refreshChrome();
         if (!m_pendingOpen.isEmpty()) { const auto p = m_pendingOpen; m_pendingOpen.clear(); m_ctl->open(p); }
+        else if (m_handoff.valid()) restoreHandoff();
     });
     connect(m_mpv, &MpvPlayer::initFailed, this, [this] { notify(tr("The playback engine failed to start. Check that libmpv-2.dll sits next to the app."), true); });
     connect(m_mpv, &MpvPlayer::logLine, this, [](const QString& s) {
@@ -1180,9 +1193,39 @@ void MainWindow::cleanIdentity(bool announce) {
     wipeLogs();
     m_set->remove("lastFolder");
     m_set->remove("muted");                                                       // a remembered mute is part of "what you did last time"
+    Handoff::erase(m_set);
     m_empty->setRecent({});
     m_side->update();
     if (announce) notify(tr("Clean identity done: history, marks, thumbnails, the music index and logs are gone"));
+}
+
+bool MainWindow::saveHandoff() {
+    if (m_set->flag("privateMode", false) || m_set->flag("forgetOnExit", false) || !m_ctl->hasMedia() || !m_mpv->isReady()) { Handoff::erase(m_set); m_set->flush(); return false; }
+    Handoff::Session s;
+    s.path = m_ctl->path();
+    const MediaKind k = m_ctl->kind();
+    s.pos = (k == MediaKind::Video || k == MediaKind::Audio) ? m_mpv->position() : 0.0;
+    s.paused = m_mpv->paused();
+    s.queue = m_ctl->queue()->stringList();
+    if (s.queue.size() > 300) { const int at = qMax(0, int(s.queue.indexOf(s.path)) - 150); s.queue = s.queue.mid(at, 300); }   // a window around the current file
+    s.version = m_updater->latest();
+    s.at = QDateTime::currentSecsSinceEpoch();
+    Handoff::write(m_set, s);
+    m_set->flush();                                                                // written to disk now: the process is about to end
+    Log::info("app", QStringLiteral("saved where you were for the update restart (%1 at %2 s)").arg(QFileInfo(s.path).suffix(), QString::number(s.pos, 'f', 0)));
+    return true;
+}
+
+void MainWindow::restoreHandoff() {
+    const Handoff::Session s = m_handoff;
+    m_handoff = {};
+    if (m_ctl->restoreSession(s.path, s.pos, s.paused, s.queue)) {
+        Log::info("app", QStringLiteral("back where you were after the update (%1 s)").arg(QString::number(s.pos, 'f', 0)));
+        notify(tr("Updated to version %1. Continuing where you were.").arg(Updater::current()));
+    } else {
+        Log::warn("app", QStringLiteral("the file from before the update is gone"));
+        notify(tr("kinoz was updated to version %1. The file you were watching isn't there any more.").arg(Updater::current()));
+    }
 }
 
 void MainWindow::privacyAction(const QString& id) {
@@ -1779,6 +1822,60 @@ void MainWindow::runSelfTest() {
     S("turning updates off discards a staged one", [this, stageFake] { stageFake(QStringLiteral("99.0.0"), false); m_updater->setMode(Updater::Off); }, [this, staged] { const bool ok = !staged() && m_updater->mode() == Updater::Off; m_updater->setMode(Updater::Automatic); return ok && m_updater->mode() == Updater::Automatic; }, 150);
 #endif
     S("rapid next x30", [this] { for (int i = 0; i < 30; ++i) m_ctl->next(); }, [this] { return m_ctl->hasMedia(); }, 1200);
+    // ---- update handoff: the open file comes back at the same second, playing or paused ----
+    S("handoff: record round trip, stale, wrong version, read once", [] {},
+      [this] {
+          const QString f = Paths::tmpDir() + QStringLiteral("/handoff-test.json");
+          QFile::remove(f);
+          JsonStore js(f);
+          const qint64 now = QDateTime::currentSecsSinceEpoch();
+          Handoff::Session s; s.path = QStringLiteral("C:/x/y.mp4"); s.pos = 12.5; s.paused = true; s.queue = {QStringLiteral("C:/x/y.mp4"), QStringLiteral("C:/x/z.mp4")}; s.version = QStringLiteral("9.9.9"); s.at = now;
+          Handoff::write(&js, s);
+          const Handoff::Session got = Handoff::take(&js, QStringLiteral("9.9.9"), now + 60);
+          bool ok = got.valid() && got.path == s.path && qAbs(got.pos - 12.5) < 0.01 && got.paused && got.queue.size() == 2;
+          ok = ok && !Handoff::take(&js, QStringLiteral("9.9.9"), now + 61).valid();                              // erased by the first read
+          Handoff::write(&js, s); ok = ok && !Handoff::take(&js, QStringLiteral("9.9.8"), now + 5).valid();         // another version
+          s.at = now - 3600; Handoff::write(&js, s); ok = ok && !Handoff::take(&js, QStringLiteral("9.9.9"), now).valid();   // too old
+          s.at = now + 900; Handoff::write(&js, s); ok = ok && !Handoff::take(&js, QStringLiteral("9.9.9"), now).valid();   // from the future
+          QFile::remove(f);
+          return ok;
+      }, 50);
+    S("handoff: privacy settings stop it from being written", [this] {
+        m_set->set("privateMode", true);
+        m_selfOk = !saveHandoff() && !m_set->has("afterUpdate");
+        m_set->set("privateMode", false); m_set->set("forgetOnExit", true);
+        m_selfOk = m_selfOk && !saveHandoff() && !m_set->has("afterUpdate");
+        m_set->set("forgetOnExit", false);
+    }, [this] { return m_selfOk; }, 50);
+    S("handoff: a song is open", [this] {
+        const QString d = Paths::tmpDir() + QStringLiteral("/hotest");
+        QDir(d).removeRecursively(); QDir().mkpath(d);
+        writeSilentWav(d + QStringLiteral("/a.wav"), 6); writeSilentWav(d + QStringLiteral("/b.wav"), 6);
+        m_ctl->setQueue({d + QStringLiteral("/a.wav"), d + QStringLiteral("/b.wav")}, d + QStringLiteral("/b.wav"));
+    }, [this] { return m_ctl->path().endsWith(QLatin1String("b.wav")) && m_ctl->settled(); }, 1300);
+    S("handoff: it is at second 3", [this] { m_mpv->seek(3.0, true); }, [this] { return m_mpv->position() >= 2.8; }, 700);
+    S("handoff: saved, then the player is stopped (as if it had quit)", [this] {
+        m_selfOk = saveHandoff();
+        QJsonObject o = m_set->get("afterUpdate").toObject(); o["version"] = Updater::current(); m_set->set("afterUpdate", o);   // as the installed version would
+        m_ctl->stop();
+    }, [this] { return m_selfOk && m_set->has("afterUpdate") && !m_ctl->hasMedia(); }, 400);
+    S("handoff: the new start puts it back at second 3, playing", [this] {
+        const Handoff::Session h = Handoff::take(m_set, Updater::current(), QDateTime::currentSecsSinceEpoch());
+        m_selfOk = h.valid() && m_ctl->restoreSession(h.path, h.pos, h.paused, h.queue);
+    }, [this] { return m_selfOk && m_ctl->path().endsWith(QLatin1String("b.wav")) && m_ctl->settled() && m_mpv->position() >= 2.6 && !m_mpv->paused() && !m_set->has("afterUpdate"); }, 1300);
+    S("handoff: paused at second 4", [this] { m_mpv->setPause(true); m_mpv->seek(4.0, true); }, [this] { return m_mpv->paused() && m_mpv->position() >= 3.8; }, 700);
+    S("handoff: saved while paused, then stopped", [this] {
+        m_selfOk = saveHandoff();
+        QJsonObject o = m_set->get("afterUpdate").toObject(); o["version"] = Updater::current(); m_set->set("afterUpdate", o);
+        m_ctl->stop();
+    }, [this] { return m_selfOk && !m_ctl->hasMedia(); }, 400);
+    S("handoff: the new start puts it back at second 4, still paused", [this] {
+        const Handoff::Session h = Handoff::take(m_set, Updater::current(), QDateTime::currentSecsSinceEpoch());
+        m_selfOk = h.valid() && h.paused && m_ctl->restoreSession(h.path, h.pos, h.paused, h.queue);
+    }, [this] { const bool ok = m_selfOk && m_ctl->path().endsWith(QLatin1String("b.wav")) && m_ctl->settled() && m_mpv->paused() && m_mpv->position() >= 3.6;
+                if (ok) { m_mpv->setPause(false); QDir(Paths::tmpDir() + QStringLiteral("/hotest")).removeRecursively(); }
+                return ok; }, 1300);
+    S("handoff: a missing file is refused, not opened", [] {}, [this] { return !m_ctl->restoreSession(Paths::tmpDir() + QStringLiteral("/hotest/gone.wav"), 5, false, {}); }, 50);
     S("garbage input never crashes the parsers (seeded random files and URLs)", [this] {
         QRandomGenerator rng(20261114);                                       // fixed seed: the same inputs every run
         const QString d = Paths::tmpDir() + QStringLiteral("/fuzz");

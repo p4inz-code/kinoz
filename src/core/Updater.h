@@ -78,6 +78,7 @@ signals:
     void progress(qint64 received, qint64 total);
     void updateFound(const QString& version);                   // automatic checks, when the user must act
     void readyToInstall(const QString& version, bool automatic); // downloaded and verified: ask "restart now / later"
+    void aboutToRestart(const QString& version);                 // just before the update starts and kinoz quits (the app saves where you were)
 
 private:
     void setState(State s, const QString& err = {}, const QString& info = {});

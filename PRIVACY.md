@@ -40,6 +40,8 @@ It runs at most once a day. **Settings → About → Updates** chooses what happ
 
 Downloaded updates are only installed if their SHA-256 checksum matches the one published with the release, and only when you press the button.
 
+When you press **Restart now** for an update, kinoz writes down for a few seconds which file was open, the second, whether it was paused and the queue, so the new version can bring you back to the same place. It is erased the moment the new version has read it (and ignored if it is older than 15 minutes). It is never written in Private mode or when "Clean identity when kinoz closes" is on.
+
 ## Third-party components
 The playback engine (libmpv/FFmpeg) is used offline for local files. If *you* open a network address, that component connects to it, as any player would.
 

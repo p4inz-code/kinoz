@@ -144,6 +144,19 @@ void PlayerController::buildQueueFromSiblings(const QString& path, quint64 gen) 
     w->setFuture(QtConcurrent::run([path, fam] { return listMedia(QFileInfo(path).absolutePath(), fam); }));
 }
 
+bool PlayerController::restoreSession(const QString& path, double pos, bool paused, const QStringList& queue) {
+    if (path.isEmpty() || !QFileInfo::exists(path) || Media::kindFor(path) == MediaKind::Unknown) return false;
+    QStringList q;
+    for (const QString& p : queue) if (Media::isMedia(p)) q << p;
+    if (!q.contains(path)) q.prepend(path);
+    m_queue.setStringList(q);
+    m_history.clear();
+    m_startOverride = pos > 1 ? pos : -1;
+    m_pauseOverride = paused;
+    load(path);
+    return true;
+}
+
 void PlayerController::playIndex(int i) {
     const QStringList l = m_queue.stringList();
     if (i >= 0 && i < l.size()) load(l[i]);
@@ -182,7 +195,9 @@ void PlayerController::load(const QString& path) {
     }
     // The UI updates at once; mpv is handed the file right away on a calm click, but during a burst of clicks
     // (skimming) only the last file is opened, so decoders never pile up behind the pointer.
-    m_pending = {path, start, m_kind == MediaKind::Gif, true};
+    if (m_startOverride >= 0) { start = m_startOverride; m_startOverride = -1; }
+    m_pending = {path, start, m_kind == MediaKind::Gif, true, m_pauseOverride};
+    m_pauseOverride = false;
     addRecent(path);
     emit pathChanged();
     if (!m_loadTimer.isActive() && (!m_sinceLoad.isValid() || m_sinceLoad.elapsed() > 150)) startLoad();
@@ -219,7 +234,7 @@ void PlayerController::startLoad() {
     m_sinceLoad.start();
     resetView();
     m_mpv->setProp("pause", false);
-    m_mpv->loadFile(p.path, p.start, p.gif);
+    m_mpv->loadFile(p.path, p.start, p.gif, p.paused);
 }
 
 int PlayerController::peekNext() const {

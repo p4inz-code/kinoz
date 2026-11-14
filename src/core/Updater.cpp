@@ -525,13 +525,14 @@ void Updater::onDownloaded() {
     stage();                                                         // survives a restart: applied at the next start if the user says "Later"
     Log::info("updater", QStringLiteral("version %1 downloaded and verified").arg(m_latest));
     m_set->set("updateLast", QStringLiteral("%1 downloaded and verified").arg(m_latest));
-    setState(Ready, {}, tr("Version %1 is downloaded and verified. It installs when you restart, or the next time you open kinoz.").arg(m_latest));
+    setState(Ready, {}, tr("Version %1 is downloaded and verified: SHA-256 %2…%3 matches the one published with the release. Restart to finish; kinoz brings you back to where you were.").arg(m_latest, m_sha.left(6), m_sha.right(6)));
     emit readyToInstall(m_latest, m_auto);
 }
 
 bool Updater::installAndQuit() {
     if (m_state != Ready) return false;
     Log::info("updater", QStringLiteral("restart requested to apply %1").arg(m_latest));
+    emit aboutToRestart(m_latest);                                   // synchronous: the app writes where you were before the process goes away
     if (!launchApply(m_file)) {
         Log::error("updater", QStringLiteral("couldn't start applying %1").arg(m_latest));
         setState(Failed, tr("Couldn't start the update. Try again."), {});

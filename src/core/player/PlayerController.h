@@ -28,6 +28,8 @@ public:
     bool settled() const { return !m_pending.has && m_mpvPath == m_path && m_fileLoaded; }   // the requested file is open in mpv
     int decodeMode() const;                              // 0 auto (fast start, GPU for big video), 1 always GPU, 2 CPU only
     void applyDecode();                                  // re-apply after the setting changes
+    // After an update restart: the file at that second, paused or playing, with its queue. False when the file is gone.
+    bool restoreSession(const QString& path, double pos, bool paused, const QStringList& queue);
     int gaplessSwitches() const { return m_gaplessSwitches; }   // songs that followed each other without a gap (tests)
     int loadCount() const { return m_loadCount; }        // how many files were really handed to mpv (tests: skip-spam coalescing)
     QString title() const;
@@ -135,7 +137,9 @@ private:
     QStringListModel m_queue;
     QString m_path;                         // what the user asked for (updates instantly, so the UI never waits)
     QString m_mpvPath;                      // what mpv actually has loaded (resume points belong to this one)
-    struct Pending { QString path; double start = -1; bool gif = false; bool has = false; } m_pending;
+    struct Pending { QString path; double start = -1; bool gif = false; bool has = false; bool paused = false; } m_pending;
+    double m_startOverride = -1;            // set by restoreSession: the next load starts here instead of at the resume point
+    bool m_pauseOverride = false;
     QString m_warmed;                       // last file whose head/tail we pre-read
     QString m_gaplessNext;                  // the song mpv has been given to play right after this one ("" = none)
     int m_gaplessSwitches = 0;

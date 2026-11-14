@@ -2,6 +2,11 @@
 
 All notable changes. Dates are release dates.
 
+## 0.3.3 — updating brings you back to where you were
+- After an update restart, kinoz opens the file you had open at the same second, playing or paused, with the same queue, and says "Updated to X. Continuing where you were." If the file is gone it tells you. This is only done when you press Restart now (not for an update applied at the next start), never in Private mode or with "Clean identity when kinoz closes" on, the note is erased as soon as it has been read, and Clean identity and `--wipe` remove it too.
+- The "downloaded and verified" message now shows a piece of the checksum (`a3f9c1…8e21`) so the check is visible.
+- Release safety: the release build downloads every published file back and checks it against its `.sha256`, and a CI rule keeps any browser call out of the updater.
+
 ## 0.3.2 — closed sidebar on start, a quieter engine log, security hardening
 - The library sidebar is closed every time kinoz starts. Tab (or the button at the top left) opens it.
 - The engine no longer logs a bogus "OpenGL error INVALID_ENUM" at start: it came from a flag Qt leaves set in a core-profile OpenGL context, not from a real problem. The harmless FFmpeg "UDTA parsing failed" note is no longer logged for every such file.

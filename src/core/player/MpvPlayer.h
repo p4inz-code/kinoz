@@ -26,7 +26,7 @@ public:
     void setProp(const char* name, const QString& v);
     void setPropInt(const char* name, qint64 v);
     QVariant getProp(const char* name) const;            // synchronous: use off hot paths only
-    void loadFile(const QString& path, double startSec = -1, bool loopFile = false);
+    void loadFile(const QString& path, double startSec = -1, bool loopFile = false, bool startPaused = false);
     void appendFile(const QString& path);
     void stopPlayback();
     void seek(double sec, bool exact);                   // coalesced: at most one seek in flight

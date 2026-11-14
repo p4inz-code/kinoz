@@ -253,13 +253,14 @@ QVariant MpvPlayer::getProp(const char* name) const {
     return v;
 }
 
-void MpvPlayer::loadFile(const QString& path, double startSec, bool loopFile) {
+void MpvPlayer::loadFile(const QString& path, double startSec, bool loopFile, bool startPaused) {
     if (!m_h) return;
     m_pos = 0; m_dur = 0; m_eof = false;
     m_seekPending = false;
     QStringList opts;
     if (startSec > 1) opts << QStringLiteral("start=%1").arg(startSec, 0, 'f', 2);
     opts << QStringLiteral("loop-file=%1").arg(loopFile ? "inf" : "no");
+    if (startPaused) opts << QStringLiteral("pause=yes");
     if (mpvLoadfileHasIndex(m_h)) command({QStringLiteral("loadfile"), path, QStringLiteral("replace"), QStringLiteral("-1"), opts.join(',')});
     else command({QStringLiteral("loadfile"), path, QStringLiteral("replace"), opts.join(',')});
 }

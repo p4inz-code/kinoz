@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
 #pragma once
+#include "core/SessionHandoff.h"
 #include "media/MediaKind.h"
 #include <QHash>
 #include <QTimer>
@@ -95,6 +96,8 @@ private:
     void openSettings();
     void privacyAction(const QString& id);
     void cleanIdentity(bool announce);
+    bool saveHandoff();                        // before an update restart: remember the open file, second and queue (false when privacy says no)
+    void restoreHandoff();                     // first start after an update: go back there
     void wipeLogs();
     void confirm(const QString& title, const QString& body, const QString& okText, std::function<void()> onOk, bool danger = true, const QString& cancelText = {});
     void promptText(const QString& title, const QString& label, const QString& text, const QString& okText, std::function<void(const QString&)> onOk);
@@ -120,6 +123,7 @@ private:
     void setTopmost(bool on);
 
     QStringList m_pendingOpen;
+    Handoff::Session m_handoff;                // what the previous version was doing when it restarted for an update
     QRect m_normalGeo;
     JsonStore* m_set;
     JsonStore* m_resume;
