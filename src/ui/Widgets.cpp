@@ -3,6 +3,7 @@
 #include "ui/Widgets.h"
 #include "ui/HoverTip.h"
 #include "ui/Theme.h"
+#include <QAccessible>
 #include <QApplication>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -21,6 +22,20 @@ static void pressScale(QPainter& p, const QRectF& r, bool down, qreal s = 0.95) 
 
 static QColor withA(QColor c, qreal a) { c.setAlphaF(a); return c; }
 
+// Keyboard focus is shown only when it arrived by keyboard (Tab / Shift+Tab), never after a mouse click.
+static void noteFocus(QWidget* w, QFocusEvent* e, bool in) {
+    const bool kb = in && (e->reason() == Qt::TabFocusReason || e->reason() == Qt::BacktabFocusReason || e->reason() == Qt::ShortcutFocusReason);
+    w->setProperty("kbFocus", kb);
+    w->update();
+}
+static void focusRing(QPainter& p, const QWidget* w, const QRectF& r, qreal radius) {
+    if (!w->property("kbFocus").toBool()) return;
+    p.save();
+    p.setBrush(Qt::NoBrush); p.setPen(QPen(pal().accent, 2));
+    p.drawRoundedRect(r.adjusted(-1, -1, 1, 1), radius, radius);
+    p.restore();
+}
+
 // ================= IconButton =================
 IconButton::IconButton(Icon ic, QWidget* parent, int size) : QAbstractButton(parent), m_icon(ic), m_size(size) {
     setCursor(Qt::PointingHandCursor);
@@ -33,6 +48,7 @@ IconButton::IconButton(Icon ic, QWidget* parent, int size) : QAbstractButton(par
 }
 bool IconButton::event(QEvent* e) {
     if (e->type() == QEvent::ToolTip) return true;                              // the themed label (HoverTip) replaces Qt's own tooltip
+    if (e->type() == QEvent::ToolTipChange) setAccessibleName(toolTip().section('\t', 0, 0));   // screen readers get "Mute", not an unnamed button
     return QAbstractButton::event(e);
 }
 void IconButton::enterEvent(QEnterEvent*) {
@@ -70,9 +86,15 @@ TextButton::TextButton(const QString& text, QWidget* parent, bool primary, bool 
     : QAbstractButton(parent), m_primary(primary), m_hasIcon(hasIcon), m_icon(ic) {
     setText(text);
     setCursor(Qt::PointingHandCursor);
-    setFocusPolicy(Qt::NoFocus);
+    setFocusPolicy(Qt::TabFocus);
     connect(&Theme::i(), &Theme::changed, this, qOverload<>(&QWidget::update));
 }
+void TextButton::keyPressEvent(QKeyEvent* e) {
+    if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) { click(); e->accept(); return; }
+    QAbstractButton::keyPressEvent(e);
+}
+void TextButton::focusInEvent(QFocusEvent* e) { QAbstractButton::focusInEvent(e); noteFocus(this, e, true); }
+void TextButton::focusOutEvent(QFocusEvent* e) { QAbstractButton::focusOutEvent(e); noteFocus(this, e, false); }
 QSize TextButton::sizeHint() const {
     QFontMetrics fm(Theme::i().font(14, QFont::DemiBold));
     return {fm.horizontalAdvance(text()) + 32 + (m_hasIcon ? 24 : 0), 36};
@@ -94,6 +116,8 @@ void TextButton::paintEvent(QPaintEvent*) {
     QRectF tr = r;
     if (m_hasIcon) { drawIcon(&p, m_icon, QRectF(r.left() + 12, r.center().y() - 9, 18, 18), fg, 1.8); tr.adjust(26, 0, 0, 0); }
     p.drawText(tr, Qt::AlignCenter, text());
+    p.setOpacity(1.0);
+    focusRing(p, this, r, 8);
 }
 
 // ================= Slider =================
@@ -145,6 +169,7 @@ void Slider::wheelEvent(QWheelEvent* e) {
 Switch::Switch(QWidget* parent) : QAbstractButton(parent) {
     setCheckable(true);
     setCursor(Qt::PointingHandCursor);
+    setFocusPolicy(Qt::TabFocus);
     setFixedSize(38, 22);
     m_anim.setEasingCurve(Theme::easeSpring());              // the knob overshoots a hair and settles
     m_anim.setDuration(Theme::i().animMs(260));
@@ -169,11 +194,19 @@ void Switch::paintEvent(QPaintEvent*) {
     const qreal stretch = running ? 2.5 * std::sin(qBound(0.0, tc, 1.0) * 3.14159265) : (isDown() ? 2.5 : 0.0);   // the knob stretches while it travels, like on macOS
     const qreal cx = 11 + 16 * t;
     p.drawRoundedRect(QRectF(cx - 7.5 - stretch / 2, 3.5, 15 + stretch, 15), 7.5, 7.5);
+    focusRing(p, this, QRectF(rect()).adjusted(1, 1, -1, -1), 11);
 }
+void Switch::keyPressEvent(QKeyEvent* e) {
+    if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) { click(); e->accept(); return; }      // Space already toggles
+    QAbstractButton::keyPressEvent(e);
+}
+void Switch::focusInEvent(QFocusEvent* e) { QAbstractButton::focusInEvent(e); noteFocus(this, e, true); }
+void Switch::focusOutEvent(QFocusEvent* e) { QAbstractButton::focusOutEvent(e); noteFocus(this, e, false); }
 
 // ================= Segmented =================
 Segmented::Segmented(const QStringList& labels, QWidget* parent) : QWidget(parent), m_labels(labels) {
     setCursor(Qt::PointingHandCursor);
+    setFocusPolicy(Qt::TabFocus);
     m_slide.setStartValue(0.0); m_slide.setEndValue(1.0); m_slide.setEasingCurve(Theme::easeMac());
     connect(&m_slide, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) { m_t = v.toReal(); update(); });
     connect(&Theme::i(), &Theme::changed, this, qOverload<>(&QWidget::update));
@@ -224,6 +257,19 @@ void Segmented::paintEvent(QPaintEvent*) {
         p.drawText(r, Qt::AlignCenter, m_labels[i]);
         x += w;
     }
+    focusRing(p, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 8);
+}
+void Segmented::focusInEvent(QFocusEvent* e) { QWidget::focusInEvent(e); noteFocus(this, e, true); }
+void Segmented::focusOutEvent(QFocusEvent* e) { QWidget::focusOutEvent(e); noteFocus(this, e, false); }
+void Segmented::keyPressEvent(QKeyEvent* e) {
+    int to = m_cur;
+    if (e->key() == Qt::Key_Left || e->key() == Qt::Key_Up) to = qMax(0, m_cur - 1);
+    else if (e->key() == Qt::Key_Right || e->key() == Qt::Key_Down) to = qMin(int(m_labels.size()) - 1, m_cur + 1);
+    else if (e->key() == Qt::Key_Home) to = 0;
+    else if (e->key() == Qt::Key_End) to = int(m_labels.size()) - 1;
+    else { QWidget::keyPressEvent(e); return; }
+    e->accept();
+    if (to != m_cur) { slideTo(to); emit currentChanged(to); }
 }
 void Segmented::mousePressEvent(QMouseEvent* e) {
     QFontMetrics fm(Theme::i().font(13, QFont::Medium));
@@ -236,7 +282,20 @@ void Segmented::mousePressEvent(QMouseEvent* e) {
 }
 
 // ================= Stepper =================
-void Stepper::change(int d) { const int n = qBound(m_min, m_v + d, m_max); if (n == m_v) return; m_v = n; update(); emit valueChanged(m_v); }
+void Stepper::change(int d) { const int n = qBound(m_min, m_v + d, m_max); if (n == m_v) return; m_v = n; setAccessibleDescription(QString::number(m_v) + QLatin1Char(' ') + m_suffix); update(); emit valueChanged(m_v); }
+void Stepper::focusInEvent(QFocusEvent* e) { QWidget::focusInEvent(e); noteFocus(this, e, true); }
+void Stepper::focusOutEvent(QFocusEvent* e) { QWidget::focusOutEvent(e); noteFocus(this, e, false); }
+void Stepper::keyPressEvent(QKeyEvent* e) {
+    const int big = (e->modifiers() & Qt::ShiftModifier) ? 5 : 1;
+    switch (e->key()) {
+    case Qt::Key_Left: case Qt::Key_Down: change(-big); break;
+    case Qt::Key_Right: case Qt::Key_Up: change(big); break;
+    case Qt::Key_PageDown: change(-10); break;
+    case Qt::Key_PageUp: change(10); break;
+    default: QWidget::keyPressEvent(e); return;
+    }
+    e->accept();
+}
 void Stepper::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
@@ -247,6 +306,7 @@ void Stepper::paintEvent(QPaintEvent*) {
     p.drawText(QRectF(width() - 36, 0, 36, height()), Qt::AlignCenter, QStringLiteral("+"));
     p.setFont(Theme::i().font(13, QFont::Medium)); p.setPen(c.text);
     p.drawText(QRectF(36, 0, width() - 72, height()), Qt::AlignCenter, QString::number(m_v) + QLatin1Char(' ') + m_suffix);
+    focusRing(p, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 8);
 }
 void Stepper::mousePressEvent(QMouseEvent* e) {
     const int big = (e->modifiers() & Qt::ShiftModifier) ? 5 : 1;
@@ -385,7 +445,9 @@ void Toast::show(const QString& text, int ms, bool error) {
     const int w = qMin(parentWidget()->width() - 40, fm.horizontalAdvance(text) + 44);
     resize(w, 40);
     move((parentWidget()->width() - w) / 2, parentWidget()->height() - 150);
+    setAccessibleName(text);
     raise(); QWidget::show();
+    if (QAccessible::isActive()) { QAccessibleEvent ev(this, QAccessible::Alert); QAccessible::updateAccessibility(&ev); }   // read it out
     m_anim.stop(); m_anim.setDuration(Theme::i().animMs(180));
     if (m_anim.duration() == 0) { m_op = 1; update(); } else { m_anim.setStartValue(m_op); m_anim.setEndValue(1.0); m_anim.start(); }
     m_timer->start(ms);

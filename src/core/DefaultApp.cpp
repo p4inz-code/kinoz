@@ -12,8 +12,10 @@
 #include <QDesktopServices>
 #include <QObject>
 #include <QProcess>
+#include <QSaveFile>
 #include <QUrl>
 
+#include "core/Log.h"
 #include "installer/Installer.h"
 
 namespace DefaultApp {
@@ -40,8 +42,8 @@ Result apply() {
         const QString icons = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/icons/hicolor/256x256/apps");
         QDir().mkpath(apps); QDir().mkpath(icons);
         QGuiApplication::windowIcon().pixmap(256, 256).save(icons + QStringLiteral("/kinoz.png"), "PNG");
-        QFile f(apps + QStringLiteral("/kinoz.desktop"));
-        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        QSaveFile f(apps + QStringLiteral("/kinoz.desktop"));          // all or nothing: never a half-written launcher entry
+        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QString exec = QString::fromLocal8Bit(appImage);
             exec.replace(QLatin1Char('\\'), QStringLiteral("\\\\")).replace(QLatin1Char('"'), QStringLiteral("\\\"")).replace(QLatin1Char('%'), QStringLiteral("%%"));
             const QString body = QStringLiteral("[Desktop Entry]\nType=Application\nName=kinoz\nGenericName=Media player\n"
@@ -49,13 +51,15 @@ Result apply() {
                                                 "Exec=\"") + exec + QStringLiteral("\" %F\nIcon=kinoz\nTerminal=false\nStartupWMClass=kinoz\n"
                                                 "Categories=AudioVideo;Audio;Video;Player;\nMimeType=") + types.join(QLatin1Char(';')) + QStringLiteral(";\n");
             f.write(body.toUtf8());
-            f.close();
-        }
+            if (!f.commit()) Log::warn("default-app", QStringLiteral("couldn't save the launcher entry: %1").arg(f.errorString()));
+        } else Log::warn("default-app", QStringLiteral("can't write the launcher entry: %1").arg(f.errorString()));
         QProcess::execute(QStringLiteral("update-desktop-database"), {apps});      // harmless if the tool is missing
     }
     QStringList args = {QStringLiteral("default"), QStringLiteral("kinoz.desktop")};
     args << types;
-    if (QProcess::execute(QStringLiteral("xdg-mime"), args) == 0) return {true, QObject::tr("kinoz is now your default player.")};
+    const int rc = QProcess::execute(QStringLiteral("xdg-mime"), args);
+    Log::info("default-app", QStringLiteral("xdg-mime finished with code %1").arg(rc));
+    if (rc == 0) return {true, QObject::tr("kinoz is now your default player.")};
     return {false, QObject::tr("Couldn't set it. Use your desktop's Default Applications settings.")};
 #else
     return {false, QObject::tr("Select a video in Finder, press Cmd+I, set “Open with” to kinoz, then click Change All.")};

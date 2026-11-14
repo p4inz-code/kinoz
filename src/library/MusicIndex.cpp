@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
 #include "library/MusicIndex.h"
+#include "core/Log.h"
 #include "core/Paths.h"
 #include "media/MediaKind.h"
 #include <QDateTime>
@@ -148,7 +149,7 @@ void MusicIndex::run(quint64 gen, QStringList roots) {
     QHash<QString, Track> cache;
     {
         QFile f(cachePath());
-        if (f.open(QIODevice::ReadOnly)) {
+        if (f.open(QIODevice::ReadOnly) && f.size() < 400ll * 1024 * 1024) {                 // a bigger cache file is junk: rescan instead
             const QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
             for (auto it = o.begin(); it != o.end(); ++it) {
                 const QJsonArray a = it.value().toArray();
@@ -180,6 +181,7 @@ void MusicIndex::run(quint64 gen, QStringList roots) {
     }
     files.removeDuplicates();
     m_total = int(files.size());
+    Log::info("music", QStringLiteral("scan found %1 audio files in %2 place(s)%3").arg(files.size()).arg(roots.size()).arg(files.size() >= 40000 ? QStringLiteral(" (stopped at the 40000 limit)") : QString()));
 
     // 3. known files appear immediately; the rest are read one by one
     QVector<Track> result;
@@ -197,7 +199,7 @@ void MusicIndex::run(quint64 gen, QStringList roots) {
         QJsonObject o;
         for (const Track& t : result) o.insert(t.path, QJsonArray{double(t.mtime), double(t.size), t.title, t.artist, t.album, t.albumArtist, t.track, t.disc, t.year, t.dur});
         QSaveFile f(cachePath());
-        if (f.open(QIODevice::WriteOnly)) { f.write(QJsonDocument(o).toJson(QJsonDocument::Compact)); f.commit(); }
+        if (!f.open(QIODevice::WriteOnly) || !(f.write(QJsonDocument(o).toJson(QJsonDocument::Compact)) >= 0) || !f.commit()) Log::warn("music", QStringLiteral("couldn't save the music index: %1").arg(f.errorString()));
     };
 
     if (!todo.isEmpty()) {

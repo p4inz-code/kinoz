@@ -84,6 +84,7 @@ void MpvPlayer::initAsync(bool hwdec) {
         opt("scale", "spline36"); opt("cscale", "spline36"); opt("dscale", "mitchell");
         opt("correct-downscaling", "yes"); opt("linear-downscaling", "yes"); opt("sigmoid-upscaling", "yes");
         opt("vd-lavc-threads", "4"); opt("vd-lavc-dr", "yes");     // moderate thread count: smooth playback without pegging every core
+        opt("gapless-audio", "yes"); opt("prefetch-playlist", "yes");     // songs queued behind the current one start without a gap (older engines ignore the second)
         if (qEnvironmentVariableIsSet("KINOZ_SILENT")) opt("ao", "null");
         const QByteArray cache = Paths::cacheDir().toUtf8();
         opt("gpu-shader-cache-dir", cache.constData());

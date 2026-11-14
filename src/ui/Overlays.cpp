@@ -38,7 +38,10 @@ void RowList::setRows(const QVector<Row>& r, bool keepScroll) {
     }
     update();
 }
-void RowList::setCurrent(int i) { m_cur = i; ensureVisible(i); update(); }
+void RowList::setCurrent(int i) {
+    m_cur = i; ensureVisible(i); update();
+    if (i >= 0 && i < m_rows.size()) setAccessibleDescription(m_rows[i].title + (m_rows[i].hint.isEmpty() ? QString() : QStringLiteral(", ") + m_rows[i].hint));   // what a screen reader announces for the highlighted row
+}
 int RowList::contentHeight() const { int h = 0; for (const auto& r : m_rows) h += r.header ? 30 : m_rowH; return h; }
 void RowList::move(int dir) {
     if (m_rows.isEmpty()) return;
@@ -76,8 +79,17 @@ void RowList::paintEvent(QPaintEvent*) {
             if (r.header) { p.setPen(c.muted); p.setFont(Theme::i().font(11, QFont::DemiBold)); p.drawText(rc.adjusted(8, 8, 0, 0), Qt::AlignLeft | Qt::AlignVCenter, r.title.toUpper()); }
             else {
                 if (i == m_cur || i == m_hover) { p.setPen(Qt::NoPen); p.setBrush(i == m_cur ? c.accentSubtle : c.surface); p.drawRoundedRect(rc, 8, 8); }
-                if (m_icons) drawIcon(&p, r.icon, QRectF(rc.left() + 12, rc.center().y() - 10, 20, 20), i == m_cur ? c.accent : c.muted, 1.6);
-                const qreal tx0 = m_icons ? 44 : 12;
+                QPixmap art;
+                if (m_art && !r.data.isEmpty()) art = m_art(r.data);
+                if (!art.isNull()) {                                                              // cover art, centre-cropped to a rounded square
+                    const QRectF box(rc.left() + 8, rc.center().y() - 18, 36, 36);
+                    const qreal side = qMin(art.width(), art.height());
+                    QPainterPath clip; clip.addRoundedRect(box, 6, 6);
+                    p.save(); p.setClipPath(clip);
+                    p.drawPixmap(box, art, QRectF((art.width() - side) / 2, (art.height() - side) / 2, side, side));
+                    p.restore();
+                } else if (m_icons) drawIcon(&p, r.icon, QRectF(rc.left() + 12, rc.center().y() - 10, 20, 20), i == m_cur ? c.accent : c.muted, 1.6);
+                const qreal tx0 = !art.isNull() ? 56 : m_icons ? 44 : 12;
                 p.setPen(c.text); p.setFont(Theme::i().font(14, QFont::Medium));
                 const qreal hw = r.hint.isEmpty() ? 0 : qMin<qreal>(rc.width() * 0.55, QFontMetrics(Theme::i().font(12)).horizontalAdvance(r.hint) + 28);
                 const qreal tw = rc.width() - tx0 - 12 - hw;

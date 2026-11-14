@@ -13,6 +13,7 @@
 
 ControlBar::ControlBar(QWidget* parent) : QWidget(parent) {
     setMouseTracking(true);
+    setAccessibleName(tr("Playback controls"));
     setAttribute(Qt::WA_TranslucentBackground);
     m_anim.setEasingCurve(QEasingCurve::OutCubic);
     connect(&m_anim, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) {
@@ -44,7 +45,18 @@ QString ControlBar::fmt(double s) {
              : QStringLiteral("%1:%2").arg(m).arg(sec, 2, 10, QLatin1Char('0'));
 }
 
-void ControlBar::setState(const State& s) { m_s = s; relayout(); update(); }
+void ControlBar::setState(const State& s) {
+    m_s = s; relayout(); update();
+    // A screen reader reads this one line for the whole painted bar; every control also has its keyboard shortcut.
+    QStringList d;
+    d << (s.playing ? tr("Playing") : tr("Paused"));
+    if (s.dur > 0) d << tr("%1 of %2").arg(fmt(s.pos), fmt(s.dur));
+    d << (s.muted ? tr("muted") : tr("volume %1 percent").arg(int(s.volume)));
+    if (s.speed != 1.0) d << tr("speed %1").arg(s.speed, 0, 'g', 3);
+    if (s.shuffle) d << tr("shuffle on");
+    if (s.repeat) d << (s.repeat == 2 ? tr("repeat one") : tr("repeat all"));
+    setAccessibleDescription(d.join(QStringLiteral(", ")));
+}
 void ControlBar::setPosition(double pos, double dur) { m_s.pos = pos; m_s.dur = dur; if (!m_scrub && isVisible()) update(); }
 
 void ControlBar::relayout() {

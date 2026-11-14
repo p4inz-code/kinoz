@@ -77,6 +77,7 @@ private:
     void togglePin();
     void setSidebarOpen(bool open, bool animate = true, bool automatic = false);
     bool m_selfOk = false;                     // self-test scratch
+    int m_selfLoads = 0;
     double m_selfPos = 0;                      // self-test scratch
     QString m_selfPath;                        // self-test scratch
     bool m_muteRestored = false;               // the saved mute state has been applied; from here on changes are remembered

@@ -20,6 +20,7 @@
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QStorageInfo>
+#include <QSysInfo>
 #include <QTimer>
 
 static const char* kRepo = "p4inz-code/kinoz";
@@ -73,13 +74,14 @@ bool Updater::shouldRetryDownload(int http, int networkError, int tries) {
     return (http == 0 && networkError != int(QNetworkReply::OperationCanceledError)) || http >= 500;
 }
 
+// The release file for this system: Windows setup, Apple Silicon or Intel dmg, x86_64 or ARM AppImage (by the CPU kinoz was built for).
 QString Updater::assetNameFor(const QString& v) {
 #ifdef Q_OS_WIN
     return QStringLiteral("kinoz-Setup-%1.exe").arg(v);
 #elif defined(Q_OS_MACOS)
-    return QStringLiteral("kinoz-%1-macos.dmg").arg(v);
+    return QStringLiteral("kinoz-%1-%2.dmg").arg(v, QSysInfo::buildCpuArchitecture() == QLatin1String("arm64") ? QStringLiteral("macos") : QStringLiteral("macos-intel"));
 #else
-    return QStringLiteral("kinoz-%1-x86_64.AppImage").arg(v);
+    return QStringLiteral("kinoz-%1-%2.AppImage").arg(v, QSysInfo::buildCpuArchitecture() == QLatin1String("arm64") ? QStringLiteral("aarch64") : QStringLiteral("x86_64"));
 #endif
 }
 
@@ -337,18 +339,12 @@ void Updater::onChecked(QNetworkReply* r) {
     m_notes = o.value("body").toString();
     m_page = QUrl(o.value("html_url").toString());
     m_assetUrl = QUrl(); m_assetName.clear(); m_sha.clear(); m_assetSize = 0;
-#ifdef Q_OS_WIN
-    static const QRegularExpression pat("^kinoz-Setup-.*\\.exe$");
-#elif defined(Q_OS_MACOS)
-    static const QRegularExpression pat("^kinoz-.*\\.dmg$");
-#else
-    static const QRegularExpression pat("^kinoz-.*\\.AppImage$");
-#endif
+    const QString want = assetNameFor(tag);                  // exactly the file for this system and version (Intel and ARM builds have their own names)
     QString shaUrl;
     for (const auto& v : o.value("assets").toArray()) {
         const QJsonObject a = v.toObject();
         const QString name = a.value("name").toString();
-        if (pat.match(name).hasMatch()) {
+        if (name == want) {
             m_assetName = name; m_assetUrl = QUrl(a.value("browser_download_url").toString());
             m_assetSize = qint64(a.value("size").toDouble());
             const QString dg = a.value("digest").toString();

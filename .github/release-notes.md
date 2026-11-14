@@ -4,11 +4,13 @@ Pick the one for your system. You only need one.
 
 - **Windows 10 or 11:** `kinoz-Setup-<version>.exe`. Run it. It installs for your user only, needs no administrator rights, and offers a drive other than `C:`.
 - **Mac with Apple Silicon (M1 and later):** `kinoz-<version>-macos.dmg`. Open it and drag kinoz to Applications.
+- **Mac with an Intel processor:** `kinoz-<version>-macos-intel.dmg` (new, built by CI and never run on a real Intel Mac yet; it is attached only when its build succeeded).
 - **Linux, 64-bit Intel or AMD:** `kinoz-<version>-x86_64.AppImage`. Make it executable (`chmod +x`), then run it. No install needed.
+- **Linux on ARM (Raspberry Pi 5, ARM laptops):** `kinoz-<version>-aarch64.AppImage` (new, built by CI and never run on real ARM hardware yet; attached only when its build succeeded).
 
 The `.sha256` files are checksums, not programs. You can ignore them unless you want to check your download: the in-app updater uses them, and so can you (`sha256sum <file>` on Linux, `shasum -a 256 <file>` on a Mac, `Get-FileHash <file>` in PowerShell).
 
-Intel Macs, ARM Linux and 32-bit systems don't have a build yet.
+32-bit systems don't have a build.
 
 ## Good to know
 

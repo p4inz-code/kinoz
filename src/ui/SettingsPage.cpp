@@ -54,8 +54,10 @@ static QColor swatchColor(int i) { return Theme::accentSample(i, pal().dark); }
 SettingsPage::SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, Updater* updater, const QString& diagnostics, QWidget* parent)
     : QWidget(parent), m_set(set), m_up(updater), m_keys(keys), m_diag(diagnostics) {
     setFocusPolicy(Qt::StrongFocus);
+    setAccessibleName(tr("Settings"));
     m_tabs = new Segmented({tr("General"), tr("Playback"), tr("Privacy"), tr("Shortcuts"), tr("Info"), tr("About"), tr("Legal")}, this);
     m_close = new IconButton(Icon::Close, this, 32);
+    m_close->setFocusPolicy(Qt::TabFocus);
     m_close->setToolTip(tr("Close\tEsc"));
     connect(m_close, &QAbstractButton::clicked, this, &SettingsPage::closeRequested);
     connect(m_tabs, &Segmented::currentChanged, this, [this](int i) { showPage(i); });
@@ -86,12 +88,15 @@ SettingsPage::SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, 
     addSwitch(Playback, "resume", true, tr("Resume where you left off"), tr("Continue each video or track from its last position"));
     addSwitch(Playback, "autoplayNext", true, tr("Play next automatically"), tr("Move on to the next item when one ends"));
     addSwitch(Playback, "siblings", true, tr("Queue the whole folder"), tr("Opening one file lines up the others beside it"));
+    addSwitch(Playback, "gapless", true, tr("Gapless songs"), tr("Songs follow each other without a pause"));
     addSwitch(Playback, "rememberMute", true, tr("Remember mute"), tr("Quit muted, start muted. Clean identity resets it"));
     addSwitch(Playback, "normalize", false, tr("Normalize loudness"), tr("Even out quiet and loud tracks"));
     addSeg(Playback, "defaultSpeed", {tr("0.75×"), tr("1×"), tr("1.25×"), tr("1.5×")}, {0.75, 1.0, 1.25, 1.5}, 1.0, tr("Starting speed"), tr("Speed used when a file starts"));
     {   // Skip step: the two skip buttons and J / L. 5, 10, 15 or any number you like.
         m_skipSeg = new Segmented({tr("5 s"), tr("10 s"), tr("15 s"), tr("Custom")}, this);
+        m_skipSeg->setAccessibleName(tr("Skip step"));
         m_skipStepper = new Stepper(1, 600, tr("s"), this);
+        m_skipStepper->setAccessibleName(tr("Custom skip step in seconds"));
         const int cur = qBound(1, int(m_set->num("skipStep", 10)), 600);
         m_skipStepper->setValue(cur);
         m_skipSeg->setCurrent(cur == 5 ? 0 : cur == 10 ? 1 : cur == 15 ? 2 : 3);
@@ -121,6 +126,8 @@ SettingsPage::SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, 
 
 void SettingsPage::addSwitch(Page p, const QString& key, bool def, const QString& title, const QString& desc) {
     auto* s = new Switch(this);
+    s->setAccessibleName(title);
+    s->setAccessibleDescription(desc);
     s->setChecked(m_set->flag(key, def));
     connect(s, &QAbstractButton::toggled, this, [this, key](bool on) { m_set->set(key, on); emit changed(key); });
     m_rows[p].push_back({key, title, desc, s});
@@ -128,6 +135,8 @@ void SettingsPage::addSwitch(Page p, const QString& key, bool def, const QString
 
 void SettingsPage::addSeg(Page p, const QString& key, const QStringList& labels, const QVector<double>& values, double def, const QString& title, const QString& desc) {
     auto* s = new Segmented(labels, this);
+    s->setAccessibleName(title);
+    s->setAccessibleDescription(desc);
     const double cur = m_set->num(key, def);
     int idx = 0; double best = 1e18;
     for (int i = 0; i < values.size(); ++i) if (qAbs(values[i] - cur) < best) { best = qAbs(values[i] - cur); idx = i; }
@@ -465,7 +474,7 @@ void SettingsPage::resizeEvent(QResizeEvent*) {
     m_close->move(width() - 16 - 32, 14);
     const int right = width() - 28;
     for (int pg = 0; pg < 3; ++pg) {
-        const int rh = pg == General ? 56 : pg == Playback ? 40 : 48;
+        const int rh = pg == General ? 56 : pg == Playback ? 38 : 48;
         int y = 118;
         for (const Row& r : m_rows[pg]) {
             if (r.w) { const QSize s = r.w->sizeHint(); r.w->setGeometry(right - s.width(), y + (rh - s.height()) / 2, s.width(), s.height());
@@ -512,11 +521,11 @@ void SettingsPage::paintEvent(QPaintEvent*) {
     p.setPen(c.border); p.drawLine(24, 104, width() - 24, 104);
 
     if (m_page == General || m_page == Playback || m_page == Privacy) {
-        const int rh = m_page == General ? 56 : m_page == Playback ? 40 : 48;
+        const int rh = m_page == General ? 56 : m_page == Playback ? 38 : 48;
         int y = 118;
         for (const Row& r : m_rows[m_page]) {
-            p.setPen(c.text); p.setFont(Theme::i().font(15, QFont::Medium)); p.drawText(QRectF(24, y + (rh == 56 ? 6 : rh == 40 ? 1 : 4), width() * 0.52, 22), Qt::AlignVCenter, r.title);
-            p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(QRectF(24, y + (rh == 56 ? 28 : rh == 40 ? 21 : 25), width() * 0.5, 18), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(r.desc, Qt::ElideRight, int(width() * 0.5)));
+            p.setPen(c.text); p.setFont(Theme::i().font(15, QFont::Medium)); p.drawText(QRectF(24, y + (rh == 56 ? 6 : rh <= 40 ? 0 : 4), width() * 0.52, 22), Qt::AlignVCenter, r.title);
+            p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(QRectF(24, y + (rh == 56 ? 28 : rh <= 40 ? 20 : 25), width() * 0.5, 18), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(r.desc, Qt::ElideRight, int(width() * 0.5)));
             y += rh;
         }
         if (m_page == Privacy) {

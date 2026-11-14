@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
 #include "thumbs/ThumbService.h"
+#include "core/Log.h"
 #include "core/Paths.h"
 #include "thumbs/FrameGrabber.h"
 #include <QCryptographicHash>
@@ -8,6 +9,7 @@
 #include <QFileInfo>
 #include <QImageReader>
 #include <QMetaObject>
+#include <QSaveFile>
 #include <QtConcurrent>
 #include <algorithm>
 
@@ -87,7 +89,25 @@ QImage ThumbService::make(const Job& j, FrameGrabber*& grabber) {
         if (!grabber) grabber = new FrameGrabber();
         if (grabber->ok() && grabber->open(j.path)) img = grabber->grab(-1, kThumb, kThumb);
     }
-    if (!img.isNull() && !m_private) img.save(cf, "JPG", 82);        // private mode: never written to disk
+    if (img.isNull() && j.kind == MediaKind::Audio) {                // no embedded cover: look for folder.jpg, cover.png, front.jpg ... beside the song
+        static const QStringList names{"folder", "cover", "front", "album", "albumart", "albumartsmall", "thumb"};
+        const QDir dir = QFileInfo(j.path).dir();
+        for (const QFileInfo& fi : dir.entryInfoList({QStringLiteral("*.jpg"), QStringLiteral("*.jpeg"), QStringLiteral("*.png")}, QDir::Files, QDir::Name)) {
+            if (!names.contains(fi.completeBaseName().toLower()) || fi.size() > 12ll * 1024 * 1024) continue;
+            QImageReader r(fi.absoluteFilePath());
+            r.setAutoTransform(true);
+            const QSize s = r.size();
+            if (s.isValid()) r.setScaledSize(s.scaled(kThumb, kThumb, Qt::KeepAspectRatio));
+            img = r.read();
+            if (!img.isNull()) break;
+        }
+    }
+    if (!img.isNull() && !m_private) {                               // private mode: never written to disk
+        QSaveFile out(cf);                                           // all or nothing: a half-written picture is never read back as a thumbnail
+        if (out.open(QIODevice::WriteOnly)) { if (img.save(&out, "JPG", 82)) out.commit(); else out.cancelWriting(); }
+        else if (!m_warnedWrite.exchange(true)) Log::warn("thumbs", QStringLiteral("can't write the thumbnail cache (%1); thumbnails are kept in memory only").arg(out.errorString()));
+    }
+    if (img.isNull() && m_failLogs.fetch_add(1) < 3) Log::warn("thumbs", QStringLiteral("no thumbnail for a .%1 file (unreadable or unsupported)").arg(suf));
     return img;
 }
 

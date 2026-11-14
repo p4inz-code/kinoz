@@ -28,6 +28,7 @@ public:
     bool settled() const { return !m_pending.has && m_mpvPath == m_path && m_fileLoaded; }   // the requested file is open in mpv
     int decodeMode() const;                              // 0 auto (fast start, GPU for big video), 1 always GPU, 2 CPU only
     void applyDecode();                                  // re-apply after the setting changes
+    int gaplessSwitches() const { return m_gaplessSwitches; }   // songs that followed each other without a gap (tests)
     int loadCount() const { return m_loadCount; }        // how many files were really handed to mpv (tests: skip-spam coalescing)
     QString title() const;
     QString artist() const;
@@ -57,7 +58,7 @@ public:
     void speedStep(int dir);
     void setVolume(double v);
     void volumeStep(int dir);
-    void setStopAfterCurrent(bool on) { m_stopAfterCurrent = on; }
+    void setStopAfterCurrent(bool on) { m_stopAfterCurrent = on; if (on) invalidateGapless(); }
     bool stopAfterCurrent() const { return m_stopAfterCurrent; }
     void toggleMute();
 
@@ -111,12 +112,16 @@ private slots:
     void onEnded(bool eof, bool err, const QString& reason);
     void onEof();
     void onFileLoaded();
+    void onFileStarted(const QString& path);
     void onPause(bool);
 
 private:
     void load(const QString& path);
     void startLoad();                       // really hands the pending file to mpv
     void warmNext();                        // reads the head/tail of the next file so it opens instantly
+    void armGapless();                      // songs: hand the next song to mpv now, so it follows the current one without a gap
+    void invalidateGapless();               // the queue or a mode changed: forget what was handed over
+    void advanceAfterEnd();                 // the normal "file ended, go on" step
     int peekNext() const;                   // next index without side effects (-1 when unknown / shuffle)
     void buildQueueFromSiblings(const QString& path, quint64 gen);
     void addRecent(const QString& p);
@@ -132,6 +137,8 @@ private:
     QString m_mpvPath;                      // what mpv actually has loaded (resume points belong to this one)
     struct Pending { QString path; double start = -1; bool gif = false; bool has = false; } m_pending;
     QString m_warmed;                       // last file whose head/tail we pre-read
+    QString m_gaplessNext;                  // the song mpv has been given to play right after this one ("" = none)
+    int m_gaplessSwitches = 0;
     int m_loadCount = 0;
     bool m_hwUp = false;                    // this file already switched to the GPU
     bool m_fileLoaded = false;              // mpv reported the current file as loaded

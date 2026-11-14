@@ -1200,7 +1200,7 @@ void MainWindow::privacyAction(const QString& id) {
 void MainWindow::openSettings() {
     auto* sh = new Sheet(this);
     auto* pg = new SettingsPage(m_set, m_keys, m_updater, diagnosticsText());
-    sh->setContent(pg, QSize(660, 650));
+    sh->setContent(pg, QSize(660, 680));
     connect(pg, &SettingsPage::closeRequested, sh, &Sheet::closeSheet);
     connect(pg, &SettingsPage::makeDefault, this, [this] { doAction("defaultplayer"); });
     connect(pg, &SettingsPage::changed, this, [this](const QString& key) { applySetting(key); });
@@ -1544,6 +1544,25 @@ void MainWindow::runSelfTest() {
         m_selfOk = false;
         for (const Doctor::Check& c : Doctor::runCore(Paths::tmpDir(), false, true, false)) if (c.name == QObject::tr("Playback engine")) m_selfOk = c.state == 0;
     }, [this] { return m_selfOk; }, 400);
+    S("a playlist file with junk loads only the real local files", [this] {
+        const QString f = Paths::tmpDir() + QStringLiteral("/junk.m3u8");
+        const QString real = m_ctl->path();
+        { QFile w(f); w.open(QIODevice::WriteOnly | QIODevice::Truncate);
+          const QByteArray r = real.toUtf8();
+          w.write(QByteArray("#EXTM3U\n") + r + "\n" + r + "\n");                                                   // the same file twice
+          w.write(QByteArray("\\\\attacker\\share\\evil.mp4\n//attacker/share/evil.mp4\nhttp://example.com/a.mp4\nfile:///nonexistent/nothing.mp3\n"));
+          w.write(QByteArray(200000, 'x')); }                                                                      // one absurdly long line
+        const QStringList got = Playlists::load(f);
+        m_selfOk = got.size() == 1 && got.first().compare(QDir::cleanPath(real), Qt::CaseInsensitive) == 0;
+        QFile::remove(f);
+    }, [this] { return m_selfOk; }, 50);
+    S("a song with no embedded cover shows the folder image beside it", [this] {
+        const QString d = Paths::tmpDir() + QStringLiteral("/arttest");
+        QDir(d).removeRecursively(); QDir().mkpath(d);
+        QImage img(64, 64, QImage::Format_RGB32); img.fill(QColor("#c2410c")); img.save(d + QStringLiteral("/folder.jpg"), "JPG");
+        { QFile w(d + QStringLiteral("/song.mp3")); w.open(QIODevice::WriteOnly); w.write("not really audio"); }
+        m_thumbs->get(d + QStringLiteral("/song.mp3"), MediaKind::Audio);
+    }, [this] { const bool ok = !m_thumbs->get(Paths::tmpDir() + QStringLiteral("/arttest/song.mp3"), MediaKind::Audio).isNull(); if (ok) QDir(Paths::tmpDir() + QStringLiteral("/arttest")).removeRecursively(); return ok; }, 700);
     S("keymap file keeps only what changed", [] {},
       [] {
           const QHash<QString, QString> def{{"J", "skipback"}, {"L", "skipfwd"}, {"M", "mute"}};
@@ -1745,6 +1764,21 @@ void MainWindow::runSelfTest() {
     S("turning updates off discards a staged one", [this, stageFake] { stageFake(QStringLiteral("99.0.0"), false); m_updater->setMode(Updater::Off); }, [this, staged] { const bool ok = !staged() && m_updater->mode() == Updater::Off; m_updater->setMode(Updater::Automatic); return ok && m_updater->mode() == Updater::Automatic; }, 150);
 #endif
     S("rapid next x30", [this] { for (int i = 0; i < 30; ++i) m_ctl->next(); }, [this] { return m_ctl->hasMedia(); }, 1200);
+    S("gapless: two songs are queued, the first is playing", [this] {
+        const QString d = Paths::tmpDir() + QStringLiteral("/gaptest");
+        QDir(d).removeRecursively(); QDir().mkpath(d);
+        for (const char* n : {"a.wav", "b.wav"}) {                                            // 3 s of silence each: 8 kHz, mono, 16 bit
+            QByteArray pcm(8000 * 2 * 3, '\0'), h;
+            auto le32 = [&h](quint32 v) { for (int i = 0; i < 4; ++i) h.append(char((v >> (8 * i)) & 0xff)); };
+            auto le16 = [&h](quint16 v) { h.append(char(v & 0xff)); h.append(char(v >> 8)); };
+            h.append("RIFF"); le32(36 + pcm.size()); h.append("WAVEfmt "); le32(16); le16(1); le16(1); le32(8000); le32(16000); le16(2); le16(16); h.append("data"); le32(pcm.size());
+            QFile w(d + QLatin1Char('/') + QLatin1String(n)); w.open(QIODevice::WriteOnly); w.write(h); w.write(pcm);
+        }
+        m_ctl->setQueue({d + QStringLiteral("/a.wav"), d + QStringLiteral("/b.wav")}, d + QStringLiteral("/a.wav"));
+        m_selfPos = m_ctl->gaplessSwitches(); m_selfLoads = m_ctl->loadCount();
+    }, [this] { return m_ctl->path().endsWith(QLatin1String("a.wav")) && m_ctl->settled(); }, 1200);
+    S("gapless: the second song takes over by itself, with no new load", [this] { m_selfLoads = m_ctl->loadCount(); m_mpv->seek(1.5, true); },
+      [this] { const bool ok = m_ctl->path().endsWith(QLatin1String("b.wav")) && m_ctl->gaplessSwitches() > int(m_selfPos) && m_ctl->loadCount() == m_selfLoads; if (ok) QDir(Paths::tmpDir() + QStringLiteral("/gaptest")).removeRecursively(); return ok; }, 3500);
     auto idx = std::make_shared<int>(0);
     auto fails = std::make_shared<int>(0);
     auto tick = std::make_shared<std::function<void()>>();

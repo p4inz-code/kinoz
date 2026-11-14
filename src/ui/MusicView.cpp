@@ -6,6 +6,7 @@
 #include "ui/Overlays.h"
 #include "ui/Theme.h"
 #include "ui/Widgets.h"
+#include "thumbs/ThumbService.h"
 #include <QCollator>
 #include <QDir>
 #include <QFileInfo>
@@ -30,7 +31,7 @@ bool trackLess(const MusicIndex::Track& a, const MusicIndex::Track& b) {
 }
 }
 
-MusicView::MusicView(PlayerController* ctl, MusicIndex* idx, QWidget* parent) : QWidget(parent), m_ctl(ctl), m_idx(idx) {
+MusicView::MusicView(PlayerController* ctl, MusicIndex* idx, ThumbService* thumbs, QWidget* parent) : QWidget(parent), m_ctl(ctl), m_idx(idx), m_thumbs(thumbs) {
     m_seg = new Segmented({tr("Artists"), tr("Albums"), tr("Songs"), tr("Playlists")}, this);
     m_back = new IconButton(Icon::ChevronLeft, this, 30);
     m_list = new RowList(this);
@@ -43,6 +44,17 @@ MusicView::MusicView(PlayerController* ctl, MusicIndex* idx, QWidget* parent) : 
     connect(m_idx, &MusicIndex::changed, this, [this] { if (isVisible() && m_seg->current() != 3 && !m_debounce.isActive()) m_debounce.start(); });   // scanning updates the lists as it goes
     connect(m_idx, &MusicIndex::scanningChanged, this, [this](bool) { update(); if (isVisible()) rebuild(true); });
     connect(&Theme::i(), &Theme::changed, this, qOverload<>(&QWidget::update));
+    if (m_thumbs) {                                                                      // cover art: embedded pictures, or folder.jpg / cover.jpg next to the songs
+        m_list->setArtProvider([this](const QString& d) {
+            QString path;
+            if (d.startsWith(QStringLiteral("t:"))) path = d.mid(2);
+            else path = m_artFor.value(d);
+            return path.isEmpty() ? QPixmap() : m_thumbs->get(path, MediaKind::Audio);
+        });
+        m_artTimer.setSingleShot(true); m_artTimer.setInterval(120);
+        connect(&m_artTimer, &QTimer::timeout, m_list, qOverload<>(&QWidget::update));
+        connect(m_thumbs, &ThumbService::ready, this, [this] { if (isVisible() && !m_artTimer.isActive()) m_artTimer.start(); });
+    }
     rebuild();
 }
 
@@ -89,6 +101,12 @@ void MusicView::goBack() {
 
 void MusicView::rebuild(bool keepScroll) {
     m_tracks = m_idx->tracks();
+    m_artFor.clear();
+    for (const auto& t : m_tracks) {
+        const QString al = QStringLiteral("al:") + artistOf(t) + QChar(0x1f) + albumOf(t), ar = QStringLiteral("a:") + artistOf(t);
+        if (!m_artFor.contains(al)) m_artFor.insert(al, t.path);
+        if (!m_artFor.contains(ar)) m_artFor.insert(ar, t.path);
+    }
     QVector<RowList::Row> rows;
     m_playSet.clear();
     const int seg = m_seg->current();

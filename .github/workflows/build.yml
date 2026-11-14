@@ -68,7 +68,15 @@ jobs:
           path: dist/installer/*
 
   macos:
-    runs-on: macos-latest
+    # Apple Silicon is part of every release. The Intel build is best effort: if it fails, the release still goes out without it.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-latest, tag: macos, optional: false }
+          - { runner: macos-15-intel, tag: macos-intel, optional: true }
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.optional }}
     steps:
       - uses: actions/checkout@v7
       - uses: jurplel/install-qt-action@v4
@@ -96,26 +104,38 @@ jobs:
           dylibbundler -od -b -x kinoz.app/Contents/MacOS/kinoz -d kinoz.app/Contents/Frameworks -p @executable_path/../Frameworks
           macdeployqt kinoz.app -dmg
           mkdir -p ../out
-          mv kinoz.dmg ../out/kinoz-${APP_VERSION}-macos.dmg
-          cd ../out && shasum -a 256 kinoz-${APP_VERSION}-macos.dmg > kinoz-${APP_VERSION}-macos.dmg.sha256
+          mv kinoz.dmg ../out/kinoz-${APP_VERSION}-${{ matrix.tag }}.dmg
+          cd ../out && shasum -a 256 kinoz-${APP_VERSION}-${{ matrix.tag }}.dmg > kinoz-${APP_VERSION}-${{ matrix.tag }}.dmg.sha256
       - uses: actions/upload-artifact@v7
         with:
-          name: macos
+          name: ${{ matrix.tag }}
           path: dist/out/*
 
   linux:
-    runs-on: ubuntu-22.04
+    # x86_64 is part of every release. The ARM build is best effort: if it fails, the release still goes out without it.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-22.04, arch: x86_64, qtarch: linux_gcc_64, qthost: linux, optional: false }
+          - { runner: ubuntu-24.04-arm, arch: aarch64, qtarch: linux_gcc_arm64, qthost: linux_arm64, optional: true }
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.optional }}
+    env:
+      APPIMAGE_EXTRACT_AND_RUN: 1          # AppImage tools run without FUSE on the build machine
     steps:
       - uses: actions/checkout@v7
       - uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
-          arch: linux_gcc_64
+          host: ${{ matrix.qthost }}
+          arch: ${{ matrix.qtarch }}
           cache: true
       - name: Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libmpv-dev libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0 libfuse2 pkg-config ninja-build
+          sudo apt-get install -y libmpv-dev libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0 pkg-config ninja-build
+          sudo apt-get install -y libfuse2 || sudo apt-get install -y libfuse2t64 || true
       - name: Build
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -131,8 +151,8 @@ jobs:
       - name: Package (AppImage)
         run: |
           mkdir -p tools && cd tools
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.arch }}.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${{ matrix.arch }}.AppImage
           chmod +x *.AppImage && cd ..
           mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
           cp dist/app/kinoz AppDir/usr/bin/
@@ -141,14 +161,14 @@ jobs:
           cp packaging/linux/kinoz.desktop AppDir/usr/share/applications/
           cp packaging/linux/kinoz.png AppDir/usr/share/icons/hicolor/256x256/apps/kinoz.png
           export QMAKE="$QT_ROOT_DIR/bin/qmake"
-          ./tools/linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt --output appimage \
+          ./tools/linuxdeploy-${{ matrix.arch }}.AppImage --appdir AppDir --plugin qt --output appimage \
             --desktop-file AppDir/usr/share/applications/kinoz.desktop
           mkdir -p dist/out
-          mv kinoz-*.AppImage dist/out/kinoz-${APP_VERSION}-x86_64.AppImage
-          cd dist/out && sha256sum kinoz-${APP_VERSION}-x86_64.AppImage > kinoz-${APP_VERSION}-x86_64.AppImage.sha256
+          mv kinoz-*.AppImage dist/out/kinoz-${APP_VERSION}-${{ matrix.arch }}.AppImage
+          cd dist/out && sha256sum kinoz-${APP_VERSION}-${{ matrix.arch }}.AppImage > kinoz-${APP_VERSION}-${{ matrix.arch }}.AppImage.sha256
       - uses: actions/upload-artifact@v7
         with:
-          name: linux
+          name: linux-${{ matrix.arch }}
           path: dist/out/*
 
   # A release must carry fresh screenshots (docs/RELEASING.md): fail the tag if the images and the hero were not
@@ -196,6 +216,7 @@ jobs:
           v="${GITHUB_REF_NAME#v}"
           names=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
           echo "$names"
+          echo "(the Intel Mac and ARM Linux files are best effort: they are attached only if their build succeeded)"
           for f in "kinoz-Setup-$v.exe" "kinoz-$v-macos.dmg" "kinoz-$v-x86_64.AppImage"; do
             for n in "$f" "$f.sha256"; do
               echo "$names" | grep -qx "$n" || { echo "::error::release is missing $n"; exit 1; }

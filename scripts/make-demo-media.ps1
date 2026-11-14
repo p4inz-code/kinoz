@@ -81,12 +81,22 @@ $albums = @(
     @{artist='The Quiet Hours'; album='Long Way Home'; year=2022; songs=@('Platform 9','Porch Lights','Meridian'); f=330},
     @{artist='The Quiet Hours'; album='Small Rooms';   year=2019; songs=@('Radiator','Kettle','Tuesday');          f=392}
 )
+Add-Type -AssemblyName System.Drawing
 foreach ($al in $albums) {
     $dir = "$Out\music\$($al.artist)\$($al.album)"; New-Item -ItemType Directory -Force $dir | Out-Null
     for ($i = 0; $i -lt $al.songs.Count; $i++) {
         $t = $al.songs[$i]
         [DemoGen]::Wav("$dir\0$($i+1) - $t.wav", $t, $al.artist, $al.album, $i + 1, $al.year, $al.f * [math]::Pow(2, $i / 12.0), 4)
     }
+    # a cover picture next to the songs (folder.jpg), so the Music tab has album art to show
+    $bmp = New-Object System.Drawing.Bitmap 300, 300
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $c1 = [System.Drawing.Color]::FromArgb(255, [int](60 + ($al.f % 120)), [int](90 + ($al.year % 100)), 170)
+    $c2 = [System.Drawing.Color]::FromArgb(255, 235, [int](150 + ($al.f % 70)), 90)
+    $br = New-Object System.Drawing.Drawing2D.LinearGradientBrush ([System.Drawing.Point]::new(0, 0)), ([System.Drawing.Point]::new(300, 300)), $c1, $c2
+    $g.FillRectangle($br, 0, 0, 300, 300)
+    $g.Dispose(); $br.Dispose()
+    $bmp.Save("$dir\folder.jpg", [System.Drawing.Imaging.ImageFormat]::Jpeg); $bmp.Dispose()
 }
 "ok" | Set-Content "$Out\.done"
 Write-Host "demo media ready: $Out"

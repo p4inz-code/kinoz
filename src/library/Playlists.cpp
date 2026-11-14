@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
+#include <QSet>
 #include <QTextStream>
 #include <algorithm>
 
@@ -83,6 +84,7 @@ QStringList load(const QString& file) {
     if (text.contains(QChar::ReplacementCharacter)) text = QString::fromLocal8Bit(raw);
     const QDir base = QFileInfo(file).absoluteDir();
     const bool pls = QFileInfo(file).suffix().compare(QLatin1String("pls"), Qt::CaseInsensitive) == 0;
+    QSet<QString> seen;                                                                       // O(1) duplicate check (a 50000-line playlist stays instant)
     for (QString line : text.split(QLatin1Char('\n'))) {
         line = line.trimmed();
         if (line.isEmpty() || line.startsWith(QLatin1Char('#'))) continue;
@@ -98,7 +100,7 @@ QStringList load(const QString& file) {
         if (line.contains(QLatin1String("://")) || line.startsWith(QLatin1String("\\\\")) || line.startsWith(QLatin1String("//"))) continue;
         if (out.size() >= 50000) break;
         const QString abs = QFileInfo(line).isAbsolute() ? QDir::cleanPath(line) : QDir::cleanPath(base.absoluteFilePath(line));
-        if (Media::isMedia(abs) && QFileInfo::exists(abs) && !out.contains(abs)) out << abs;
+        if (Media::isMedia(abs) && !seen.contains(abs) && QFileInfo::exists(abs)) { seen.insert(abs); out << abs; }
     }
     return out;
 }

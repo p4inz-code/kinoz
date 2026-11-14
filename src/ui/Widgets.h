@@ -39,6 +39,9 @@ public:
     void setDanger(bool d) { m_danger = d; update(); }
 protected:
     void paintEvent(QPaintEvent*) override;
+    void keyPressEvent(QKeyEvent*) override;                 // Enter presses it (Space already does)
+    void focusInEvent(QFocusEvent*) override;
+    void focusOutEvent(QFocusEvent*) override;
     void enterEvent(QEnterEvent*) override { m_hot = true; update(); }
     void leaveEvent(QEvent*) override { m_hot = false; update(); }
 private:
@@ -81,6 +84,9 @@ public:
     QSize sizeHint() const override { return {38, 22}; }
 protected:
     void paintEvent(QPaintEvent*) override;
+    void keyPressEvent(QKeyEvent*) override;
+    void focusInEvent(QFocusEvent*) override;
+    void focusOutEvent(QFocusEvent*) override;
 private:
     QVariantAnimation m_anim;
 };
@@ -98,6 +104,9 @@ signals:
 protected:
     void paintEvent(QPaintEvent*) override;
     void mousePressEvent(QMouseEvent*) override;
+    void keyPressEvent(QKeyEvent*) override;                 // Left / Right / Home / End choose an option
+    void focusInEvent(QFocusEvent*) override;
+    void focusOutEvent(QFocusEvent*) override;
 private:
     QRectF segRect(int i) const;
     void slideTo(int i);
@@ -112,7 +121,7 @@ private:
 class Stepper : public QWidget {
     Q_OBJECT
 public:
-    Stepper(int min, int max, const QString& suffix, QWidget* parent = nullptr) : QWidget(parent), m_min(min), m_max(max), m_suffix(suffix) {}
+    Stepper(int min, int max, const QString& suffix, QWidget* parent = nullptr) : QWidget(parent), m_min(min), m_max(max), m_suffix(suffix) { setFocusPolicy(Qt::TabFocus); }
     int value() const { return m_v; }
     void setValue(int v) { m_v = qBound(m_min, v, m_max); update(); }
     QSize sizeHint() const override { return {132, 30}; }
@@ -122,6 +131,9 @@ protected:
     void paintEvent(QPaintEvent*) override;
     void mousePressEvent(QMouseEvent*) override;
     void wheelEvent(QWheelEvent*) override;
+    void keyPressEvent(QKeyEvent*) override;                 // Left / Right (Shift: 5, Page keys: 10)
+    void focusInEvent(QFocusEvent*) override;
+    void focusOutEvent(QFocusEvent*) override;
 private:
     void change(int d);
     int m_min, m_max, m_v = 10;

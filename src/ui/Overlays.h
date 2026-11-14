@@ -6,9 +6,11 @@
 #include <QImage>
 #include <QJsonArray>
 #include <QLineEdit>
+#include <QPixmap>
 #include <QVariantAnimation>
 #include <QVector>
 #include <QWidget>
+#include <functional>
 
 class PlayerController;
 class MpvPlayer;
@@ -36,6 +38,8 @@ public:
     void setRowHeight(int h) { m_rowH = h; update(); }
     void setShowIcons(bool s) { m_icons = s; update(); }
     void setEmptyText(const QString& t) { m_empty = t; update(); }
+    // Optional cover art: asked for each visible row with its data string; return a null pixmap while it is not ready (the icon shows meanwhile).
+    void setArtProvider(std::function<QPixmap(const QString&)> f) { m_art = std::move(f); update(); }
     int contentHeight() const;
 signals:
     void activated(int row);
@@ -52,6 +56,7 @@ private:
     int m_cur = -1, m_hover = -1, m_rowH = 46, m_scroll = 0;
     bool m_icons = true;
     QString m_empty;
+    std::function<QPixmap(const QString&)> m_art;
 };
 
 // ---------------- Sheet: centred modal card over a scrim ----------------

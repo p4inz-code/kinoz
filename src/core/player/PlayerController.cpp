@@ -45,6 +45,14 @@ PlayerController::PlayerController(MpvPlayer* mpv, JsonStore* settings, JsonStor
     connect(m_mpv, &MpvPlayer::fileLoaded, this, &PlayerController::onFileLoaded);
     connect(m_mpv, &MpvPlayer::pauseChanged, this, &PlayerController::onPause);
     connect(m_mpv, &MpvPlayer::fileEnded, this, &PlayerController::onEnded);
+    connect(m_mpv, &MpvPlayer::fileStarted, this, &PlayerController::onFileStarted);
+    // anything that can change which song is "next" cancels what was handed over, then it is handed over again
+    auto rearm = [this] { invalidateGapless(); QTimer::singleShot(0, this, [this] { armGapless(); }); };
+    connect(&m_queue, &QStringListModel::rowsInserted, this, rearm);
+    connect(&m_queue, &QStringListModel::rowsRemoved, this, rearm);
+    connect(&m_queue, &QStringListModel::rowsMoved, this, rearm);
+    connect(&m_queue, &QStringListModel::modelReset, this, rearm);
+    connect(this, &PlayerController::modeChanged, this, rearm);
     connect(m_mpv, &MpvPlayer::videoSizeChanged, this, [this] { applyDecode(); });
     m_loadTimer.setSingleShot(true);
     connect(&m_loadTimer, &QTimer::timeout, this, [this] { startLoad(); });
@@ -200,6 +208,7 @@ void PlayerController::applyDecode() {
 void PlayerController::startLoad() {
     m_loadTimer.stop();
     if (!m_pending.has) return;
+    m_gaplessNext.clear();                               // "replace" drops whatever was lined up
     const Pending p = m_pending;
     m_pending.has = false;
     m_fileLoaded = false;
@@ -252,6 +261,7 @@ void PlayerController::onFileLoaded() {
     else m_mpv->setProp("replaygain", QStringLiteral("no"));
     emit pathChanged();
     warmNext();
+    armGapless();
 }
 
 // ---------- transport ----------
@@ -263,7 +273,7 @@ void PlayerController::togglePause() {
 void PlayerController::pause() { m_mpv->setPause(true); }
 void PlayerController::stop() {
     saveResumeNow();
-    m_loadTimer.stop(); m_pending.has = false;
+    m_loadTimer.stop(); m_pending.has = false; m_gaplessNext.clear();
     m_mpv->stopPlayback();
     m_path.clear(); m_mpvPath.clear(); m_kind = MediaKind::Unknown;
     emit pathChanged();
@@ -305,13 +315,73 @@ void PlayerController::prevFile() {
 void PlayerController::onEof() {
     if (m_kind != MediaKind::Video && m_kind != MediaKind::Audio) return;
     if (m_pending.has || m_mpvPath != m_path) return;       // a late "ended" from the file we just replaced
+    if (!m_gaplessNext.isEmpty() && m_repeat != RepeatOne) {  // mpv was given the next song and moves on by itself; if it somehow doesn't, we do after a moment
+        QTimer::singleShot(1500, this, [this, gen = m_gen] {
+            if (gen != m_gen || m_gaplessNext.isEmpty()) return;
+            m_gaplessNext.clear();
+            m_mpv->command({QStringLiteral("playlist-clear")});
+            markSeen(m_mpvPath, 1.0);
+            advanceAfterEnd();
+        });
+        return;
+    }
     markSeen(m_mpvPath, 1.0);                               // watched to the end
+    advanceAfterEnd();
+}
+
+void PlayerController::advanceAfterEnd() {
     if (m_repeat == RepeatOne) { m_mpv->seek(0, true); m_mpv->setPause(false); return; }
     if (m_stopAfterCurrent) { m_stopAfterCurrent = false; m_mpv->setPause(true); emit message(tr("Sleep timer: stopped at the end of the file")); return; }
     if (!m_set->flag("autoplayNext", true)) return;
     const int i = pickNext(+1);
     if (i >= 0) playIndex(i);
     else m_resume->remove(key(m_mpvPath));   // finished: forget resume point
+}
+
+static bool samePath(const QString& a, const QString& b) {
+    const QString x = QDir::fromNativeSeparators(a), y = QDir::fromNativeSeparators(b);
+#ifdef Q_OS_WIN
+    return x.compare(y, Qt::CaseInsensitive) == 0;
+#else
+    return x == y;
+#endif
+}
+
+// Songs: when one is playing and the next one in the queue is a song too, mpv is handed the next one ahead of time
+// (with gapless-audio on), so the two run into each other with no silence. Anything that changes "what is next" cancels it.
+void PlayerController::armGapless() {
+    if (!m_set->flag("gapless", true) || m_kind != MediaKind::Audio || m_stopAfterCurrent || m_repeat == RepeatOne || !m_set->flag("autoplayNext", true) || m_pending.has || m_mpvPath != m_path) return;
+    const int i = peekNext();                                // not with shuffle: the next song is only picked at the end
+    if (i < 0) return;
+    const QString p = m_queue.stringList().value(i);
+    if (p.isEmpty() || p == m_path || Media::kindFor(p) != MediaKind::Audio || !QFileInfo::exists(p)) return;
+    if (m_gaplessNext == p) return;
+    if (!m_gaplessNext.isEmpty()) m_mpv->command({QStringLiteral("playlist-clear")});
+    m_gaplessNext = p;
+    m_mpv->appendFile(p);
+}
+
+void PlayerController::invalidateGapless() {
+    if (m_gaplessNext.isEmpty()) return;
+    m_gaplessNext.clear();
+    m_mpv->command({QStringLiteral("playlist-clear")});     // everything except the song that is playing
+}
+
+// mpv started a file. If it is the song we lined up, the player moved on by itself: bring our state along (no new load).
+void PlayerController::onFileStarted(const QString& path) {
+    if (m_gaplessNext.isEmpty() || !samePath(path, m_gaplessNext) || samePath(path, m_mpvPath)) return;
+    const QString prev = m_mpvPath, next = m_gaplessNext;
+    markSeen(prev, 1.0);
+    m_resume->remove(key(prev));
+    m_gaplessNext.clear();
+    ++m_gen;
+    m_path = next; m_mpvPath = next; m_kind = Media::kindFor(next);
+    if (m_history.isEmpty() || m_history.last() != next) m_history << next;
+    if (m_history.size() > 200) m_history.removeFirst();
+    addRecent(next);
+    m_fileLoaded = false;
+    ++m_gaplessSwitches;
+    emit pathChanged();
 }
 
 void PlayerController::onPause(bool) { saveResumeNow(); }

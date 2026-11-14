@@ -43,5 +43,7 @@ private:
     QList<Job> m_stack;
     bool m_quit = false;
     std::atomic<bool> m_private{false};
+    std::atomic<bool> m_warnedWrite{false};          // log a failing cache folder once, not for every thumbnail
+    std::atomic<int> m_failLogs{0};
     QVector<QThread*> m_threads;
 };

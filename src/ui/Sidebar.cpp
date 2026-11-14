@@ -198,7 +198,7 @@ Sidebar::Sidebar(PlayerController* ctl, ThumbService* thumbs, JsonStore* setting
     m_saveQ->setToolTip(tr("Save the queue as a playlist"));
     m_clearQ->setToolTip(tr("Clear the queue"));
     m_musicIdx = new MusicIndex(this);
-    m_music = new MusicView(ctl, m_musicIdx, this);
+    m_music = new MusicView(ctl, m_musicIdx, thumbs, this);
     connect(m_music, &MusicView::toast, this, &Sidebar::toast);
     connect(m_music, &MusicView::savePlaylistRequested, this, &Sidebar::savePlaylistRequested);
     connect(m_music, &MusicView::renamePlaylistRequested, this, &Sidebar::renamePlaylistRequested);
