@@ -46,14 +46,14 @@ bool FrameGrabber::waitFor(mpv_event_id id, double timeoutSec) {
     return false;
 }
 
-bool FrameGrabber::open(const QString& path) {
+bool FrameGrabber::open(const QString& path, double timeoutSec) {
     if (!ok()) return false;
     m_path = path; m_dur = 0;
     const QByteArray p = path.toUtf8();
     const char* argvNew[] = {"loadfile", p.constData(), "replace", "-1", "pause=yes", nullptr};
     const char* argvOld[] = {"loadfile", p.constData(), "replace", "pause=yes", nullptr};      // libmpv before 0.38 has no index argument
     if (mpv_command(m_h, mpvLoadfileHasIndex(m_h) ? argvNew : argvOld) < 0) return false;
-    if (!waitFor(MPV_EVENT_PLAYBACK_RESTART, 6.0)) { m_path.clear(); return false; }
+    if (!waitFor(MPV_EVENT_PLAYBACK_RESTART, timeoutSec)) { m_path.clear(); return false; }
     double d = 0;
     if (mpv_get_property(m_h, "duration", MPV_FORMAT_DOUBLE, &d) >= 0) m_dur = d;
     return true;

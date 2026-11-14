@@ -85,11 +85,9 @@ QImage ThumbService::make(const Job& j, FrameGrabber*& grabber) {
         if (s.isValid()) r.setScaledSize(s.scaled(kThumb, kThumb, Qt::KeepAspectRatio));
         img = r.read();
     }
-    if (img.isNull()) {
-        if (!grabber) grabber = new FrameGrabber();
-        if (grabber->ok() && grabber->open(j.path)) img = grabber->grab(-1, kThumb, kThumb);
-    }
-    if (img.isNull() && j.kind == MediaKind::Audio) {                // no embedded cover: look for folder.jpg, cover.png, front.jpg ... beside the song
+    // Songs: a picture next to them (folder.jpg, cover.png, front.jpg ...) is found in a moment, so it is tried first; an embedded
+    // cover needs the decoder, which is slow, so that comes second (and never waits long: most songs have no video track at all).
+    if (img.isNull() && j.kind == MediaKind::Audio) {
         static const QStringList names{"folder", "cover", "front", "album", "albumart", "albumartsmall", "thumb"};
         const QDir dir = QFileInfo(j.path).dir();
         for (const QFileInfo& fi : dir.entryInfoList({QStringLiteral("*.jpg"), QStringLiteral("*.jpeg"), QStringLiteral("*.png")}, QDir::Files, QDir::Name)) {
@@ -101,6 +99,10 @@ QImage ThumbService::make(const Job& j, FrameGrabber*& grabber) {
             img = r.read();
             if (!img.isNull()) break;
         }
+    }
+    if (img.isNull()) {
+        if (!grabber) grabber = new FrameGrabber();
+        if (grabber->ok() && grabber->open(j.path, j.kind == MediaKind::Audio ? 2.0 : 6.0)) img = grabber->grab(-1, kThumb, kThumb);
     }
     if (!img.isNull() && !m_private) {                               // private mode: never written to disk
         QSaveFile out(cf);                                           // all or nothing: a half-written picture is never read back as a thumbnail

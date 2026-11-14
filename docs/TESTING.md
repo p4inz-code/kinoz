@@ -4,7 +4,7 @@ kinoz is built and smoke-tested on macOS and Linux by CI on every push, but nobo
 
 ## What to try
 
-1. Install it: the `.dmg` on Apple Silicon, or the `.AppImage` on x86-64 Linux (`chmod +x`, then run it).
+1. Install it: the `.dmg` on a Mac (`-macos.dmg` for Apple Silicon, `-macos-intel.dmg` for an Intel Mac), or the `.AppImage` on Linux (`-x86_64` for PCs, `-aarch64` for ARM; `chmod +x`, then run it).
 2. Open a video, a song and a picture, from the window and from your file manager ("Open with").
 3. Move and resize the window, go fullscreen with `F` and back, and try the mini player (`Ctrl+M`, `Cmd+M` on a Mac).
 4. Press the media keys. On macOS the Now Playing card appears in Control Center. On Linux, GNOME and KDE show a media card, and `playerctl status` works.

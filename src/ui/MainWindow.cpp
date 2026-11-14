@@ -1560,9 +1560,13 @@ void MainWindow::runSelfTest() {
         const QString d = Paths::tmpDir() + QStringLiteral("/arttest");
         QDir(d).removeRecursively(); QDir().mkpath(d);
         QImage img(64, 64, QImage::Format_RGB32); img.fill(QColor("#c2410c")); img.save(d + QStringLiteral("/folder.jpg"), "JPG");
-        { QFile w(d + QStringLiteral("/song.mp3")); w.open(QIODevice::WriteOnly); w.write("not really audio"); }
-        m_thumbs->get(d + QStringLiteral("/song.mp3"), MediaKind::Audio);
-    }, [this] { const bool ok = !m_thumbs->get(Paths::tmpDir() + QStringLiteral("/arttest/song.mp3"), MediaKind::Audio).isNull(); if (ok) QDir(Paths::tmpDir() + QStringLiteral("/arttest")).removeRecursively(); return ok; }, 700);
+        for (const char* n : {"song.mp3", "song2.mp3", "song3.mp3"}) { QFile w(d + QLatin1Char('/') + QLatin1String(n)); w.open(QIODevice::WriteOnly); w.write("not really audio"); m_thumbs->get(d + QLatin1Char('/') + QLatin1String(n), MediaKind::Audio); }
+    }, [this] {
+        bool ok = true;                                                        // every song of the folder gets the picture, not just the first
+        for (const char* n : {"song.mp3", "song2.mp3", "song3.mp3"}) ok = ok && !m_thumbs->get(Paths::tmpDir() + QStringLiteral("/arttest/") + QLatin1String(n), MediaKind::Audio).isNull();
+        if (ok) QDir(Paths::tmpDir() + QStringLiteral("/arttest")).removeRecursively();
+        return ok;
+    }, 900);
     S("keymap file keeps only what changed", [] {},
       [] {
           const QHash<QString, QString> def{{"J", "skipback"}, {"L", "skipfwd"}, {"M", "mute"}};
@@ -1862,9 +1866,11 @@ void MainWindow::runShots(const QString& dir) {
         steps->push_back({150, [this] { m_toast->hide(); poke(); }});                       // the banner picture: no toast, controls shown
         steps->push_back({450, [snap] { snap("hero-dark"); }});
         steps->push_back({100, [this, musicDirP] { if (!musicDirP->isEmpty()) { Theme::i().setMode(Theme::Mode::Light); m_side->showTab(2); } }});
-        steps->push_back({3500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("music-artists-light"); }});
+        steps->push_back({2500, [this, musicDirP] { if (!musicDirP->isEmpty()) (void)m_side->grab(); }});          // an off-screen window only paints when asked: this asks the covers to load
+        steps->push_back({1500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("music-artists-light"); }});
         steps->push_back({100, [this, musicDirP] { if (!musicDirP->isEmpty()) m_side->musicDrill(QStringLiteral("Mira Lowe"), QStringLiteral("Night Drive")); }});
-        steps->push_back({500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("music-album-light"); }});
+        steps->push_back({300, [this, musicDirP] { if (!musicDirP->isEmpty()) (void)m_side->grab(); }});
+        steps->push_back({1200, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("music-album-light"); }});
         steps->push_back({100, [this, musicDirP] {
             if (musicDirP->isEmpty()) return;
             QStringList l;

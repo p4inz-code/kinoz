@@ -2,6 +2,13 @@
 
 All notable changes. Dates are release dates.
 
+## 0.3.1 — album art, gapless songs, keyboard and screen-reader basics, more builds
+- Album art in the Music lists (artists, albums, songs) and the library: embedded covers, or folder.jpg / cover.jpg / front.png next to the songs, cached as small pictures.
+- Gapless songs: a song that follows another in the queue is handed to the engine ahead of time, so they run into each other without a pause. Settings → Playback → Gapless songs (on by default). Not used with shuffle, repeat-one or video.
+- Keyboard and screen readers: Settings can be used with Tab, Shift+Tab, Space, Enter and the arrow keys, with a visible focus ring; buttons, switches and choices have names a screen reader can read, the control bar describes what is playing, and messages are announced.
+- New builds for Intel Macs (`-macos-intel.dmg`) and ARM Linux (`-aarch64.AppImage`). They are attached to a release only when their build works, and the updater picks the file for your processor. Never run on real hardware yet.
+- Sturdier: a playlist with tens of thousands of lines loads at once, thumbnails and the music index are written all or nothing, a failing cache folder is logged once instead of silently, the launcher entry for the Linux "make default" is written safely.
+
 ## 0.3.0 — one-click updates, a real Doctor, logs that survive a crash
 **Updating**
 - Updating is entirely inside kinoz now, on Windows, Linux and macOS: press Update (or do nothing in Automatic mode), then Restart. The "Direct download" and "Download page" buttons are gone; if something fails the message stays in the app with Try again.

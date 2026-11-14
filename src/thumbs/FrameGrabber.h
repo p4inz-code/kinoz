@@ -13,7 +13,7 @@ public:
     FrameGrabber();
     ~FrameGrabber();
     bool ok() const { return m_h && m_rc; }
-    bool open(const QString& path);                       // blocks up to a few seconds
+    bool open(const QString& path, double timeoutSec = 6.0);   // blocks up to timeoutSec
     QImage grab(double sec, int maxW, int maxH);          // sec < 0 => ~10% into the file
     double duration() const { return m_dur; }
     const QString& path() const { return m_path; }
