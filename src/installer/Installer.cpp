@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
+#include "core/Doctor.h"
 #include "installer/Installer.h"
 
 #ifndef Q_OS_WIN
@@ -322,6 +323,7 @@ QVector<Check> runDoctor(const QString& dest, const QString& payload) {
     add(QObject::tr("Settings files"), bad ? QObject::tr("%1 damaged (will be set aside)").arg(bad) : QObject::tr("healthy"), bad ? 1 : 0, bad > 0, "json");
     const qint64 freeB = QStorageInfo(dest).bytesAvailable();
     add(QObject::tr("Disk space"), QLocale().formattedDataSize(freeB) + QObject::tr(" free"), freeB > 300ll * 1024 * 1024 ? 0 : 1);
+    for (const Doctor::Check& c : Doctor::runCore(data, true, true, false)) add(c.name, c.detail, c.state, c.fixable, c.fixable ? QStringLiteral("core:") + c.fix : QString());   // engine, updates, crashes, caches, backups
     return out;
 }
 
@@ -345,6 +347,7 @@ void applyFixes(const QVector<Check>& checks, const QString& dest, const QString
     if (fixes.contains("shortcut")) { QFile::remove(startMenuLink()); QFile::link(dest + "/kinoz.exe", startMenuLink()); }
     if (fixes.contains("entry")) { QString v; readManifest(dest, &v); writeUninstallEntry(dest, v.isEmpty() ? kVersion : v, 0); }
     if (fixes.contains("shell")) registerShell(o, dest + "/kinoz.exe");
+    for (const QString& f : fixes) if (f.startsWith(QLatin1String("core:"))) Doctor::applyCoreFix(f.mid(5), dest + "/data");
     if (fixes.contains("json")) for (const char* n : {"settings.json", "resume.json"}) {
         const QString p = dest + "/data/" + QString::fromLatin1(n);
         QFile f(p); if (!f.exists() || !f.open(QIODevice::ReadOnly)) continue;

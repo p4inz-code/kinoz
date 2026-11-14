@@ -72,7 +72,7 @@ private:
     QTextBrowser* m_infoView = nullptr;
     TextButton* m_copyDiag = nullptr;
     TextButton* m_updBtn = nullptr;
-    TextButton* m_dlDirect = nullptr;
+    TextButton* m_skipVer = nullptr;
     Segmented* m_updMode = nullptr;
     QTextBrowser* m_legal = nullptr;
     QString m_updStatus;

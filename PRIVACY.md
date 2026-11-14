@@ -30,13 +30,13 @@ Nothing here talks to a server. It only deletes or avoids writing files on your 
 ## The one network request
 kinoz can check for updates. This is the only thing it ever sends over the network:
 
-- a plain `GET` to `https://api.github.com/repos/p4inz-code/kinoz/releases/latest` (and, if an update exists, a download from `github.com/p4inz-code/kinoz/releases`);
+- a plain `GET` to `https://api.github.com/repos/p4inz-code/kinoz/releases/latest` (or, when GitHub's API is rate limited, to `https://github.com/p4inz-code/kinoz/releases/latest`) and, if an update exists, a download from `github.com/p4inz-code/kinoz/releases`;
 - with a generic `User-Agent` of `kinoz/<version>`;
 - **no** user id, no file names, no usage data, no system information.
 
 As with any request, GitHub sees your IP address and handles it under [its own privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement). No server run by the author is involved.
 
-It runs at most once a day. **Settings → About → Updates** chooses what happens: **Automatic** (download in the background, then ask to restart; "Later" installs it on the next launch), **Notify me** (tell me, I decide), or **Off** (never contacts the network on its own). You can always check manually, or download the installer yourself from the release page.
+It runs at most once a day. **Settings → About → Updates** chooses what happens: **Automatic** (download in the background, then ask to restart; "Later" installs it on the next launch), **Notify me** (tell me, I decide), or **Off** (never contacts the network on its own). You can always check manually. The Doctor (`--doctor`, Health check) can open a plain connection to github.com on port 443 to see whether it is reachable; it sends nothing.
 
 Downloaded updates are only installed if their SHA-256 checksum matches the one published with the release, and only when you press the button.
 

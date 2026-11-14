@@ -2,6 +2,20 @@
 
 All notable changes. Dates are release dates.
 
+## 0.3.0 — one-click updates, a real Doctor, logs that survive a crash
+**Updating**
+- Updating is entirely inside kinoz now, on Windows, Linux and macOS: press Update (or do nothing in Automatic mode), then Restart. The "Direct download" and "Download page" buttons are gone; if something fails the message stays in the app with Try again.
+- Sturdier: a failed check is retried (1 hour, then 6), a dropped download is retried and continues where it stopped, the check also runs every 6 hours while kinoz stays open, GitHub's API rate limit no longer blocks it (it reads the releases page instead), there is a "Skip this version" button, the free disk space is checked first, and kinoz tells you once after an update ("updated to X").
+- Linux: the AppImage replaces itself and relaunches (the old one stays next to it as .previous). macOS: the app is swapped from the downloaded disk image by a small helper. Both are new and untested on real machines, flagged as such in the known issues.
+- The release build now fails if any file the updater needs is missing.
+
+**Logs and the Doctor**
+- The last three runs keep their logs (app.log, app.previous.log, app.previous2.log), every line has a time, level and area, with a header (version, system, install type). A crash on macOS and Linux leaves crash.txt. `--debug` turns on verbose logging for one run. The updater, settings and engine now log what they decide and why.
+- The Doctor checks more: the playback engine starts, secure connections work, settings files are healthy (a damaged one is restored from the backup made at the previous start), crash reports, leftover update files, cache sizes, and whether GitHub is reachable, each with a fix button where one makes sense. macOS and Linux get `kinoz --doctor` (add --fix), Windows also has `--doctor-text`, and Ctrl+K "Health check" copies a report anywhere. Copy diagnostics now includes updates and health.
+
+**Sturdier files**
+- Settings, resume points and marks keep a backup and recover from it if the file is damaged; the keymap and the staged update are saved all or nothing.
+
 ## 0.2.3 — skip buttons with your own step, change shortcuts inside the app
 - Two new buttons beside play skip back and forward. The step is yours: Settings → Playback → Skip step, 5, 10, 15 seconds or any number from 1 to 600. The same step is used by J and L.
 - Settings → Shortcuts is now an editor. Click an action, press the new key, done, no restart and no file to open. A key already used elsewhere moves over and the page tells you, Esc cancels, Delete clears, and Reset all returns to the defaults. Actions without a key (like Next file) are listed too. The file option is still there, labelled advanced.

@@ -25,6 +25,7 @@ public:
     void flush();
     void setReadOnly(bool r) { m_readOnly = r; }     // extra windows never overwrite the main window's settings
     bool readOnly() const { return m_readOnly; }
+    bool recoveredFromBackup() const { return m_recovered; }   // the file was damaged and the previous start's copy was restored
 
 private:
     void flushImpl(bool sync);
@@ -33,4 +34,5 @@ private:
     QJsonObject m_obj;
     QTimer m_timer;
     bool m_dirty = false;
+    bool m_recovered = false;
 };

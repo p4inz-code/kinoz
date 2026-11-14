@@ -14,7 +14,7 @@ An honest list of what isn't finished or hasn't been verified yet.
 | Audio without a cover | Shows an icon thumbnail. Album art is not shown in the Music lists or the media overlay yet. |
 | Windows 11 right-click menu | kinoz's "Play with kinoz" appears under "Show more options" (the classic menu). The new top-level menu needs a packaged identity, which is not done. |
 | Music tab, playlist dialogs, update restart prompt | Built and checked by automated tests; not yet confirmed by eye on a real screen. |
-| Updates end to end | The download, verify, restart-or-later and apply-on-next-launch logic is tested; a real 0.1.3 to 0.1.4 update on a real machine is still to be confirmed. |
+| Updates end to end | The download, verify, resume, retry, restart-or-later and apply-on-next-launch logic is tested on Windows. The in-app update on Linux (AppImage replaces itself) and macOS (app swapped from the disk image) is new and has not run on a real machine yet. If it fails you get a message in the app and the old version keeps working; please send a test report. |
 | Name in other languages | The interface is English only. |
 
 Found something not listed? [Open an issue](https://github.com/p4inz-code/kinoz/issues/new/choose).

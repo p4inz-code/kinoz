@@ -15,4 +15,4 @@ Every release ships fresh visuals. This is a rule, not a nicety: the repository 
 3. **Version**: bump `CMakeLists.txt`, `packaging/installer.iss`, `resources/app.rc`, `.github/workflows/build.yml` (`APP_VERSION`) and the top `CHANGELOG.md` heading.
 4. **Build the installer**: `.\scripts\release.ps1` (builds, refreshes the visuals, packs the payload, compiles Setup, writes the `.sha256`).
 5. **Commit, push, wait for CI green on all three platforms**, then tag `vX.Y.Z` and push the tag. The release job attaches the Windows installer, the macOS dmg and the Linux AppImage with checksums.
-6. Check the release page lists all six files.
+6. Check the release page lists all six files. The release job already fails if any of them is missing: the in-app updater depends on exactly these names (`kinoz-Setup-X.exe`, `kinoz-X-macos.dmg`, `kinoz-X-x86_64.AppImage`, each with `.sha256`).

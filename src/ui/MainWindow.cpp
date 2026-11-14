@@ -24,6 +24,8 @@
 #include "ui/ControlBar.h"
 #include "ui/Overlays.h"
 #include "ui/SettingsPage.h"
+#include "core/Log.h"
+#include "core/Doctor.h"
 #include <QClipboard>
 #include <QLocale>
 #include <QSysInfo>
@@ -109,10 +111,18 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
     if (m_set->has("updateFailedVersion")) {                                                          // an update could not be applied twice in a row
         const QString v = m_set->str("updateFailedVersion");
         m_set->remove("updateFailedVersion");
-        QTimer::singleShot(3000, this, [this, v] { notify(tr("kinoz couldn't install version %1 automatically. Use Settings → About → Download page.").arg(v), true); });
+        QTimer::singleShot(3000, this, [this, v] { notify(tr("kinoz couldn't install version %1 automatically. Open Settings → About and press Update to try again.").arg(v), true); });
     }
     if (!QCoreApplication::arguments().contains(QStringLiteral("--new")) && !qEnvironmentVariableIsSet("KINOZ_OFFSCREEN"))
-        QTimer::singleShot(8000, this, [this] { m_updater->checkAutoIfDue(); });
+        QTimer::singleShot(8000, this, [this] { m_updater->startBackground(); });
+    {   // first start after an update: say so once
+        const QString last = m_set->str("lastRunVersion");
+        if (!last.isEmpty() && Updater::isNewer(Updater::current(), last)) {
+            Log::info("app", QStringLiteral("updated from %1 to %2").arg(last, Updater::current()));
+            QTimer::singleShot(3500, this, [this] { notify(tr("kinoz was updated to version %1. What's new is under Settings → About → Release notes.").arg(Updater::current())); });
+        }
+        m_set->set("lastRunVersion", Updater::current());
+    }
     m_thumbs->trimDiskCache();
     buildUi();
     loadKeymap();
@@ -163,6 +173,7 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
     m_mpv->initAsync(m_ctl->decodeMode() != 2);
     connect(m_mpv, &MpvPlayer::ready, this, [this] {
         m_mpv->setVolume(m_set->num("volume", 80));
+        Log::info("engine", QStringLiteral("libmpv %1 ready").arg(m_mpv->getProp("mpv-version").toString()));
         if (m_set->flag("rememberMute", true) && m_set->flag("muted", false)) m_mpv->setMute(true);   // the last session ended muted
         m_muteRestored = true;
         refreshChrome();
@@ -715,6 +726,12 @@ void MainWindow::doAction(const QString& id) {
     else if (id == "skipfwd") seek(qBound(1, int(m_set->num("skipStep", 10)), 600));
     else if (id == "skipback") seek(-qBound(1, int(m_set->num("skipStep", 10)), 600));
     else if (id == "volup" || id == "voldown") { if (!m_ctl->hasMedia() || (m_ctl->kind() != MediaKind::Image && m_ctl->kind() != MediaKind::Gif)) m_ctl->volumeStep(id == "volup" ? 1 : -1); }   // pictures have no sound
+    else if (id == "healthcheck") {
+        const QString rep = Doctor::textReport(Doctor::runCore(Paths::dataDir(), true, false, true));
+        QGuiApplication::clipboard()->setText(QStringLiteral("kinoz ") + QStringLiteral(APP_VERSION) + QStringLiteral(" health check\n\n") + rep);
+        int bad = 0; for (const QString& l : rep.split('\n')) bad += l.startsWith(QLatin1String("WARN")) || l.startsWith(QLatin1String("FAIL"));
+        notify(bad ? tr("Health check copied. %1 thing(s) need a look; the report says which.").arg(bad) : tr("Health check copied: everything looks fine"));
+    }
     else if (id == "mute" ) { if (!m_ctl->hasMedia() || m_ctl->kind() == MediaKind::Video || m_ctl->kind() == MediaKind::Audio) m_ctl->toggleMute(); }   // pictures have no sound
     else if (id == "fullscreen") toggleFullscreen();
     else if (id == "escape") {
@@ -985,6 +1002,13 @@ QString MainWindow::diagnosticsText() const {
     for (const QFileInfo& f : QDir(Paths::thumbsDir()).entryInfoList({"*.jpg"}, QDir::Files)) { bytes += f.size(); ++n; }
     L << QStringLiteral("Thumbnails: %1 files, %2").arg(n).arg(QLocale().formattedDataSize(bytes));
     L << QStringLiteral("Exports: ") + QDir::toNativeSeparators(Paths::exportsDir());
+    L << "## Updates";
+    L << QStringLiteral("Mode: ") + (m_updater->mode() == Updater::Automatic ? QStringLiteral("automatic") : m_updater->mode() == Updater::Notify ? QStringLiteral("notify only") : QStringLiteral("off"));
+    L << QStringLiteral("Last result: ") + (m_set->str("updateLast").isEmpty() ? QStringLiteral("no check yet") : m_set->str("updateLast"));
+    L << QStringLiteral("Can this copy update itself: ") + (Updater::unsupportedReason().isEmpty() ? QStringLiteral("yes") : Updater::unsupportedReason());
+    L << QStringLiteral("Install type: ") + Log::installType();
+    L << "## Health";
+    for (const Doctor::Check& c : Doctor::runCore(Paths::dataDir(), false, false, true)) L << c.name + QStringLiteral(": ") + (c.state == 0 ? QStringLiteral("OK") : c.state == 1 ? QStringLiteral("warning") : QStringLiteral("PROBLEM")) + QStringLiteral(", ") + c.detail;
     return L.join('\n');
 }
 
@@ -1471,6 +1495,55 @@ void MainWindow::runSelfTest() {
         m_selfOk = row >= 0 && got.value("F5") == QLatin1String("nextfile") && !got.contains("Right") && QFile::exists(Paths::dataDir() + QStringLiteral("/keymap.json"));
         QFile::remove(Paths::dataDir() + QStringLiteral("/keymap.json"));
     }, [this] { return m_selfOk; }, 100);
+    S("updater: version and tag parsing", [] {},
+      [] {
+          return Updater::isNewer("0.10.0", "0.9.9") && !Updater::isNewer("1.0", "1.0.0") && Updater::isNewer("v0.3.0", "0.2.9") && !Updater::isNewer("0.2.3", "0.2.3")
+              && Updater::tagFromLocation(QUrl("https://github.com/p4inz-code/kinoz/releases/tag/v0.3.1")) == QLatin1String("v0.3.1")
+              && Updater::tagFromLocation(QUrl("https://github.com/evil/kinoz/releases/tag/v0.3.1")).isEmpty()
+              && Updater::tagFromLocation(QUrl("http://github.com/p4inz-code/kinoz/releases/tag/v0.3.1")).isEmpty()
+              && Updater::tagFromLocation(QUrl("https://github.com/p4inz-code/kinoz/releases/tag/v0.3.1/../../x")).isEmpty()
+              && Updater::assetNameFor("0.3.1").contains("0.3.1");
+      }, 20);
+    S("updater: only dropped connections are retried, skipped versions stay quiet", [this] { m_set->set("skippedVersion", QStringLiteral("9.9.9")); },
+      [this] {
+          const bool ok = Updater::shouldRetryDownload(0, 4, 0) && Updater::shouldRetryDownload(503, 0, 1) && !Updater::shouldRetryDownload(404, 0, 0)
+              && !Updater::shouldRetryDownload(0, 5, 0) && !Updater::shouldRetryDownload(0, 4, 3) && Updater::isSkipped(m_set, QStringLiteral("9.9.9")) && !Updater::isSkipped(m_set, QStringLiteral("9.9.10"));
+          m_set->remove("skippedVersion");
+          return ok;
+      }, 20);
+    S("a damaged settings file is restored from its backup", [this] {
+        const QString f = Paths::tmpDir() + QStringLiteral("/jstest.json");
+        QFile::remove(f); QFile::remove(f + ".bak"); QFile::remove(f + ".corrupt");
+        { JsonStore a(f); a.set("keep", 42); a.flush(); }
+        { JsonStore b(f); }                                           // opening it makes the backup copy
+        { QFile w(f); w.open(QIODevice::WriteOnly | QIODevice::Truncate); w.write("{ this is not json"); }
+        JsonStore c(f);
+        m_selfOk = c.num("keep") == 42 && c.recoveredFromBackup() && QFile::exists(f + ".corrupt");
+        QFile::remove(f); QFile::remove(f + ".bak"); QFile::remove(f + ".corrupt");
+    }, [this] { return m_selfOk; }, 50);
+    S("a damaged file with no backup starts clean and is kept aside", [this] {
+        const QString f = Paths::tmpDir() + QStringLiteral("/jstest2.json");
+        QFile::remove(f); QFile::remove(f + ".bak"); QFile::remove(f + ".corrupt");
+        { QFile w(f); w.open(QIODevice::WriteOnly | QIODevice::Truncate); w.write("garbage"); }
+        JsonStore c(f);
+        m_selfOk = c.object().isEmpty() && !c.recoveredFromBackup() && QFile::exists(f + ".corrupt");
+        QFile::remove(f); QFile::remove(f + ".corrupt");
+    }, [this] { return m_selfOk; }, 50);
+    S("doctor finds a damaged file and restores it", [this] {
+        const QString d = Paths::tmpDir() + QStringLiteral("/doctor-test");
+        QDir(d).removeRecursively(); QDir().mkpath(d + "/logs");
+        { QFile w(d + "/settings.json"); w.open(QIODevice::WriteOnly); w.write("{ broken"); }
+        { QFile w(d + "/settings.json.bak"); w.open(QIODevice::WriteOnly); w.write("{\"theme\":2}"); }
+        bool found = false;
+        for (const Doctor::Check& c : Doctor::runCore(d, false, false, false)) if (c.name == QObject::tr("Settings files") && c.state == 1 && c.fixable) { found = true; Doctor::applyCoreFix(c.fix, d); }
+        QFile r(d + "/settings.json");
+        m_selfOk = found && r.open(QIODevice::ReadOnly) && QJsonDocument::fromJson(r.readAll()).object().value("theme").toInt() == 2;
+        r.close(); QDir(d).removeRecursively();
+    }, [this] { return m_selfOk; }, 50);
+    S("doctor engine check starts the engine headless", [this] {
+        m_selfOk = false;
+        for (const Doctor::Check& c : Doctor::runCore(Paths::tmpDir(), false, true, false)) if (c.name == QObject::tr("Playback engine")) m_selfOk = c.state == 0;
+    }, [this] { return m_selfOk; }, 400);
     S("keymap file keeps only what changed", [] {},
       [] {
           const QHash<QString, QString> def{{"J", "skipback"}, {"L", "skipfwd"}, {"M", "mute"}};
@@ -1515,6 +1588,11 @@ void MainWindow::runSelfTest() {
     S("mini on", [this] { doAction("mini"); }, [this] { return m_mini && width() < 600; }, 700);
     S("mini off", [this] { doAction("mini"); }, [this] { return !m_mini && width() > 600; }, 700);
     S("light theme", [this] { Theme::i().setMode(Theme::Mode::Light); poke(); }, [this] { return grab().save(Paths::logsDir() + "/shot-5.png"); }, 700);
+    if (qEnvironmentVariableIsSet("KINOZ_UPDATE_E2E")) {            // with KINOZ_FAKE_VERSION=0.0.1: the real release is found, downloaded, verified and staged (never applied)
+        S("update e2e: the release is found with a build for this system", [this] { m_updater->checkNow(true); }, [this] { return m_updater->state() == Updater::Available && m_updater->canInstall(); }, 6000);
+        S("update e2e: it downloads, verifies and stages", [this] { m_updater->download(false); }, [this] { return m_updater->state() == Updater::Ready; }, 60000);
+        S("update e2e: the staged file would be applied at the next start", [] {}, [this] { return Updater::applyPendingOnStartup(m_set, true); }, 100);
+    }
     S("update check works over HTTPS", [this] { m_updater->checkNow(true); }, [this] { return m_updater->state() == Updater::UpToDate || m_updater->state() == Updater::Available; }, 4500);
     S("pin on/off", [this] { doAction("pin"); doAction("pin"); }, [this] { return !m_pinned; });
     S("theme cycle", [this] { doAction("theme"); doAction("theme"); doAction("theme"); }, [this] { return true; });

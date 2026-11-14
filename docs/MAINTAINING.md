@@ -25,7 +25,7 @@ dist\app\kinoz.exe --selftest <a video of 10 seconds or more>
 dist\app\kinoz.exe --bench <a video>
 ```
 
-The self-test runs 108 checks and writes `data\logs\selftest.txt`. With a very short clip alone in its folder, four checks fail for that reason only: pause and resume race with the end of the clip, and thumbnails and the index need other files in the folder. The benchmark writes `data\logs\bench.txt` and prints PASS or FAIL against budgets (see [PERFORMANCE.md](PERFORMANCE.md)). `--shots <dir>` and `--installer-shots <dir>` render the screenshots; `scripts/refresh-visuals.ps1` runs them with generated demo media. `KINOZ_TEST_FULLSCREEN` and `KINOZ_TEST_HIRES` exist for the two tests that touch the real display or stress the GPU, and are off by default.
+The self-test runs 114 checks and writes `data\logs\selftest.txt`. With a very short clip alone in its folder, four checks fail for that reason only: pause and resume race with the end of the clip, and thumbnails and the index need other files in the folder. The benchmark writes `data\logs\bench.txt` and prints PASS or FAIL against budgets (see [PERFORMANCE.md](PERFORMANCE.md)). `--shots <dir>` and `--installer-shots <dir>` render the screenshots; `scripts/refresh-visuals.ps1` runs them with generated demo media. `KINOZ_TEST_FULLSCREEN` and `KINOZ_TEST_HIRES` exist for the two tests that touch the real display or stress the GPU, and are off by default.
 
 ## Things that bit us
 
@@ -48,5 +48,5 @@ The self-test runs 108 checks and writes `data\logs\selftest.txt`. With a very s
 - Every release refreshes the screenshots and the README (`scripts/refresh-visuals.ps1`, `scripts/make-hero.ps1`).
 - Deleting a user's file always asks and goes to the Recycle Bin.
 - Playlists and paths that come from outside accept local files only.
-- Updates only install a file whose SHA-256 matches, checked again right before installing.
+- Updates only install a file whose SHA-256 matches, checked again right before installing. The updater never opens a web page; failures are shown in the app. Every decision is logged under `[updater]` in `logs/app.log` (the last two runs are kept as `app.previous.log`, `app.previous2.log`). `kinoz --doctor` / `--doctor-text` / Health check (Ctrl+K) report the state of settings, crash files, update leftovers and the engine.
 - The credit stays: author attribution, copyright notices, the SPDX header on every source file, and a different name for modified versions.

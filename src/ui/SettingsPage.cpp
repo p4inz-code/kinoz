@@ -23,6 +23,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QProcess>
+#include <QSaveFile>
 #include <QTimer>
 #include <QTextBrowser>
 #include <QUrl>
@@ -252,8 +253,8 @@ void SettingsPage::saveKeymap() {
     QJsonObject doc;
     doc["_info"] = QStringLiteral("Your changed shortcuts. Change them in kinoz under Settings > Shortcuts; this file only stores what differs from the defaults.");
     doc["keys"] = o;
-    QFile out(f);
-    if (out.open(QIODevice::WriteOnly | QIODevice::Truncate)) out.write(QJsonDocument(doc).toJson(QJsonDocument::Indented));
+    QSaveFile out(f);                                  // all or nothing: a crash while saving can't leave half a keymap
+    if (out.open(QIODevice::WriteOnly)) { out.write(QJsonDocument(doc).toJson(QJsonDocument::Indented)); out.commit(); }
 }
 
 void SettingsPage::keyPressEvent(QKeyEvent* e) {
@@ -349,7 +350,7 @@ void SettingsPage::buildAbout() {
     m_updBtn = new TextButton(tr("Check for updates"), this, true);
     connect(m_updBtn, &QAbstractButton::clicked, this, [this] {
         switch (m_up->state()) {
-        case Updater::Available: m_up->download(); break;
+        case Updater::Available: if (m_up->canInstall()) m_up->download(); else m_up->checkNow(true); break;
         case Updater::Ready: m_up->installAndQuit(); break;
         case Updater::Downloading: break;
         default: m_up->checkNow(true); break;
@@ -361,15 +362,12 @@ void SettingsPage::buildAbout() {
     connect(lic, &QAbstractButton::clicked, this, [this] { m_tabs->setCurrent(Legal); showPage(Legal); });
     auto* rel = new TextButton(tr("Release notes"), this);
     connect(rel, &QAbstractButton::clicked, this, [] { QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/p4inz-code/kinoz/releases"))); });
-    // Download it yourself: always possible, whatever the update mode is.
-    auto* page = new TextButton(tr("Download page"), this);
-    connect(page, &QAbstractButton::clicked, this, [] { QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/p4inz-code/kinoz/releases/latest"))); });
-    m_dlDirect = new TextButton(tr("Direct download"), this);
-    connect(m_dlDirect, &QAbstractButton::clicked, this, [this] { if (m_up->directDownload().isValid()) QDesktopServices::openUrl(m_up->directDownload()); });
+    m_skipVer = new TextButton(tr("Skip this version"), this);
+    connect(m_skipVer, &QAbstractButton::clicked, this, [this] { m_up->skipLatest(); });
     m_updMode = new Segmented({tr("Automatic"), tr("Notify me"), tr("Off")}, this);
     m_updMode->setCurrent(m_up->mode());
     connect(m_updMode, &Segmented::currentChanged, this, [this](int i) { m_up->setMode(i); update(); });
-    m_pageWidgets[About] << m_updBtn << src << lic << rel << page << m_dlDirect << m_updMode;
+    m_pageWidgets[About] << m_updBtn << m_skipVer << src << lic << rel << m_updMode;
 
     m_legal = new QTextBrowser(this);
     m_legal->setOpenExternalLinks(true);
@@ -413,7 +411,7 @@ void SettingsPage::buildAbout() {
 void SettingsPage::refreshUpdate() {
     switch (m_up->state()) {
     case Updater::Checking: m_updBtn->setText(tr("Checking…")); m_updStatus = m_up->info(); break;
-    case Updater::Available: m_updBtn->setText(m_up->info().contains(tr("release page")) ? tr("Open release page") : tr("Update to %1").arg(m_up->latest())); m_updStatus = m_up->info(); break;
+    case Updater::Available: m_updBtn->setText(m_up->canInstall() ? tr("Update to %1").arg(m_up->latest()) : tr("Check again")); m_updStatus = m_up->info(); break;
     case Updater::Downloading: {
         const int pct = m_up->total() > 0 ? int(100 * m_up->received() / m_up->total()) : 0;
         m_updBtn->setText(tr("Downloading… %1%").arg(pct)); m_updStatus = m_up->info(); break; }
@@ -423,7 +421,7 @@ void SettingsPage::refreshUpdate() {
     default: m_updBtn->setText(tr("Check for updates")); m_updStatus.clear(); break;
     }
     m_updBtn->resize(m_updBtn->sizeHint());
-    if (m_dlDirect) m_dlDirect->setEnabled(m_up->directDownload().isValid());       // known once a check has found a newer version
+    if (m_skipVer) m_skipVer->setEnabled(m_up->state() == Updater::Available && m_up->canInstall());      // only while an update is on offer
     update();
 }
 
@@ -495,12 +493,12 @@ void SettingsPage::resizeEvent(QResizeEvent*) {
     if (m_infoView) m_infoView->setGeometry(content);
     if (m_copyDiag) m_copyDiag->setGeometry(24, height() - 56, m_copyDiag->sizeHint().width(), 36);
     if (m_legal) m_legal->setGeometry(24, 116, width() - 48, height() - 132);
-    if (m_pageWidgets[About].size() == 7) {
+    if (m_pageWidgets[About].size() == 6) {
         int x = 24; const int y = 500;
         m_updBtn->resize(m_updBtn->sizeHint()); m_updBtn->move(x, y); x += m_updBtn->width() + 10;
-        for (int i = 1; i <= 2; ++i) { auto* w = m_pageWidgets[About][i]; const QSize s = w->sizeHint(); w->setGeometry(x, y, s.width(), s.height()); x += s.width() + 10; }
+        { auto* w = m_pageWidgets[About][1]; const QSize sz = w->sizeHint(); w->setGeometry(x, y, sz.width(), sz.height()); }
         x = 24;
-        for (int i = 3; i <= 5; ++i) { auto* w = m_pageWidgets[About][i]; const QSize s = w->sizeHint(); w->setGeometry(x, 544, s.width(), s.height()); x += s.width() + 10; }
+        for (int i = 2; i <= 4; ++i) { auto* w = m_pageWidgets[About][i]; const QSize sz = w->sizeHint(); w->setGeometry(x, 544, sz.width(), sz.height()); x += sz.width() + 10; }
         m_updMode->setGeometry(width() - 28 - m_updMode->sizeHint().width(), 590, m_updMode->sizeHint().width(), 30);
     }
 }

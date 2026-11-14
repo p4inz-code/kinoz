@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
 #include "core/JsonStore.h"
+#include "core/Log.h"
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QPointer>
 #include <QSaveFile>
@@ -17,9 +19,10 @@ QThreadPool& writer() {
 }
 bool writeFile(const QString& path, const QByteArray& data) {
     QSaveFile f(path);
-    if (!f.open(QIODevice::WriteOnly)) return false;
+    if (!f.open(QIODevice::WriteOnly)) { Log::warn("settings", QStringLiteral("can't write %1: %2").arg(QFileInfo(path).fileName(), f.errorString())); return false; }
     f.write(data);
-    return f.commit();
+    if (!f.commit()) { Log::warn("settings", QStringLiteral("saving %1 failed: %2").arg(QFileInfo(path).fileName(), f.errorString())); return false; }
+    return true;
 }
 }
 
@@ -30,9 +33,21 @@ JsonStore::JsonStore(const QString& path, QObject* parent) : QObject(parent), m_
         f.close();
         QJsonParseError pe;
         const auto doc = QJsonDocument::fromJson(raw, &pe);
-        if (doc.isObject()) m_obj = doc.object();
-        else if (!raw.trimmed().isEmpty()) QFile::copy(m_path, m_path + QStringLiteral(".corrupt"));   // keep the damaged file, start clean
-    }
+        const QString name = QFileInfo(m_path).fileName();
+        if (doc.isObject()) {
+            m_obj = doc.object();
+            if (!m_readOnly) { QFile::remove(m_path + QStringLiteral(".bak")); QFile::copy(m_path, m_path + QStringLiteral(".bak")); }   // the last good state, for recovery
+        } else if (!raw.trimmed().isEmpty()) {
+            QFile::remove(m_path + QStringLiteral(".corrupt"));
+            QFile::copy(m_path, m_path + QStringLiteral(".corrupt"));                                // keep the damaged file for a look
+            QFile bak(m_path + QStringLiteral(".bak"));
+            const auto bdoc = bak.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(bak.readAll()) : QJsonDocument();
+            if (bdoc.isObject()) {                                                                    // restore the copy made at the previous start
+                m_obj = bdoc.object(); m_recovered = true; m_dirty = true;
+                Log::warn("settings", QStringLiteral("%1 was damaged (%2); restored from its backup").arg(name, pe.errorString()));
+            } else Log::warn("settings", QStringLiteral("%1 was damaged (%2) and there is no backup; starting clean").arg(name, pe.errorString()));
+        }
+    } else if (QFile::exists(m_path)) Log::warn("settings", QStringLiteral("%1 can't be read; starting clean").arg(QFileInfo(m_path).fileName()));
     m_timer.setSingleShot(true);
     m_timer.setInterval(600);
     connect(&m_timer, &QTimer::timeout, this, [this] { flushImpl(false); });

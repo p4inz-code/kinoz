@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
+#include "core/Doctor.h"
 #include "core/JsonStore.h"
+#include "core/Log.h"
 #include "core/Paths.h"
 #include "core/Updater.h"
 #include "installer/Installer.h"
@@ -40,13 +42,6 @@ static LONG WINAPI crashFilter(EXCEPTION_POINTERS* ep) {
 
 static QString pipeName() {
     return QStringLiteral("kinoz-") + QString::fromLatin1(QCryptographicHash::hash(QCoreApplication::applicationDirPath().toUtf8(), QCryptographicHash::Sha1).toHex().left(12));
-}
-
-static QFile* g_log = nullptr;
-static void logHandler(QtMsgType, const QMessageLogContext&, const QString& msg) {
-    if (!g_log) return;
-    QTextStream ts(g_log); ts.setEncoding(QStringConverter::Utf8); ts << msg << '\n';
-    g_log->flush();
 }
 
 // macOS hands files to an app through "open file" events (Finder double-click, Open With, dropping on the Dock icon),
@@ -98,6 +93,9 @@ int main(int argc, char** argv) {
 #endif
     if (Installer::wanted(app.arguments())) return Installer::run(app.arguments());      // our own setup wizard
     Paths::ensure();
+    // `kinoz --doctor` (macOS, Linux) or `kinoz --doctor-text` (everywhere): a text health report; add --fix to repair the safe things.
+    if (app.arguments().contains(QStringLiteral("--doctor-text")) || (app.arguments().contains(QStringLiteral("--doctor")) && !Installer::wanted(app.arguments())))
+        return Doctor::runTextMode(app.arguments());
 
     // `kinoz --wipe` forgets what kinoz remembers (recent files, resume points, marks, music index, thumbnails, logs) and exits.
     // Close kinoz first. Your folders, settings, playlists and saved frames are left alone.
@@ -109,9 +107,8 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    QFile log(Paths::logsDir() + QStringLiteral("/app.log"));
-    if (log.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) { g_log = &log; qInstallMessageHandler(logHandler); }
-    struct LogGuard { ~LogGuard() { qInstallMessageHandler(nullptr); g_log = nullptr; } } logGuard;   // never log into a destroyed file at exit
+    Log::init(app.arguments().contains(QStringLiteral("--debug")));       // keeps the last runs' logs, writes a header (docs/MAINTAINING.md)
+    struct LogGuard { ~LogGuard() { Log::shutdown(); } } logGuard;       // never log into a destroyed file at exit
 
 #ifdef Q_OS_WIN
     // If the app ever crashes, leave a small dump in the logs folder so the problem can be found and fixed.
