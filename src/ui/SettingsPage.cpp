@@ -19,6 +19,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QProcess>
@@ -31,7 +32,7 @@ struct ActionInfo { const char* id; const char* label; const char* group; };
 const ActionInfo kActions[] = {
     {"playpause", "Play / pause", "Playback"}, {"stop", "Stop", "Playback"}, {"next", "Next", "Playback"}, {"prev", "Previous (or restart)", "Playback"}, {"nextfile", "Next file", "Playback"}, {"prevfile", "Previous file", "Playback"},
     {"seekfwd", "Forward (small step)", "Playback"}, {"seekback", "Back (small step)", "Playback"}, {"seekfwd30", "Forward (large step)", "Playback"}, {"seekback30", "Back (large step)", "Playback"},
-    {"seekfwd10", "Forward 10 s", "Playback"}, {"seekback10", "Back 10 s", "Playback"}, {"speedup", "Faster", "Playback"}, {"speeddown", "Slower", "Playback"},
+    {"skipfwd", "Skip forward (your step)", "Playback"}, {"skipback", "Skip back (your step)", "Playback"}, {"seekfwd10", "Forward 10 s", "Playback"}, {"seekback10", "Back 10 s", "Playback"}, {"speedup", "Faster", "Playback"}, {"speeddown", "Slower", "Playback"},
     {"speedreset", "Normal speed", "Playback"}, {"framestep", "Next frame", "Playback"}, {"framestepback", "Previous frame", "Playback"},
     {"shuffle", "Shuffle", "Playback"}, {"repeat", "Repeat (off / all / one)", "Playback"}, {"abloop", "A-B loop (A, then B, then clear)", "Playback"},
     {"seekpct1", "Jump to 10% … 90% (videos and tracks)", "Playback"}, {"keep", "Keep this file (mark)", "Skimming"}, {"reject", "Mark this file to reject", "Skimming"},
@@ -51,6 +52,7 @@ static QColor swatchColor(int i) { return Theme::accentSample(i, pal().dark); }
 
 SettingsPage::SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, Updater* updater, const QString& diagnostics, QWidget* parent)
     : QWidget(parent), m_set(set), m_up(updater), m_keys(keys), m_diag(diagnostics) {
+    setFocusPolicy(Qt::StrongFocus);
     m_tabs = new Segmented({tr("General"), tr("Playback"), tr("Privacy"), tr("Shortcuts"), tr("Info"), tr("About"), tr("Legal")}, this);
     m_close = new IconButton(Icon::Close, this, 32);
     m_close->setToolTip(tr("Close\tEsc"));
@@ -86,6 +88,22 @@ SettingsPage::SettingsPage(JsonStore* set, const QHash<QString, QString>& keys, 
     addSwitch(Playback, "rememberMute", true, tr("Remember mute"), tr("Quit muted, start muted. Clean identity resets it"));
     addSwitch(Playback, "normalize", false, tr("Normalize loudness"), tr("Even out quiet and loud tracks"));
     addSeg(Playback, "defaultSpeed", {tr("0.75×"), tr("1×"), tr("1.25×"), tr("1.5×")}, {0.75, 1.0, 1.25, 1.5}, 1.0, tr("Starting speed"), tr("Speed used when a file starts"));
+    {   // Skip step: the two skip buttons and J / L. 5, 10, 15 or any number you like.
+        m_skipSeg = new Segmented({tr("5 s"), tr("10 s"), tr("15 s"), tr("Custom")}, this);
+        m_skipStepper = new Stepper(1, 600, tr("s"), this);
+        const int cur = qBound(1, int(m_set->num("skipStep", 10)), 600);
+        m_skipStepper->setValue(cur);
+        m_skipSeg->setCurrent(cur == 5 ? 0 : cur == 10 ? 1 : cur == 15 ? 2 : 3);
+        m_skipStepper->setVisible(false);
+        connect(m_skipSeg, &Segmented::currentChanged, this, [this](int i) {
+            if (i < 3) { m_set->set("skipStep", i == 0 ? 5 : i == 1 ? 10 : 15); emit changed("skipStep"); }
+            else { m_set->set("skipStep", m_skipStepper->value()); emit changed("skipStep"); }
+            m_skipStepper->setVisible(m_page == Playback && i == 3);
+            resizeEvent(nullptr);
+        });
+        connect(m_skipStepper, &Stepper::valueChanged, this, [this](int v) { m_set->set("skipStep", v); emit changed("skipStep"); });
+        m_rows[Playback].push_back({"skipStep", tr("Skip step"), tr("The skip buttons and J / L"), m_skipSeg});
+    }
     addSeg(Playback, "seekSmall", {tr("5 s"), tr("10 s"), tr("15 s")}, {5, 10, 15}, 5, tr("Small seek step"), tr("Ctrl + Left / Right"));
     addSeg(Playback, "seekLarge", {tr("30 s"), tr("1 min"), tr("2 min")}, {30, 60, 120}, 30, tr("Large seek step"), tr("Shift + Left / Right"));
     addSeg(Playback, "volStep", {tr("2"), tr("5"), tr("10")}, {2, 5, 10}, 5, tr("Volume step"), tr("Up / Down arrows and the mouse wheel"));
@@ -161,41 +179,145 @@ void SettingsPage::refreshPrivacy() {
     update();
 }
 
-void SettingsPage::buildShortcuts() {
-    m_keysList = new RowList(this);
-    m_keysList->setRowHeight(36);
-    m_keysList->setShowIcons(false);
+static QHash<QString, QString> readKeymapFile(const QString& file) {
+    QHash<QString, QString> out;
+    QFile f(file);
+    if (!f.open(QIODevice::ReadOnly)) return out;
+    const QJsonObject keys = QJsonDocument::fromJson(f.readAll()).object().value("keys").toObject();
+    for (auto it = keys.begin(); it != keys.end(); ++it) out.insert(QKeySequence(it.key().trimmed()).toString(QKeySequence::PortableText), it.value().toString());
+    return out;
+}
+
+static QString keyStringOf(QKeyEvent* e) {           // the same spelling the main window looks keys up by
+    const auto mods = e->modifiers();
+    const QString t = e->text();
+    QString ks;
+    if (!(mods & (Qt::ControlModifier | Qt::AltModifier)) && t.size() == 1 && t[0].isPrint() && !t[0].isLetterOrNumber() && t[0] != ' ') ks = t;
+    else ks = QKeySequence(e->keyCombination()).toString(QKeySequence::PortableText);
+    return QKeySequence(ks).toString(QKeySequence::PortableText);
+}
+
+QJsonObject SettingsPage::keymapOverrides(const QHash<QString, QString>& cur, const QHash<QString, QString>& def) {
+    QJsonObject o;
+    for (auto it = cur.begin(); it != cur.end(); ++it) {
+        if (it.value().isEmpty() && !def.contains(it.key())) continue;
+        if (def.value(it.key()) != it.value()) o[it.key()] = it.value();
+    }
+    for (auto it = def.begin(); it != def.end(); ++it) if (!cur.contains(it.key()) || cur.value(it.key()).isEmpty()) o[it.key()] = QString();   // a default you removed
+    return o;
+}
+
+static QString actionLabel(const QString& id) {
+    for (const auto& a : kActions) if (id == QLatin1String(a.id)) return QObject::tr(a.label);
+    return id;
+}
+
+void SettingsPage::rebuildKeyRows() {
     QHash<QString, QStringList> byAction;
-    for (auto it = m_keys.begin(); it != m_keys.end(); ++it) byAction[it.value()] << it.key();
+    for (auto it = m_keys.begin(); it != m_keys.end(); ++it) if (!it.value().isEmpty()) byAction[it.value()] << it.key();
     QVector<RowList::Row> rows;
     QString lastGroup;
+    int capRow = -1;
     for (const auto& a : kActions) {
         const QString group = tr(a.group);
-        QStringList k = byAction.value(QString::fromLatin1(a.id)); k.sort();
-        if (k.isEmpty()) continue;
-        if (QByteArray(a.id) == "seekpct1") k = QStringList{QStringLiteral("1 … 9")};         // one row for all nine keys
+        const QString id = QString::fromLatin1(a.id);
         if (group != lastGroup) { rows.push_back({Icon::File, group, {}, {}, {}, true}); lastGroup = group; }
-        rows.push_back({Icon::Check, tr(a.label), {}, k.join("   ·   ").replace("Return", "Enter").replace("Esc", "Esc"), {}, false});
+        QStringList k = byAction.value(id); k.sort();
+        QString hint;
+        if (m_capture == id) { hint = tr("Press the new key…"); capRow = rows.size(); }
+        else if (id == QLatin1String("seekpct1")) hint = QStringLiteral("1 … 9");               // one row for all nine keys
+        else hint = k.isEmpty() ? tr("not set") : k.join("   ·   ").replace("Return", "Enter");
+        rows.push_back({Icon::Check, tr(a.label), {}, hint, id.startsWith("seekpct") ? QString() : QStringLiteral("act:") + id, false});
     }
     rows.push_back({Icon::File, tr("Mouse"), {}, {}, {}, true});
     const std::pair<const char*, const char*> mouse[] = {
         {"Click the picture", "Play / pause"}, {"Double-click the picture", "Fullscreen"}, {"Mouse wheel", "Volume  (zoom for images)"},
         {"Drag a zoomed image", "Pan"}, {"Right-click the picture", "Menu"}, {"Hover the seek bar", "Frame preview"}, {"Drag the seek bar", "Scrub"}, {"Double-click a slider", "Reset it"}};
     for (const auto& m : mouse) rows.push_back({Icon::Check, tr(m.first), {}, tr(m.second), {}, false});
-    m_keysList->setRows(rows);
+    m_keysList->setRows(rows, true);
+    m_keysList->setCurrent(capRow);
+    update();
+}
+
+void SettingsPage::startCapture(const QString& action) {
+    m_capture = action; m_keyNote.clear();
+    rebuildKeyRows();
+    setFocus();
+}
+
+void SettingsPage::saveKeymap() {
+    const QString f = Paths::dataDir() + QStringLiteral("/keymap.json");
+    const QJsonObject o = keymapOverrides(m_keys, readKeymapFile(Paths::appDir() + QStringLiteral("/keymaps/default.json")));
+    if (o.isEmpty()) { QFile::remove(f); return; }
+    QJsonObject doc;
+    doc["_info"] = QStringLiteral("Your changed shortcuts. Change them in kinoz under Settings > Shortcuts; this file only stores what differs from the defaults.");
+    doc["keys"] = o;
+    QFile out(f);
+    if (out.open(QIODevice::WriteOnly | QIODevice::Truncate)) out.write(QJsonDocument(doc).toJson(QJsonDocument::Indented));
+}
+
+void SettingsPage::keyPressEvent(QKeyEvent* e) {
+    if (m_capture.isEmpty()) { QWidget::keyPressEvent(e); return; }
+    const int k = e->key();
+    e->accept();
+    if (k == Qt::Key_Escape) { m_capture.clear(); rebuildKeyRows(); return; }
+    if (k == Qt::Key_unknown || k == Qt::Key_Control || k == Qt::Key_Shift || k == Qt::Key_Alt || k == Qt::Key_Meta || k == Qt::Key_AltGr || k == Qt::Key_CapsLock) return;   // wait for the real key
+    const QString id = m_capture;
+    QStringList own;
+    for (auto it = m_keys.begin(); it != m_keys.end(); ++it) if (it.value() == id) own << it.key();
+    if (k == Qt::Key_Delete && e->modifiers() == Qt::NoModifier) {                  // Delete clears this action's keys
+        for (const QString& o : own) m_keys.remove(o);
+        m_keyNote = tr("%1 has no key now").arg(actionLabel(id));
+    } else {
+        const QString ks = keyStringOf(e);
+        if (ks.isEmpty()) return;
+        QString shown = ks; shown.replace("Return", "Enter");
+        const QString prev = m_keys.value(ks);
+        for (const QString& o : own) m_keys.remove(o);                               // one key per action: the new one replaces the old
+        m_keys.insert(ks, id);
+        m_keyNote = (!prev.isEmpty() && prev != id) ? tr("%1 moved here from %2").arg(shown, actionLabel(prev)) : tr("%1 is now %2").arg(actionLabel(id), shown);
+    }
+    m_capture.clear();
+    saveKeymap();
+    emit keymapChanged(m_keys);
+    rebuildKeyRows();
+}
+
+void SettingsPage::buildShortcuts() {
+    m_keysList = new RowList(this);
+    m_keysList->setRowHeight(36);
+    m_keysList->setShowIcons(false);
+    rebuildKeyRows();
     m_keysList->setCurrent(-1);
-    m_openKeymap = new TextButton(tr("Customize shortcuts…"), this);
-    connect(m_openKeymap, &QAbstractButton::clicked, this, [] {
-        const QString f = Paths::dataDir() + QStringLiteral("/keymap.json");
-        if (!QFile::exists(f)) {
-            QJsonArray ids; for (const auto& a : kActions) ids << QString::fromLatin1(a.id);
-            QJsonObject o; o["_info"] = QStringLiteral("Add your own keys under \"keys\", e.g. \"Ctrl+Alt+P\": \"playpause\". Restart kinoz after editing.");
-            o["keys"] = QJsonObject(); o["_available_actions"] = ids;
-            QFile out(f); if (out.open(QIODevice::WriteOnly)) out.write(QJsonDocument(o).toJson(QJsonDocument::Indented));
+    connect(m_keysList, &RowList::activated, this, [this](int row) {
+        const auto& rows = m_keysList->rows();
+        if (row < 0 || row >= rows.size() || !rows[row].data.startsWith(QLatin1String("act:"))) return;
+        const QString id = rows[row].data.mid(4);
+        if (m_capture == id) { m_capture.clear(); rebuildKeyRows(); return; }          // a second click cancels
+        startCapture(id);
+    });
+    m_resetKeys = new TextButton(tr("Reset all"), this);
+    connect(m_resetKeys, &QAbstractButton::clicked, this, [this] {
+        if (!m_resetArmed) {
+            m_resetArmed = true; m_resetKeys->setText(tr("Click again to reset"));
+            QTimer::singleShot(3500, this, [this] { m_resetArmed = false; m_resetKeys->setText(tr("Reset all")); });
+            return;
         }
+        m_resetArmed = false; m_resetKeys->setText(tr("Reset all"));
+        m_keys = readKeymapFile(Paths::appDir() + QStringLiteral("/keymaps/default.json"));
+        QFile::remove(Paths::dataDir() + QStringLiteral("/keymap.json"));
+        m_capture.clear(); m_keyNote = tr("Back to the default shortcuts");
+        emit keymapChanged(m_keys);
+        rebuildKeyRows();
+    });
+    m_openKeymap = new TextButton(tr("Edit file (advanced)"), this);
+    connect(m_openKeymap, &QAbstractButton::clicked, this, [this] {
+        const QString f = Paths::dataDir() + QStringLiteral("/keymap.json");
+        if (!QFile::exists(f)) saveKeymap();
+        if (!QFile::exists(f)) { QFile out(f); if (out.open(QIODevice::WriteOnly)) out.write("{\n  \"keys\": {}\n}\n"); }
         QDesktopServices::openUrl(QUrl::fromLocalFile(f));
     });
-    m_pageWidgets[Shortcuts] << m_keysList << m_openKeymap;
+    m_pageWidgets[Shortcuts] << m_keysList << m_resetKeys << m_openKeymap;
 }
 
 void SettingsPage::buildInfo() {
@@ -310,6 +432,8 @@ void SettingsPage::showPage(int p) {
     for (int i = 0; i < 3; ++i) for (const Row& r : m_rows[i]) if (r.w) r.w->setVisible(p == i);
     for (int i = 0; i < PageCount; ++i) for (auto* w : m_pageWidgets[i]) w->setVisible(p == i);
     m_tabs->setCurrent(p);
+    if (m_skipStepper) m_skipStepper->setVisible(p == Playback && m_skipSeg->current() == 3);
+    if (p != Shortcuts && !m_capture.isEmpty()) { m_capture.clear(); rebuildKeyRows(); }
     if (p == Privacy) refreshPrivacy();
     update();
 }
@@ -343,10 +467,11 @@ void SettingsPage::resizeEvent(QResizeEvent*) {
     m_close->move(width() - 16 - 32, 14);
     const int right = width() - 28;
     for (int pg = 0; pg < 3; ++pg) {
-        const int rh = pg == General ? 56 : pg == Playback ? 44 : 48;
+        const int rh = pg == General ? 56 : pg == Playback ? 40 : 48;
         int y = 118;
         for (const Row& r : m_rows[pg]) {
-            if (r.w) { const QSize s = r.w->sizeHint(); r.w->setGeometry(right - s.width(), y + (rh - s.height()) / 2, s.width(), s.height()); }
+            if (r.w) { const QSize s = r.w->sizeHint(); r.w->setGeometry(right - s.width(), y + (rh - s.height()) / 2, s.width(), s.height());
+                if (r.w == m_skipSeg && m_skipStepper) { const QSize ss = m_skipStepper->sizeHint(); m_skipStepper->setGeometry(right - s.width() - 12 - ss.width(), y + (rh - ss.height()) / 2, ss.width(), ss.height()); } }
             y += rh;
         }
         if (pg == General) {
@@ -365,7 +490,8 @@ void SettingsPage::resizeEvent(QResizeEvent*) {
     }
     const QRect content(24, 116, width() - 48, height() - 116 - 68);
     if (m_keysList) m_keysList->setGeometry(content.left() - 12, content.top(), content.width() + 24, content.height());
-    if (m_openKeymap) m_openKeymap->setGeometry(24, height() - 56, m_openKeymap->sizeHint().width(), 36);
+    if (m_resetKeys) m_resetKeys->setGeometry(24, height() - 56, m_resetKeys->sizeHint().width(), 36);
+    if (m_openKeymap && m_resetKeys) m_openKeymap->setGeometry(24 + m_resetKeys->sizeHint().width() + 10, height() - 56, m_openKeymap->sizeHint().width(), 36);
     if (m_infoView) m_infoView->setGeometry(content);
     if (m_copyDiag) m_copyDiag->setGeometry(24, height() - 56, m_copyDiag->sizeHint().width(), 36);
     if (m_legal) m_legal->setGeometry(24, 116, width() - 48, height() - 132);
@@ -388,11 +514,11 @@ void SettingsPage::paintEvent(QPaintEvent*) {
     p.setPen(c.border); p.drawLine(24, 104, width() - 24, 104);
 
     if (m_page == General || m_page == Playback || m_page == Privacy) {
-        const int rh = m_page == General ? 56 : m_page == Playback ? 44 : 48;
+        const int rh = m_page == General ? 56 : m_page == Playback ? 40 : 48;
         int y = 118;
         for (const Row& r : m_rows[m_page]) {
-            p.setPen(c.text); p.setFont(Theme::i().font(15, QFont::Medium)); p.drawText(QRectF(24, y + (rh == 56 ? 6 : 4), width() * 0.52, 22), Qt::AlignVCenter, r.title);
-            p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(QRectF(24, y + (rh == 56 ? 28 : 25), width() * 0.5, 18), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(r.desc, Qt::ElideRight, int(width() * 0.5)));
+            p.setPen(c.text); p.setFont(Theme::i().font(15, QFont::Medium)); p.drawText(QRectF(24, y + (rh == 56 ? 6 : rh == 40 ? 1 : 4), width() * 0.52, 22), Qt::AlignVCenter, r.title);
+            p.setPen(c.muted); p.setFont(Theme::i().font(12)); p.drawText(QRectF(24, y + (rh == 56 ? 28 : rh == 40 ? 21 : 25), width() * 0.5, 18), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(r.desc, Qt::ElideRight, int(width() * 0.5)));
             y += rh;
         }
         if (m_page == Privacy) {
@@ -415,7 +541,7 @@ void SettingsPage::paintEvent(QPaintEvent*) {
         }
     } else if (m_page == Shortcuts) {
         p.setPen(c.muted); p.setFont(Theme::i().font(12));
-        p.drawText(QRectF(width() - 24 - 360, height() - 56, 360, 36), Qt::AlignVCenter | Qt::AlignRight, tr("Add or change keys in keymap.json, then restart."));
+        p.drawText(QRectF(width() - 24 - 300, height() - 56, 300, 36), Qt::AlignVCenter | Qt::AlignRight | Qt::TextWordWrap, !m_capture.isEmpty() ? tr("Press the new key. Esc cancels, Delete clears it.") : !m_keyNote.isEmpty() ? m_keyNote : tr("Click an action, then press the new key."));
     } else if (m_page == About) {
         p.setPen(c.text); p.setFont(Theme::i().font(30, QFont::DemiBold, true)); p.drawText(QRectF(24, 118, width() - 48, 42), Qt::AlignVCenter, QStringLiteral(APP_NAME));
         p.setPen(c.muted); p.setFont(Theme::i().font(14));

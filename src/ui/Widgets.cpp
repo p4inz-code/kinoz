@@ -235,6 +235,25 @@ void Segmented::mousePressEvent(QMouseEvent* e) {
     }
 }
 
+// ================= Stepper =================
+void Stepper::change(int d) { const int n = qBound(m_min, m_v + d, m_max); if (n == m_v) return; m_v = n; update(); emit valueChanged(m_v); }
+void Stepper::paintEvent(QPaintEvent*) {
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing);
+    const auto& c = pal();
+    p.setPen(Qt::NoPen); p.setBrush(c.sunken); p.drawRoundedRect(rect(), 8, 8);
+    p.setFont(Theme::i().font(15, QFont::Medium)); p.setPen(c.muted);
+    p.drawText(QRectF(0, 0, 36, height()), Qt::AlignCenter, QStringLiteral("\u2212"));
+    p.drawText(QRectF(width() - 36, 0, 36, height()), Qt::AlignCenter, QStringLiteral("+"));
+    p.setFont(Theme::i().font(13, QFont::Medium)); p.setPen(c.text);
+    p.drawText(QRectF(36, 0, width() - 72, height()), Qt::AlignCenter, QString::number(m_v) + QLatin1Char(' ') + m_suffix);
+}
+void Stepper::mousePressEvent(QMouseEvent* e) {
+    const int big = (e->modifiers() & Qt::ShiftModifier) ? 5 : 1;
+    if (e->position().x() < 40) change(-big); else if (e->position().x() > width() - 40) change(big);
+}
+void Stepper::wheelEvent(QWheelEvent* e) { change(e->angleDelta().y() > 0 ? 1 : -1); e->accept(); }
+
 // ================= ScrollBar =================
 ScrollBar::ScrollBar(Qt::Orientation o, QWidget* parent) : QScrollBar(o, parent) { setAttribute(Qt::WA_OpaquePaintEvent, false); }
 void ScrollBar::paintEvent(QPaintEvent*) {

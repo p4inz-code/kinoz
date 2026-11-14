@@ -17,6 +17,7 @@ public:
         double pos = 0, dur = 0, volume = 100, speed = 1;
         bool playing = false, muted = false, shuffle = false, buffering = false;
         int repeat = 0;
+        int skipStep = 10;                      // seconds for the skip back / forward buttons
         QString zoomText;
     };
     void setState(const State& s);

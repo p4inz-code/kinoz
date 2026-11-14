@@ -347,7 +347,7 @@ void MainWindow::refreshChrome() {
     ControlBar::State s;
     s.kind = k;
     s.pos = m_mpv->position(); s.dur = m_mpv->duration();
-    s.volume = m_mpv->volume(); s.muted = m_mpv->muted(); s.speed = m_mpv->speed();
+    s.volume = m_mpv->volume(); s.muted = m_mpv->muted(); s.speed = m_mpv->speed(); s.skipStep = qBound(1, int(m_set->num("skipStep", 10)), 600);
     s.playing = !m_mpv->paused(); s.shuffle = m_ctl->shuffle(); s.repeat = m_ctl->repeat();
     m_bar->setCompact(m_mini);
     m_bar->setState(s);
@@ -653,7 +653,7 @@ void MainWindow::keyPressEvent(QKeyEvent* e) {
     const QString ks = keyString(e);
     const QString act = m_keys.value(ks);
     if (act.isEmpty()) { QWidget::keyPressEvent(e); return; }
-    static const QSet<QString> repeatable{"seekback", "seekfwd", "seekback30", "seekfwd30", "seekback10", "seekfwd10", "volup", "voldown", "framestep", "framestepback", "zoomin", "zoomout", "next", "prev", "nextfile", "prevfile"};
+    static const QSet<QString> repeatable{"seekback", "seekfwd", "seekback30", "seekfwd30", "seekback10", "seekfwd10", "skipback", "skipfwd", "volup", "voldown", "framestep", "framestepback", "zoomin", "zoomout", "next", "prev", "nextfile", "prevfile"};
     if (e->isAutoRepeat() && !repeatable.contains(act)) return;
     doAction(act);
     e->accept();
@@ -712,6 +712,8 @@ void MainWindow::doAction(const QString& id) {
     else if (id == "copypath") { if (m_ctl->hasMedia()) { QGuiApplication::clipboard()->setText(QDir::toNativeSeparators(m_ctl->path())); notify(tr("Path copied")); } }
     else if (id == "seekfwd10") seek(10);
     else if (id == "seekback10") seek(-10);
+    else if (id == "skipfwd") seek(qBound(1, int(m_set->num("skipStep", 10)), 600));
+    else if (id == "skipback") seek(-qBound(1, int(m_set->num("skipStep", 10)), 600));
     else if (id == "volup" || id == "voldown") { if (!m_ctl->hasMedia() || (m_ctl->kind() != MediaKind::Image && m_ctl->kind() != MediaKind::Gif)) m_ctl->volumeStep(id == "volup" ? 1 : -1); }   // pictures have no sound
     else if (id == "mute" ) { if (!m_ctl->hasMedia() || m_ctl->kind() == MediaKind::Video || m_ctl->kind() == MediaKind::Audio) m_ctl->toggleMute(); }   // pictures have no sound
     else if (id == "fullscreen") toggleFullscreen();
@@ -999,6 +1001,7 @@ void MainWindow::applySetting(const QString& key) {
         notify(on ? tr("Private mode is on: nothing you play is remembered") : tr("Private mode is off: history is saved again"));
     }
     else if (key == "rememberMute") { if (m_set->flag("rememberMute", true) && m_mpv->muted()) m_set->set("muted", true); else m_set->remove("muted"); }
+    else if (key == "skipStep") refreshChrome();
     else if (key == "slideshow") restartSlideshow();
     else if (key == "normalize") m_ctl->applyEq();
     else if (key == "decode") { m_ctl->applyDecode(); notify(tr("Decoding changes apply to the next file")); }
@@ -1177,6 +1180,7 @@ void MainWindow::openSettings() {
     connect(pg, &SettingsPage::closeRequested, sh, &Sheet::closeSheet);
     connect(pg, &SettingsPage::makeDefault, this, [this] { doAction("defaultplayer"); });
     connect(pg, &SettingsPage::changed, this, [this](const QString& key) { applySetting(key); });
+    connect(pg, &SettingsPage::keymapChanged, this, [this](const QHash<QString, QString>& k) { m_keys = k; });   // shortcut edits apply at once
     connect(pg, &SettingsPage::privacyAction, this, [this](const QString& id) { privacyAction(id); });
     sh->openSheet();
 }
@@ -1447,6 +1451,33 @@ void MainWindow::runSelfTest() {
     S("repeat off", [this] { doAction("repeat"); doAction("repeat"); }, [this] { return m_ctl->repeat() == PlayerController::RepeatOff; });
     S("next", [this] { doAction("next"); }, [this] { return m_ctl->hasMedia(); }, 800);
     S("prev", [this] { m_mpv->seek(0, true); doAction("prev"); }, [this] { return m_ctl->hasMedia(); }, 800);
+    S("skip forward uses your step", [this] { m_set->set("skipStep", 3); m_mpv->seek(0.2, true); m_selfPos = m_mpv->position(); doAction("skipfwd"); },
+      [this] { return m_mpv->position() >= m_selfPos + 2.0 || m_mpv->duration() < m_selfPos + 4.0; }, 700);
+    S("skip back uses your step", [this] { m_mpv->seek(2.5, true); m_selfPos = m_mpv->position(); doAction("skipback"); },
+      [this] { m_set->set("skipStep", 10); return m_mpv->position() <= m_selfPos - 2.0 || m_selfPos < 3.0; }, 700);
+    S("shortcut editor: pick an action, press a key, saved and live", [this] {
+        SettingsPage pg(m_set, m_keys, m_updater, QString());
+        pg.resize(660, 650);
+        QHash<QString, QString> got;
+        connect(&pg, &SettingsPage::keymapChanged, &pg, [&got](const QHash<QString, QString>& k) { got = k; });
+        auto* list = pg.findChild<RowList*>();
+        int row = -1;
+        if (list) for (int i = 0; i < list->rows().size(); ++i) if (list->rows()[i].data == QLatin1String("act:nextfile")) row = i;
+        if (row >= 0) {
+            emit list->activated(row);
+            QKeyEvent ev(QEvent::KeyPress, Qt::Key_F5, Qt::NoModifier);
+            QCoreApplication::sendEvent(&pg, &ev);
+        }
+        m_selfOk = row >= 0 && got.value("F5") == QLatin1String("nextfile") && !got.contains("Right") && QFile::exists(Paths::dataDir() + QStringLiteral("/keymap.json"));
+        QFile::remove(Paths::dataDir() + QStringLiteral("/keymap.json"));
+    }, [this] { return m_selfOk; }, 100);
+    S("keymap file keeps only what changed", [] {},
+      [] {
+          const QHash<QString, QString> def{{"J", "skipback"}, {"L", "skipfwd"}, {"M", "mute"}};
+          const QHash<QString, QString> cur{{"J", "skipback"}, {"N", "mute"}, {"L", "skipfwd"}};
+          const QJsonObject o = SettingsPage::keymapOverrides(cur, def);
+          return o.size() == 2 && o.value("N").toString() == "mute" && o.contains("M") && o.value("M").toString().isEmpty();
+      }, 50);
     S("right arrow goes to the next file", [this] { m_selfPath = m_ctl->path(); doAction("nextfile"); }, [this] { return m_ctl->hasMedia() && m_ctl->path() != m_selfPath; }, 800);
     S("left arrow goes back, even deep into a file", [this] { m_selfPath = m_ctl->path(); m_mpv->seek(2.0, true); doAction("prevfile"); }, [this] { return m_ctl->hasMedia() && m_ctl->path() != m_selfPath; }, 800);
     S("frame step", [this] { doAction("framestep"); }, [this] { return m_mpv->paused(); });

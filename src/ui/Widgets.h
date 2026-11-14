@@ -108,6 +108,26 @@ private:
     qreal m_t = 1.0;
 };
 
+// ---- Stepper: a small "-  25 s  +" control for a whole number in a range (click the sides, or use the wheel) ----
+class Stepper : public QWidget {
+    Q_OBJECT
+public:
+    Stepper(int min, int max, const QString& suffix, QWidget* parent = nullptr) : QWidget(parent), m_min(min), m_max(max), m_suffix(suffix) {}
+    int value() const { return m_v; }
+    void setValue(int v) { m_v = qBound(m_min, v, m_max); update(); }
+    QSize sizeHint() const override { return {132, 30}; }
+signals:
+    void valueChanged(int v);
+protected:
+    void paintEvent(QPaintEvent*) override;
+    void mousePressEvent(QMouseEvent*) override;
+    void wheelEvent(QWheelEvent*) override;
+private:
+    void change(int d);
+    int m_min, m_max, m_v = 10;
+    QString m_suffix;
+};
+
 // ---- Thin, themed scroll bar ----
 class ScrollBar : public QScrollBar {
     Q_OBJECT

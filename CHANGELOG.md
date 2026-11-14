@@ -2,6 +2,10 @@
 
 All notable changes. Dates are release dates.
 
+## 0.2.3 — skip buttons with your own step, change shortcuts inside the app
+- Two new buttons beside play skip back and forward. The step is yours: Settings → Playback → Skip step, 5, 10, 15 seconds or any number from 1 to 600. The same step is used by J and L.
+- Settings → Shortcuts is now an editor. Click an action, press the new key, done, no restart and no file to open. A key already used elsewhere moves over and the page tells you, Esc cancels, Delete clears, and Reset all returns to the defaults. Actions without a key (like Next file) are listed too. The file option is still there, labelled advanced.
+
 ## 0.2.2 — arrow keys that mean the same everywhere, remembered mute
 - Left and Right arrows now go to the previous and next file for every kind of media: video, music, GIF and pictures. Holding the key flips quickly through a folder. Seeking moves to Ctrl+Left / Ctrl+Right (small step), Shift+Left / Shift+Right (large step) and J / L (10 s). If you have your own keymap.json, it still wins.
 - New setting, Settings → Playback → "Remember mute" (on by default): if you quit muted, kinoz starts muted next time. Clean identity resets it.

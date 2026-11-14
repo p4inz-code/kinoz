@@ -34,7 +34,7 @@ Take the file for your system from the [latest release](https://github.com/p4inz
 - macOS on Apple Silicon: `kinoz-<version>-macos.dmg`. Open it and drag kinoz to Applications.
 - Linux on x86-64: `kinoz-<version>-x86_64.AppImage`. Run `chmod +x` on it, then run it.
 
-> **Status: 0.2, usable every day on Windows.** Windows is the one I test hardest, with an automated self-test of 104 checks and a speed benchmark. The macOS and Linux builds come from CI, which builds them and runs a smoke test, but I haven't used them on real machines yet, so expect rough edges there. What's missing is listed in [Known issues](docs/KNOWN_ISSUES.md) and the [roadmap](ROADMAP.md).
+> **Status: 0.2, usable every day on Windows.** Windows is the one I test hardest, with an automated self-test of 108 checks and a speed benchmark. The macOS and Linux builds come from CI, which builds them and runs a smoke test, but I haven't used them on real machines yet, so expect rough edges there. What's missing is listed in [Known issues](docs/KNOWN_ISSUES.md) and the [roadmap](ROADMAP.md).
 >
 > If you're on macOS or Linux, you're the testers. [Open a test report](https://github.com/p4inz-code/kinoz/issues/new?template=platform_test.md) and tell me what worked and what didn't: moving and resizing the window, fullscreen, media keys, opening your files.
 
@@ -225,13 +225,13 @@ kinoz recognises these in the library and in "Open with". The engine can also pl
 
 ## Keyboard shortcuts
 
-The full list is in **Settings → Shortcuts**, and you can add your own in `keymap.json`. The ones to know:
+The full list is in **Settings → Shortcuts**, where you can change any of them: click an action and press the new key. The ones to know:
 
 | Key | Action | Key | Action |
 |---|---|---|---|
 | `Space` / `Ctrl+P` | Play / pause | `Ctrl+K` | Search and commands |
 | `Left` / `Right` | Previous / next file | `F` / `Alt+Enter` | Fullscreen |
-| `Ctrl+Left` / `Ctrl+Right` | Back / forward (small step); `Shift` for the large step | `Ctrl+M` | Mini player |
+| `J` / `L` | Skip back / forward (5, 10, 15 s or your own number, same as the skip buttons) | `Ctrl+M` | Mini player |
 | `Up` / `Down` | Volume | `Ctrl+N` | New window |
 | `M` / `F7` | Mute | `Tab` | Show / hide the library |
 | `]` / `[` | Faster / slower | `A` | Annotate this frame |
@@ -285,7 +285,7 @@ It's drawn by kinoz itself instead of the stock wizard. It has the same look as 
 
 ### Can I add my own shortcuts?
 
-Yes, in `keymap.json`. The current ones are listed under **Settings → Shortcuts**.
+Yes. Open **Settings → Shortcuts**, click an action, press the key you want, and it works at once. If another action already used that key, it moves and the page tells you. **Reset all** goes back to the defaults. The changes are stored in `keymap.json` for anyone who prefers a file.
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
 

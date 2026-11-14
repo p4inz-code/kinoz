@@ -58,8 +58,11 @@ void ControlBar::relayout() {
     // centre transport
     QVector<Btn> centre;
     if (!picture && !m_compact) centre << Btn{"shuffle", Icon::Shuffle, {}, m_s.shuffle};
+    const bool skips = timeline && !m_compact && W >= 780;                        // wide enough for the two skip buttons
     centre << Btn{"prev", Icon::Prev, {}};
+    if (skips) centre << Btn{"skipback", Icon::Back10, {}};
     if (!picture) centre << Btn{"play", m_s.playing ? Icon::Pause : Icon::Play, {}, false, true};
+    if (skips) centre << Btn{"skipfwd", Icon::Fwd10, {}};
     centre << Btn{"next", Icon::Next, {}};
     if (!picture && !m_compact) centre << Btn{"repeat", m_s.repeat == 2 ? Icon::RepeatOne : Icon::Repeat, {}, m_s.repeat != 0};
     qreal total = 0;
@@ -89,7 +92,9 @@ void ControlBar::relayout() {
     if (picture && !m_s.zoomText.isEmpty()) { rx -= 60; Btn b{"zoom", Icon::Search, QRectF(rx, cy - 14, 60, 28)}; b.label = m_s.zoomText; m_btns << b; }
 }
 
-static QString tipFor(const QString& id, bool playing, bool fullscreen, bool picture) {
+static QString tipFor(const QString& id, bool playing, bool fullscreen, bool picture, int skipStep) {
+    if (id == "skipback") return QObject::tr("Back %1 s\tJ").arg(skipStep);
+    if (id == "skipfwd") return QObject::tr("Forward %1 s\tL").arg(skipStep);
     if (id == "prev") return QObject::tr("Previous\tCtrl+B");
     if (id == "play") return playing ? QObject::tr("Pause\tSpace") : QObject::tr("Play\tSpace");
     if (id == "next") return QObject::tr("Next\tCtrl+F");
@@ -196,6 +201,12 @@ void ControlBar::paintEvent(QPaintEvent*) {
         QColor fg = b.active ? c.overlayAccent : c.overlayText;
         if (b.id == "fullscreen" && window()->isFullScreen()) { drawIcon(&p, Icon::ExitFullscreen, QRectF(b.r.center().x() - is / 2, b.r.center().y() - is / 2, is, is), fg); continue; }
         drawIcon(&p, b.icon, QRectF(b.r.center().x() - is / 2, b.r.center().y() - is / 2, is, is), fg);
+        if (b.id == "skipback" || b.id == "skipfwd") {                          // the seconds, from the setting, inside the arrow
+            const qreal k = is / 24.0;
+            QFont ft = Theme::i().font(10, QFont::Bold); ft.setPixelSize(m_s.skipStep >= 100 ? 7 : 9);
+            p.setFont(ft); p.setPen(fg);
+            p.drawText(QRectF(b.r.center().x() - is / 2 + 4.5 * k, b.r.center().y() - is / 2 + 6.5 * k, 15 * k, 15 * k), Qt::AlignCenter, QString::number(m_s.skipStep));
+        }
     }
 }
 
@@ -225,7 +236,7 @@ void ControlBar::mouseMoveEvent(QMouseEvent* e) {
     else if (m_seekHot) { m_hoverFrac = -1; emit hoverLeft(); }
     if (h != m_hover) {                                                       // a label names the icon after a short pause
         HoverTip::cancel();
-        if (h >= 0) { const QRect g(mapToGlobal(m_btns[h].r.topLeft().toPoint()), m_btns[h].r.size().toSize()); HoverTip::request(g, tipFor(m_btns[h].id, m_s.playing, window()->isFullScreen(), m_s.kind == MediaKind::Image || m_s.kind == MediaKind::Gif)); }
+        if (h >= 0) { const QRect g(mapToGlobal(m_btns[h].r.topLeft().toPoint()), m_btns[h].r.size().toSize()); HoverTip::request(g, tipFor(m_btns[h].id, m_s.playing, window()->isFullScreen(), m_s.kind == MediaKind::Image || m_s.kind == MediaKind::Gif, m_s.skipStep)); }
     }
     if (h != m_hover || hot != m_seekHot) { m_hover = h; m_seekHot = hot; setCursor((h >= 0 || hot || (!m_vol.isNull() && m_vol.adjusted(-6, -8, 6, 8).contains(pt))) ? Qt::PointingHandCursor : Qt::ArrowCursor); }
     update();

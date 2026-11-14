@@ -101,7 +101,7 @@ void drawIcon(QPainter* p, Icon ic, const QRectF& r, const QColor& c, qreal sw) 
         const bool fw = ic == Icon::Fwd10;
         QPainterPath a; a.arcMoveTo(4.5, 5.5, 15, 15, fw ? 70 : 110); a.arcTo(4.5, 5.5, 15, 15, fw ? 70 : 110, fw ? -300 : 300); p->drawPath(a);
         if (fw) poly(s, {{12, 2.5}, {15, 5.2}, {12, 8}}); else poly(s, {{12, 2.5}, {9, 5.2}, {12, 8}});
-        QFont ft; ft.setPixelSize(8); ft.setBold(true); p->setFont(ft); p->drawText(QRectF(4.5, 6.5, 15, 15), Qt::AlignCenter, "10"); break; }
+        break; }
     case Icon::Check: poly(s, {{5, 12.5}, {10, 17.5}, {19, 7}}); break;
     case Icon::Queue: line(s, 4, 7, 15, 7); line(s, 4, 12, 15, 12); line(s, 4, 17, 11, 17); poly(f, {{16.5, 14}, {21, 17}, {16.5, 20}}); f.closeSubpath(); break;
     case Icon::Home: poly(s, {{4, 11}, {12, 4.5}, {20, 11}}); poly(s, {{6, 10}, {6, 19.5}, {18, 19.5}, {18, 10}}); break;

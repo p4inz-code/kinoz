@@ -36,4 +36,4 @@ One window, four kinds of media: **video** (letterboxed, auto-hiding controls), 
 - **Annotate:** a floating tool pill over a paused frame.
 
 ## Shortcuts
-Windows Media Player-style plus modern keys, in `resources/keymaps/default.json`; override any of them in `keymap.json` inside the data folder. The full list is in Settings → Shortcuts.
+Windows Media Player-style plus modern keys, in `resources/keymaps/default.json`; change any of them in Settings → Shortcuts (stored as overrides in `keymap.json` inside the data folder). The full list is in Settings → Shortcuts.
