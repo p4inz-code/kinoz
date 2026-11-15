@@ -199,6 +199,30 @@ private:
     std::function<void()> m_done;
 };
 
+// ---- NoticeBar: a message with one or two text buttons; clickable, disappears by itself ----
+class NoticeBar : public QWidget {
+    Q_OBJECT
+public:
+    explicit NoticeBar(QWidget* parent);
+    void show(const QString& text, const QStringList& actions, int ms = 10000);
+    QRect actionRect(int i) const;                           // in global coordinates (a menu can open above it)
+signals:
+    void actionClicked(int index);
+protected:
+    void paintEvent(QPaintEvent*) override;
+    void mousePressEvent(QMouseEvent*) override;
+    void mouseMoveEvent(QMouseEvent*) override;
+    void leaveEvent(QEvent*) override { m_hover = -1; update(); }
+private:
+    QString m_text;
+    QStringList m_actions;
+    QVector<QRectF> m_rects;
+    int m_hover = -1;
+    QTimer* m_timer;
+    qreal m_op = 0;
+    QVariantAnimation m_anim;
+};
+
 // ---- Toast: transient one-line message ----
 class Toast : public QWidget {
     Q_OBJECT

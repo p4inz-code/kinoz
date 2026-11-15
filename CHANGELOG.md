@@ -2,6 +2,14 @@
 
 All notable changes. Dates are release dates.
 
+## 0.4.0 — play any folder, the easy way
+- **A folder means everything inside it.** Right-click a folder and choose Play with kinoz, drag it onto the window, use Ctrl+O, or press the new play button on a folder row in the Library: everything in the folder and below it plays, in folder order. Before, only the files directly inside the folder played, and a folder that held only subfolders said "No playable files".
+- **Paste a path.** The folder picker has a path box: paste `D:\Videos\Memes` (with or without quotes, `file:///` addresses, `%USERPROFILE%`, `~` and either kind of slash all work) and press Enter. A folder path on the clipboard is offered the moment the picker opens. The same works from the new "Paste a path" button on the start screen and by pasting a path into Ctrl+K.
+- **Easier browsing.** The picker opens where you last were, shows a clickable path, a count of what is inside each folder ("142 videos, 18 GIFs, 6 subfolders") and filters the list as you type. The start screen lists your recent folders with their counts, one click to play.
+- **While it plays,** a message says "Playing all of Memes: 312 files" with Shuffle (a true shuffle: every file once, the current one first) and Options (include subfolders, videos, GIFs, music, pictures, shuffle; remembered per folder). The Queue shows which subfolder each file came from. Folders you play are kept in your Library, with a Don't keep button.
+- **The rules for moving on are unchanged and now pinned by tests:** videos and songs go to the next file by themselves, a GIF keeps looping until you press next, a picture stays until you move on (Repeat works on top). Pictures are left out of Play all unless you tick them.
+- Private mode remembers no folder; Clean identity and `--wipe` clear the recent folders and the counts.
+
 ## 0.3.3 — updating brings you back to where you were
 - After an update restart, kinoz opens the file you had open at the same second, playing or paused, with the same queue, and says "Updated to X. Continuing where you were." If the file is gone it tells you. This is only done when you press Restart now (not for an update applied at the next start), never in Private mode or with "Clean identity when kinoz closes" on, the note is erased as soon as it has been read, and Clean identity and `--wipe` remove it too.
 - The "downloaded and verified" message now shows a piece of the checksum (`a3f9c1…8e21`) so the check is visible.

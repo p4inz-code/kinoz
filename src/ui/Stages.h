@@ -9,8 +9,12 @@ class EmptyState : public QWidget {
 public:
     explicit EmptyState(QWidget* parent = nullptr);
     void setRecent(const QStringList& r) { m_recent = r; relayout(); update(); }
+    struct Folder { QString path, counts; };
+    void setFolders(const QVector<Folder>& f) { m_folders = f; relayout(); update(); }       // recent folders, each with what is inside it
 signals:
-    void openFolderRequested();
+    void openFolderRequested();                         // "Play a folder"
+    void pastePathRequested();                          // "Paste a folder path"
+    void folderClicked(const QString& path);
     void defaultPlayerRequested();
     void recentClicked(const QString& path);
 protected:
@@ -22,8 +26,9 @@ protected:
 private:
     void relayout();
     QStringList m_recent;
-    QVector<QRectF> m_rows;
-    QRectF m_btn, m_btn2;
+    QVector<Folder> m_folders;
+    QVector<QRectF> m_rows, m_folderRows;
+    QRectF m_btn, m_btn2, m_btn3;
     int m_hover = -1;
 };
 

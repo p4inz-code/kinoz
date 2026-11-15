@@ -26,6 +26,9 @@
 #include "ui/SettingsPage.h"
 #include "core/Log.h"
 #include "core/Doctor.h"
+#include "core/PathInput.h"
+#include "library/FolderCounts.h"
+#include "library/FolderScan.h"
 #include <QClipboard>
 #include <QLocale>
 #include <QSysInfo>
@@ -107,6 +110,7 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
     m_thumbs = new ThumbService(this);
     m_preview = new PreviewService(this);
     m_index = new LibraryIndex(this);
+    m_counts = new FolderCounts(this);
     m_updater = new Updater(m_set, this);
     connect(m_updater, &Updater::aboutToRestart, this, [this] { saveHandoff(); });
     connect(m_updater, &Updater::updateFound, this, [this](const QString& v) { notify(tr("kinoz %1 is available. Settings → About to update.").arg(v)); });
@@ -167,6 +171,7 @@ MainWindow::MainWindow(JsonStore* settings, JsonStore* resume) : QWidget(nullptr
     m_idle.setSingleShot(true);
     applyHideDelay();
     m_thumbs->setPrivate(m_set->flag("privateMode", false));
+    m_counts->setPrivate(m_set->flag("privateMode", false));
     m_top->setPrivate(m_set->flag("privateMode", false));
     connect(&m_idle, &QTimer::timeout, this, &MainWindow::idleTick);
     m_slide.setSingleShot(true);
@@ -217,6 +222,7 @@ void MainWindow::notify(const QString& text, bool error) {
 
 void MainWindow::buildUi() {
     m_side = new Sidebar(m_ctl, m_thumbs, m_set, this);
+    m_side->setCounts(m_counts);
     m_content = new QWidget(this);
     m_video = new VideoWidget(m_mpv, m_content);
     m_audio = new AudioStage(m_content);
@@ -228,6 +234,13 @@ void MainWindow::buildUi() {
     m_panel = new SidePanel(m_ctl, m_set, m_content);
     m_annot = new Annotator(m_ctl, m_content);
     m_toast = new Toast(m_content);
+    m_notice = new NoticeBar(m_content);
+    connect(m_notice, &NoticeBar::actionClicked, this, [this](int i) {
+        const QString what = m_noticeActions.value(i);
+        if (what == "shuffle") { if (m_ctl->reshuffleQueue()) notify(tr("Shuffled")); }
+        else if (what == "options") showPlayOptions(m_notice->actionRect(i));
+        else if (what == "unkeep") { for (const QString& d : m_keptNow) m_side->removePlace(d); m_keptNow.clear(); notify(tr("Not kept in your Library")); }
+    });
     m_palette = new CommandPalette(m_ctl, m_index, this);
     m_cover = new FadeCover(this);          // veil for the open/close animation
 #ifdef Q_OS_WIN
@@ -297,6 +310,10 @@ void MainWindow::buildUi() {
     connect(m_video, &VideoWidget::dragged, this, [this](const QPoint& d) { m_ctl->panByPixels(d, m_video->size(), m_video->devicePixelRatioF()); });
     connect(m_empty, &EmptyState::recentClicked, this, [this](const QString& p) { m_ctl->play(p); });
     connect(m_empty, &EmptyState::openFolderRequested, this, [this] { openPicker(true); });
+    connect(m_empty, &EmptyState::pastePathRequested, this, [this] { pastePath(); });
+    connect(m_empty, &EmptyState::folderClicked, this, [this](const QString& p) { playFolderNow({p}); });
+    connect(m_counts, &FolderCounts::ready, this, [this] { if (!m_ctl->hasMedia()) refreshStartFolders(); });
+    connect(m_ctl, &PlayerController::folderPlayStarted, this, [this](const QString& t, int n, bool cut) { showPlayNotice(t, n, cut); noteFolderPlayed(m_ctl->lastFolderPlay()); });
     connect(m_empty, &EmptyState::defaultPlayerRequested, this, [this] { doAction("defaultplayer"); });
 
     connect(m_side, &Sidebar::addFolderRequested, this, [this] { openPicker(true); });
@@ -312,6 +329,7 @@ void MainWindow::buildUi() {
 
     connect(m_palette, &CommandPalette::command, this, [this](const QString& id) { doAction(id); });
     connect(m_palette, &CommandPalette::playFile, this, [this](const QString& p) { m_ctl->play(p); });
+    connect(m_palette, &CommandPalette::playFolder, this, [this](const QString& p) { playFolderNow({p}); });
 
     connect(m_annot, &Annotator::message, this, [this](const QString& t, bool e) { notify(t, e); });
     connect(m_annot, &Annotator::finished, this, [this] { poke(); m_video->setFocus(); });
@@ -360,7 +378,7 @@ void MainWindow::refreshChrome() {
     const bool has = m_ctl->hasMedia();
     if (m_sideAuto && (!(k == MediaKind::Video || k == MediaKind::Gif) || m_mpv->paused())) { m_sideAuto = false; setSidebarOpen(true, true, true); }   // paused, stopped or switched to music/pictures: the library returns
     m_empty->setVisible(!has);
-    if (!has) m_empty->setRecent(m_ctl->recent());
+    if (!has) { m_empty->setRecent(m_ctl->recent()); refreshStartFolders(); }
     const bool audioCard = has && k == MediaKind::Audio;
     m_audio->setVisible(audioCard);
     if (audioCard) m_audio->setInfo(m_ctl->title(), m_ctl->artist(), m_ctl->album(), m_mpv->hasCover());
@@ -787,6 +805,7 @@ void MainWindow::doAction(const QString& id) {
     else if (id == "adjust" || id == "eq") { const MediaKind k = m_ctl->kind(); if (!m_ctl->hasMedia() || (id == "eq" ? (k == MediaKind::Video || k == MediaKind::Audio) : (k == MediaKind::Video || k == MediaKind::Gif))) togglePanel(id); }
     else if (id == "palette") { if (m_palette->isOpen()) m_palette->closePalette(); else m_palette->openPalette(); }
     else if (id == "openfolder") openPicker(true);
+    else if (id == "pastefolder") pastePath();
     else if (id == "openfile") openPicker(false);
     else if (id == "settings") openSettings();
     else if (id == "saveplaylist") savePlaylist();
@@ -1037,7 +1056,7 @@ void MainWindow::applySetting(const QString& key) {
     else if (key == "hideDelay") { applyHideDelay(); poke(); }
     else if (key == "privateMode") {
         const bool on = m_set->flag("privateMode", false);
-        m_thumbs->setPrivate(on); m_top->setPrivate(on);
+        m_thumbs->setPrivate(on); m_counts->setPrivate(on); m_top->setPrivate(on);
         notify(on ? tr("Private mode is on: nothing you play is remembered") : tr("Private mode is off: history is saved again"));
     }
     else if (key == "rememberMute") { if (m_set->flag("rememberMute", true) && m_mpv->muted()) m_set->set("muted", true); else m_set->remove("muted"); }
@@ -1194,6 +1213,8 @@ void MainWindow::cleanIdentity(bool announce) {
     m_set->remove("lastFolder");
     m_set->remove("muted");                                                       // a remembered mute is part of "what you did last time"
     Handoff::erase(m_set);
+    m_set->remove("recentFolders"); m_set->remove("pickerLast"); m_counts->clear();                  // which folders you played is history too
+    refreshStartFolders();
     m_empty->setRecent({});
     m_side->update();
     if (announce) notify(tr("Clean identity done: history, marks, thumbnails, the music index and logs are gone"));
@@ -1228,6 +1249,97 @@ void MainWindow::restoreHandoff() {
     }
 }
 
+// ---- play a whole folder ----
+QStringList MainWindow::recentFolders() const {
+    QStringList out;
+    for (const auto& v : m_set->get("recentFolders").toArray()) { const QString p = v.toObject().value("p").toString(); if (!p.isEmpty()) out << p; }
+    return out;
+}
+
+void MainWindow::noteFolderPlayed(const QStringList& dirs) {
+    if (m_set->flag("privateMode", false)) return;                                                // Private mode remembers no folder
+    QJsonArray a = m_set->get("recentFolders").toArray();
+    for (int i = int(dirs.size()) - 1; i >= 0; --i) {
+        const QString d = QDir::cleanPath(dirs[i]);
+        for (int k = int(a.size()) - 1; k >= 0; --k) if (QDir::cleanPath(a[k].toObject().value("p").toString()).compare(d, Qt::CaseInsensitive) == 0) a.removeAt(k);
+        QJsonObject o; o["p"] = d; o["t"] = double(QDateTime::currentSecsSinceEpoch());
+        a.prepend(o);
+    }
+    while (a.size() > 30) a.removeLast();
+    m_set->set("recentFolders", a);
+}
+
+void MainWindow::refreshStartFolders() {
+    QVector<EmptyState::Folder> f;
+    for (const QString& p : recentFolders()) {
+        if (!QDir(p).exists()) continue;
+        f.push_back({p, m_counts->text(p)});
+        if (f.size() >= 4) break;
+    }
+    m_empty->setFolders(f);
+}
+
+void MainWindow::playFolderNow(const QStringList& dirs) {
+    QStringList ok;
+    for (const QString& d : dirs) { if (QDir(d).exists()) ok << QDir::cleanPath(d); else notify(tr("“%1” isn't there any more").arg(QDir::toNativeSeparators(d)), true); }
+    if (ok.isEmpty()) return;
+    m_keptNow.clear();
+    if (!m_set->flag("privateMode", false)) {                                                     // the folder stays in the Library, so next time is one click (undo in the message)
+        const QStringList have = m_side->places();
+        for (const QString& d : ok) {
+            bool known = false;
+            for (const QString& h : have) if (QDir::cleanPath(h).compare(d, Qt::CaseInsensitive) == 0) known = true;
+            if (!known) { m_side->addPlace(d); m_keptNow << d; }
+        }
+    }
+    m_ctl->playFolders(ok);
+}
+
+void MainWindow::pastePath() {
+    const auto items = PathInput::parse(QGuiApplication::clipboard()->text());
+    if (items.isEmpty()) { notify(tr("The clipboard has no folder path. Copy a path first, then try again."), true); openPicker(true); return; }
+    QStringList dirs; QString file, err;
+    for (const auto& it : items) {
+        if (!it.ok()) { if (err.isEmpty()) err = it.error; continue; }
+        if (it.isFile) { if (file.isEmpty()) file = it.path; } else dirs << it.path;
+    }
+    if (!dirs.isEmpty()) playFolderNow(dirs);
+    else if (!file.isEmpty()) m_ctl->play(file);
+    else { notify(err, true); openPicker(true); }
+}
+
+void MainWindow::showPlayNotice(const QString& title, int count, bool truncated) {
+    m_noticeActions = {QStringLiteral("shuffle"), QStringLiteral("options")};
+    QStringList labels{tr("Shuffle"), tr("Options")};
+    if (!m_keptNow.isEmpty()) { m_noticeActions << QStringLiteral("unkeep"); labels << tr("Don't keep"); }
+    const QString text = truncated ? tr("Playing the first %2 files of %1 (a very large folder)").arg(title, QLocale().toString(count))
+                                   : tr("Playing all of %1: %2 files").arg(title, QLocale().toString(count));
+    m_notice->show(text, labels);
+}
+
+void MainWindow::showPlayOptions(const QRect& anchor) {
+    const QStringList dirs = m_ctl->lastFolderPlay();
+    if (dirs.isEmpty()) return;
+    const FolderScan::Options o = m_ctl->lastFolderOptions();
+    auto* m = new PopupMenu(this);
+    m->addHeader(tr("What to play from this folder"));
+    m->addItem("sub", tr("Include subfolders"), o.subfolders);
+    m->addItem("videos", tr("Videos"), o.videos);
+    m->addItem("gifs", tr("GIFs"), o.gifs);
+    m->addItem("music", tr("Music"), o.music);
+    m->addItem("pictures", tr("Pictures (they stay until you press next)"), o.pictures);
+    m->addSeparator();
+    m->addItem("shuffle", tr("Shuffle"), o.shuffle);
+    connect(m, &PopupMenu::triggered, this, [this, dirs, o](const QString& id) {
+        FolderScan::Options n = o;
+        if (id == "sub") n.subfolders = !n.subfolders; else if (id == "videos") n.videos = !n.videos; else if (id == "gifs") n.gifs = !n.gifs;
+        else if (id == "music") n.music = !n.music; else if (id == "pictures") n.pictures = !n.pictures; else if (id == "shuffle") n.shuffle = !n.shuffle;
+        if (!n.videos && !n.gifs && !n.music && !n.pictures) { notify(tr("Pick at least one kind of file"), true); return; }
+        m_ctl->playFolders(dirs, n);                                                              // remembered for this folder, and the queue is built again
+    });
+    m->popupAbove(anchor);
+}
+
 void MainWindow::privacyAction(const QString& id) {
     if (id == "clearRecent") { m_ctl->clearRecent(); m_empty->setRecent({}); notify(tr("Recent files cleared")); }
     else if (id == "clearResume") { m_ctl->clearResume(); notify(tr("Resume points cleared")); }
@@ -1257,15 +1369,25 @@ void MainWindow::openSettings() {
 
 void MainWindow::openPicker(bool folder) {
     auto* sh = new Sheet(this);
-    QString start = m_set->str("lastFolder");
-    if (start.isEmpty() || !QDir(start).exists()) start = QDir::homePath();
+    QString start = m_set->str("pickerLast");
+    if (start.isEmpty() || !QDir(start).exists()) start = m_set->str("lastFolder");
+    if (start.isEmpty() || !QDir(start).exists()) start = QDir::homePath() + QStringLiteral("/Videos");
+    if (!QDir(start).exists()) start = QDir::homePath();
     auto* fp = new FolderPicker(folder ? FolderPicker::PickFolder : FolderPicker::PickFile, start);
-    sh->setContent(fp, QSize(580, 540));
+    sh->setContent(fp, QSize(580, 560));
+    fp->setCounts(m_counts);
+    if (folder) {                                                                                  // a folder path on the clipboard is offered right away
+        const auto clip = PathInput::parse(QGuiApplication::clipboard()->text());
+        if (!clip.isEmpty() && clip.first().ok() && !clip.first().isFile) fp->setPrefill(clip.first().path);
+    }
     connect(fp, &FolderPicker::cancelled, sh, &Sheet::closeSheet);
-    connect(fp, &FolderPicker::chosen, this, [this, sh, folder](const QString& path) {
+    connect(fp, &FolderPicker::chosen, this, [this, sh](const QString& path) { sh->closeSheet(); m_ctl->play(path); });          // a file
+    connect(fp, &FolderPicker::played, this, [this, sh](const QString& dir) { sh->closeSheet(); if (!m_set->flag("privateMode", false)) m_set->set("pickerLast", dir); playFolderNow({dir}); });
+    connect(fp, &FolderPicker::added, this, [this, sh](const QString& path) {
         sh->closeSheet();
-        if (folder) { m_side->addPlace(path); m_side->navigate(path); setSidebarOpen(true); notify(tr("Added “%1” to your places").arg(QFileInfo(path).fileName().isEmpty() ? path : QFileInfo(path).fileName())); }
-        else m_ctl->play(path);
+        if (!m_set->flag("privateMode", false)) m_set->set("pickerLast", path);
+        m_side->addPlace(path); m_side->navigate(path); setSidebarOpen(true);
+        notify(tr("Added “%1” to your Library. Press its play button to watch everything in it.").arg(QFileInfo(path).fileName().isEmpty() ? path : QFileInfo(path).fileName()));
     });
     sh->openSheet();
 }
@@ -1275,7 +1397,7 @@ void MainWindow::showMoreMenu(const QPoint& anchorGlobal) {
     const MediaKind k = m_ctl->kind();
     const bool has = m_ctl->hasMedia();
     m->addItem("openfile", tr("Open file…"));
-    m->addItem("openfolder", tr("Add folder…"), false, "Ctrl+O");
+    m->addItem("openfolder", tr("Play a folder…"), false, "Ctrl+O");
     m->addItem("palette", tr("Search & commands…"), false, "Ctrl+K");
     m->addItem("newwindow", tr("New window"), false, "Ctrl+N");
     m->addSeparator();
@@ -1876,6 +1998,127 @@ void MainWindow::runSelfTest() {
                 if (ok) { m_mpv->setPause(false); QDir(Paths::tmpDir() + QStringLiteral("/hotest")).removeRecursively(); }
                 return ok; }, 1300);
     S("handoff: a missing file is refused, not opened", [] {}, [this] { return !m_ctl->restoreSession(Paths::tmpDir() + QStringLiteral("/hotest/gone.wav"), 5, false, {}); }, 50);
+    // ---- 0.4.0: a folder means everything inside it ----
+    S("folders: what people paste becomes a path", [] {},
+      [] {
+          const QString home = QDir::homePath();
+          bool ok = PathInput::normalize(QStringLiteral("\"C:\\Users\\me\\Videos\\Memes\\\"")) == QLatin1String("C:/Users/me/Videos/Memes")
+              && PathInput::normalize(QStringLiteral("  'D:/Clips/'  ")) == QLatin1String("D:/Clips")
+              && PathInput::normalize(QStringLiteral("file:///C:/Videos/My%20Memes")) == QLatin1String("C:/Videos/My Memes")
+              && PathInput::normalize(QStringLiteral("D:")) == QLatin1String("D:/")
+              && PathInput::normalize(QStringLiteral("~/Videos")) == home + QStringLiteral("/Videos")
+              && PathInput::normalize(QStringLiteral("\\\\server\\share\\Memes\\")) == QLatin1String("//server/share/Memes")
+              && PathInput::normalize(QStringLiteral("\u201CC:\\Clips\u201D")) == QLatin1String("C:/Clips")
+              && PathInput::normalize(QStringLiteral("Videos")).isEmpty() && PathInput::normalize(QStringLiteral("!!!")).isEmpty() && PathInput::normalize(QString()).isEmpty()
+              && PathInput::looksLikePath(QStringLiteral("C:\\Videos")) && PathInput::looksLikePath(QStringLiteral("~/x")) && PathInput::looksLikePath(QStringLiteral("file:///C:/x"))
+              && !PathInput::looksLikePath(QStringLiteral("funny cats")) && !PathInput::looksLikePath(QStringLiteral("meme"));
+#ifdef Q_OS_WIN
+          ok = ok && PathInput::normalize(QStringLiteral("%USERPROFILE%\\Videos")) == QDir::fromNativeSeparators(qEnvironmentVariable("USERPROFILE")) + QStringLiteral("/Videos");
+#endif
+          const QString d = Paths::tmpDir();
+          const auto items = PathInput::parse(QDir::toNativeSeparators(d) + QStringLiteral("\n\n") + QDir::toNativeSeparators(d) + QStringLiteral("/definitely-missing-folder\nnot a path"));
+          ok = ok && items.size() == 3 && items[0].ok() && !items[0].isFile && !items[1].ok() && !items[2].ok();
+          return ok;
+      }, 20);
+    S("folders: the tree is listed in order, filtered, bounded and counted", [this] {
+        const QString root = Paths::tmpDir() + QStringLiteral("/foldertest");
+        QDir(root).removeRecursively();
+        auto touch = [&](const QString& rel) { const QString f = root + QLatin1Char('/') + rel; QDir().mkpath(QFileInfo(f).absolutePath()); QFile w(f); w.open(QIODevice::WriteOnly); w.write("x"); };
+        for (const char* r : {"a.mp4", "b10.mp4", "b2.mp4", "gif1.gif", "pic.jpg", "song.mp3", "Funny/f1.mp4", "Funny/f2.mkv", "Funny/2023/deep.webm", "Shorts/s1.mp4", "Shorts/s2.gif",
+                              "Clips/c1.avi", "Clips/l1/l2/l3/l4/l5/leaf.mp4", "$RECYCLE.BIN/x.mp4", "node_modules/n.mp4", ".git/g.mp4", "notes.txt"}) touch(QLatin1String(r));
+        FolderScan::Options all;
+        const auto r = FolderScan::scan({root}, all);
+        auto idx = [&](const char* rel) { return int(r.files.indexOf(QDir::cleanPath(root + QLatin1Char('/') + QLatin1String(rel)))); };
+        bool ok = r.files.size() == 12 && !r.truncated && !r.cancelled;                                    // everything playable, nothing from skipped folders, no picture, no text
+        ok = ok && idx("a.mp4") == 0 && idx("b2.mp4") == 1 && idx("b10.mp4") == 2;                            // the folder's own files first, natural order (b2 before b10)
+        ok = ok && idx("Clips/c1.avi") > idx("song.mp3") && idx("Clips/c1.avi") < idx("Funny/f1.mp4") && idx("Funny/f1.mp4") < idx("Funny/2023/deep.webm") && idx("Funny/2023/deep.webm") < idx("Shorts/s1.mp4");
+        ok = ok && idx("pic.jpg") < 0 && idx("$RECYCLE.BIN/x.mp4") < 0 && idx("node_modules/n.mp4") < 0 && idx(".git/g.mp4") < 0 && idx("notes.txt") < 0 && idx("Clips/l1/l2/l3/l4/l5/leaf.mp4") >= 0;
+        FolderScan::Options flat; flat.subfolders = false;
+        ok = ok && FolderScan::scan({root}, flat).files.size() == 5;                                       // a.mp4 b2 b10 gif1 song
+        FolderScan::Options pics; pics.pictures = true;
+        ok = ok && FolderScan::scan({root}, pics).files.size() == 13;
+        FolderScan::Options noVideo; noVideo.videos = false;
+        ok = ok && FolderScan::scan({root}, noVideo).files.size() == 3;                                    // gif1, song, s2.gif
+        FolderScan::Options lim;
+        ok = ok && FolderScan::scan({root}, lim, nullptr, {}, 4).truncated && FolderScan::scan({root}, lim, nullptr, {}, 4).files.size() == 4;     // the file limit
+        std::atomic<bool> stop{true};
+        ok = ok && FolderScan::scan({root}, lim, &stop).cancelled;
+        const FolderScan::Counts c = FolderScan::count(root);
+        ok = ok && c.videos == 9 && c.gifs == 2 && c.music == 1 && c.pictures == 1 && c.folders == 3 && !c.partial;        // skipped folders are not counted
+        ok = ok && c.text().contains(QLatin1String("9 videos")) && c.text().contains(QLatin1String("3 subfolders"));
+        QStringList l; for (int i = 0; i < 60; ++i) l << QString::number(i);
+        QStringList sh = l; FolderScan::shuffle(sh, 1);
+        QStringList a = sh, b = l; a.sort(); b.sort();
+        ok = ok && sh.first() == QLatin1String("0") && a == b && sh != l;                                  // every entry once, the first one stays
+        QDir(root).removeRecursively();
+        m_selfOk = ok;
+    }, [this] { return m_selfOk; }, 50);
+    S("folders: Play all builds one queue from three subfolders", [this] {
+        const QString root = Paths::tmpDir() + QStringLiteral("/bingetest");
+        QDir(root).removeRecursively();
+        for (const char* r : {"A/a1.wav", "A/a2.wav", "B/b1.wav", "C/c1.wav"}) { const QString f = root + QLatin1Char('/') + QLatin1String(r); QDir().mkpath(QFileInfo(f).absolutePath()); writeSilentWav(f, 4); }
+        m_selfMsg.clear(); m_selfCount = 0;
+        static bool wired = false;
+        if (!wired) { wired = true;
+            connect(m_ctl, &PlayerController::message, this, [this](const QString& t) { m_selfMsg = t; });
+            connect(m_ctl, &PlayerController::folderPlayStarted, this, [this](const QString&, int n, bool) { m_selfCount = n; }); }
+        m_ctl->playFolders({root});
+    }, [this] { return m_selfCount == 4 && m_ctl->queue()->rowCount() == 4 && m_ctl->path().endsWith(QLatin1String("A/a1.wav")) && m_ctl->settled(); }, 1500);
+    S("folders: shuffle keeps the song that is playing first and every file once", [this] { m_selfPath = m_ctl->path(); m_selfOk = m_ctl->reshuffleQueue(); },
+      [this] { const QStringList q = m_ctl->queue()->stringList(); return m_selfOk && q.size() == 4 && q.first() == m_selfPath && m_ctl->path() == m_selfPath && QSet<QString>(q.begin(), q.end()).size() == 4; }, 300);
+    S("folders: without subfolders nothing plays from a folder that only holds subfolders", [this] {
+        m_selfMsg.clear();
+        FolderScan::Options o; o.subfolders = false;
+        m_ctl->playFolders({Paths::tmpDir() + QStringLiteral("/bingetest")}, o, false);
+    }, [this] { return m_selfMsg.contains(QLatin1String("directly")) && m_ctl->queue()->rowCount() == 4; }, 600);
+    S("folders: a played folder is remembered, a private one is not, Clean identity forgets", [this] {
+        const QString root = Paths::tmpDir() + QStringLiteral("/bingetest");
+        m_set->remove("recentFolders"); m_set->set("privateMode", true);
+        noteFolderPlayed({root});
+        bool ok = recentFolders().isEmpty();
+        m_set->set("privateMode", false);
+        noteFolderPlayed({root});
+        ok = ok && recentFolders().size() == 1 && QDir::cleanPath(recentFolders().first()).compare(QDir::cleanPath(root), Qt::CaseInsensitive) == 0;
+        noteFolderPlayed({root});
+        ok = ok && recentFolders().size() == 1;                                                            // no duplicates
+        cleanIdentity(false);
+        ok = ok && recentFolders().isEmpty();
+        m_selfOk = ok;
+    }, [this] { return m_selfOk; }, 100);
+    S("folders: the picker takes a pasted path and Enter plays it, other text filters", [this] {
+        const QString root = Paths::tmpDir() + QStringLiteral("/bingetest");
+        FolderPicker fp(FolderPicker::PickFolder, root);
+        fp.resize(580, 560);
+        QString played;
+        connect(&fp, &FolderPicker::played, &fp, [&played](const QString& d) { played = d; });
+        auto* box = fp.findChild<QLineEdit*>();
+        auto* list = fp.findChild<RowList*>();
+        bool ok = box && list && list->rows().size() == 3;                                                 // A, B, C
+        fp.typePath(QStringLiteral("B"));
+        ok = ok && list->rows().size() == 1;                                                               // filter
+        fp.typePath(QStringLiteral("\"") + QDir::toNativeSeparators(Paths::tmpDir() + QStringLiteral("/bingetest/A")) + QStringLiteral("\""));
+        ok = ok && QDir::cleanPath(fp.currentFolder()).endsWith(QLatin1String("bingetest/A"));             // a path takes you there at once
+        QKeyEvent ev(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+        QCoreApplication::sendEvent(box, &ev);
+        ok = ok && played.endsWith(QLatin1String("bingetest/A"));
+        played.clear();
+        fp.typePath(QDir::toNativeSeparators(Paths::tmpDir()) + QStringLiteral("/definitely-missing"));
+        QCoreApplication::sendEvent(box, &ev);
+        ok = ok && played.isEmpty();                                                                       // a missing folder plays nothing
+        m_selfOk = ok;
+    }, [this] { return m_selfOk; }, 100);
+    S("advance rules: a GIF keeps looping, a picture stays, until the user presses next", [this] {
+        const QString d = Paths::tmpDir() + QStringLiteral("/advtest");
+        QDir(d).removeRecursively(); QDir().mkpath(d);
+        { QFile w(d + QStringLiteral("/a.gif")); w.open(QIODevice::WriteOnly); w.write(QByteArray::fromHex("47494638396101000100800000000000ffffff21f90401000000002c00000000010001000002024401003b")); }
+        QImage img(8, 8, QImage::Format_RGB32); img.fill(Qt::red); img.save(d + QStringLiteral("/b.png"));
+        writeSilentWav(d + QStringLiteral("/c.wav"), 3);
+        m_ctl->setQueue({d + QStringLiteral("/a.gif"), d + QStringLiteral("/b.png"), d + QStringLiteral("/c.wav")}, d + QStringLiteral("/a.gif"));
+    }, [this] { return m_ctl->path().endsWith(QLatin1String("a.gif")) && m_ctl->settled(); }, 1800);
+    S("advance rules: still on the GIF after a while, then next goes to the picture", [this] { m_selfOk = m_ctl->path().endsWith(QLatin1String("a.gif")); m_ctl->next(); },
+      [this] { return m_selfOk && m_ctl->path().endsWith(QLatin1String("b.png")); }, 1800);
+    S("advance rules: still on the picture after a while (no automatic next)", [] {},
+      [this] { const bool ok = m_ctl->path().endsWith(QLatin1String("b.png")); QDir(Paths::tmpDir() + QStringLiteral("/advtest")).removeRecursively(); QDir(Paths::tmpDir() + QStringLiteral("/bingetest")).removeRecursively(); return ok; }, 1800);
     S("garbage input never crashes the parsers (seeded random files and URLs)", [this] {
         QRandomGenerator rng(20261114);                                       // fixed seed: the same inputs every run
         const QString d = Paths::tmpDir() + QStringLiteral("/fuzz");
@@ -2013,6 +2256,29 @@ void MainWindow::runShots(const QString& dir) {
         steps->push_back({500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("playlists-light"); }});
         steps->push_back({100, [this, vids, musicDirP] { if (musicDirP->isEmpty()) return; if (!vids->isEmpty()) m_ctl->setQueue(*vids, vids->first()); m_side->showQueue(true); }});
         steps->push_back({900, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("queue-light"); }});
+        // the folder screens: the picker with a pasted path, the "Playing all of ..." message, the Library's play buttons, the start screen with recent folders
+        steps->push_back({200, [this, musicDirP] {
+            if (musicDirP->isEmpty()) return;
+            m_set->set("pickerLast", QDir(*musicDirP + "/..").absolutePath());
+            openPicker(true);
+            if (auto* fp = findChild<FolderPicker*>()) fp->typePath(QDir::toNativeSeparators(*musicDirP));
+        }});
+        steps->push_back({2500, [this] { if (auto* fp = findChild<FolderPicker*>()) (void)fp->grab(); }});          // an off-screen window paints only when asked: this loads the counts
+        steps->push_back({1500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("folder-picker-light"); }});
+        steps->push_back({100, [this] { if (auto* sh = findChild<Sheet*>()) sh->closeSheet(); }});
+        steps->push_back({700, [this, musicDirP] { if (!musicDirP->isEmpty()) m_ctl->playFolders({*musicDirP}); }});
+        steps->push_back({2200, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("play-all-light"); }});
+        steps->push_back({100, [this, musicDirP] { if (musicDirP->isEmpty()) return; setSidebarOpen(true, false); m_side->showTab(0); m_side->navigate(QDir(*musicDirP + "/..").absolutePath()); }});
+        steps->push_back({600, [this] { m_side->debugSelect(1); }});
+        steps->push_back({2200, [this] { (void)m_side->grab(); }});
+        steps->push_back({1500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("library-folders-light"); }});
+        steps->push_back({100, [this, musicDirP, vids] {
+            if (musicDirP->isEmpty()) return;
+            m_ctl->stop(); setSidebarOpen(false, false);
+            noteFolderPlayed({*musicDirP, QFileInfo(vids->value(0)).absolutePath()});
+        }});
+        steps->push_back({2500, [this] { (void)grab(); }});
+        steps->push_back({1500, [snap, musicDirP] { if (!musicDirP->isEmpty()) snap("start-light"); }});
     }
     steps->push_back({100, [] { QApplication::quit(); }});
     auto idx = std::make_shared<int>(0);

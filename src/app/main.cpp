@@ -107,7 +107,8 @@ int main(int argc, char** argv) {
     // `kinoz --wipe` forgets what kinoz remembers (recent files, resume points, marks, music index, thumbnails, logs) and exits.
     // Close kinoz first. Your folders, settings, playlists and saved frames are left alone.
     if (app.arguments().contains(QStringLiteral("--wipe"))) {
-        { JsonStore s(Paths::dataDir() + QStringLiteral("/settings.json")); s.remove("recent"); s.remove("lastFolder"); s.remove("afterUpdate"); s.flush(); }
+        { JsonStore s(Paths::dataDir() + QStringLiteral("/settings.json")); s.remove("recent"); s.remove("lastFolder"); s.remove("afterUpdate"); s.remove("recentFolders"); s.remove("pickerLast"); s.flush(); }
+        QFile::remove(Paths::cacheDir() + QStringLiteral("/foldercounts.json"));
         for (const char* f : {"resume.json", "marks.json", "music.json"}) QFile::remove(Paths::dataDir() + QLatin1Char('/') + QString::fromLatin1(f));
         for (const QFileInfo& fi : QDir(Paths::thumbsDir()).entryInfoList({QStringLiteral("*.jpg")}, QDir::Files)) QFile::remove(fi.absoluteFilePath());
         for (const QFileInfo& fi : QDir(Paths::logsDir()).entryInfoList(QDir::Files)) QFile::remove(fi.absoluteFilePath());

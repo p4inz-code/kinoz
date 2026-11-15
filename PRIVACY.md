@@ -40,6 +40,8 @@ It runs at most once a day. **Settings → About → Updates** chooses what happ
 
 Downloaded updates are only installed if their SHA-256 checksum matches the one published with the release, and only when you press the button.
 
+The folders you play are remembered (a list of up to 30 recent folders, the options you chose for each, and a cache of how many files each holds) so they can be offered again. Private mode remembers none of it, Clean identity clears the recent list and the counts, and `kinoz --wipe` does too. When you press **Paste a path** or open the folder picker, kinoz reads the clipboard once, only to see whether it holds a folder path; the text is never stored or sent anywhere.
+
 When you press **Restart now** for an update, kinoz writes down for a few seconds which file was open, the second, whether it was paused and the queue, so the new version can bring you back to the same place. It is erased the moment the new version has read it (and ignored if it is older than 15 minutes). It is never written in Private mode or when "Clean identity when kinoz closes" is on.
 
 ## Third-party components

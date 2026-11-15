@@ -464,6 +464,69 @@ void Toast::paintEvent(QPaintEvent*) {
     p.drawText(rect().adjusted(m_error ? 10 : 0, 0, -6, 0), Qt::AlignCenter, QFontMetrics(p.font()).elidedText(m_text, Qt::ElideRight, width() - 30));
 }
 
+// ================= NoticeBar =================
+NoticeBar::NoticeBar(QWidget* parent) : QWidget(parent) {
+    setMouseTracking(true);
+    hide();
+    m_timer = new QTimer(this); m_timer->setSingleShot(true);
+    connect(&m_anim, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) { m_op = v.toReal(); update(); if (m_op <= 0.01 && m_anim.endValue().toReal() == 0.0) hide(); });
+    connect(m_timer, &QTimer::timeout, this, [this] {
+        m_anim.stop(); m_anim.setDuration(Theme::i().animMs(220));
+        if (m_anim.duration() == 0) { m_op = 0; hide(); return; }
+        m_anim.setStartValue(m_op); m_anim.setEndValue(0.0); m_anim.start();
+    });
+}
+void NoticeBar::show(const QString& text, const QStringList& actions, int ms) {
+    m_text = text; m_actions = actions;
+    const QFont f = Theme::i().font(14, QFont::Medium), fb = Theme::i().font(14, QFont::DemiBold);
+    int w = QFontMetrics(f).horizontalAdvance(text) + 44;
+    for (const QString& a : actions) w += QFontMetrics(fb).horizontalAdvance(a) + 30;
+    w = qMin(parentWidget()->width() - 40, w);
+    resize(w, 44);
+    move((parentWidget()->width() - w) / 2, parentWidget()->height() - 206);
+    setAccessibleName(text + QStringLiteral(". ") + actions.join(QStringLiteral(", ")));
+    raise(); QWidget::show();
+    if (QAccessible::isActive()) { QAccessibleEvent ev(this, QAccessible::Alert); QAccessible::updateAccessibility(&ev); }
+    m_anim.stop(); m_anim.setDuration(Theme::i().animMs(180));
+    if (m_anim.duration() == 0) { m_op = 1; update(); } else { m_anim.setStartValue(m_op); m_anim.setEndValue(1.0); m_anim.start(); }
+    m_timer->start(ms);
+}
+QRect NoticeBar::actionRect(int i) const {
+    if (i < 0 || i >= m_rects.size()) return QRect(mapToGlobal(rect().center()), QSize(1, 1));
+    return QRect(mapToGlobal(m_rects[i].topLeft().toPoint()), m_rects[i].size().toSize());
+}
+void NoticeBar::paintEvent(QPaintEvent*) {
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing);
+    const auto& c = pal();
+    p.setOpacity(m_op);
+    p.translate(0, (1.0 - m_op) * 8);
+    p.setPen(QPen(QColor(255, 255, 255, 36), 1)); p.setBrush(c.overlay);
+    p.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12, 12);
+    const QFont fb = Theme::i().font(14, QFont::DemiBold);
+    qreal right = width() - 10;
+    m_rects.clear();
+    for (int i = int(m_actions.size()) - 1; i >= 0; --i) {                              // buttons from the right edge inwards
+        const qreal w = QFontMetrics(fb).horizontalAdvance(m_actions[i]) + 24;
+        const QRectF r(right - w, 7, w, 30);
+        m_rects.prepend(r);
+        p.setPen(Qt::NoPen); p.setBrush(i == m_hover ? QColor(255, 255, 255, 40) : QColor(255, 255, 255, 18)); p.drawRoundedRect(r, 8, 8);
+        p.setPen(c.overlayAccent); p.setFont(fb); p.drawText(r, Qt::AlignCenter, m_actions[i]);
+        right -= w + 6;
+    }
+    p.setPen(c.overlayText); p.setFont(Theme::i().font(14, QFont::Medium));
+    p.drawText(QRectF(16, 0, right - 16, height()), Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(p.font()).elidedText(m_text, Qt::ElideRight, int(right - 20)));
+}
+void NoticeBar::mouseMoveEvent(QMouseEvent* e) {
+    int h = -1;
+    for (int i = 0; i < m_rects.size(); ++i) if (m_rects[i].contains(e->position())) h = i;
+    if (h != m_hover) { m_hover = h; setCursor(h >= 0 ? Qt::PointingHandCursor : Qt::ArrowCursor); update(); }
+}
+void NoticeBar::mousePressEvent(QMouseEvent* e) {
+    for (int i = 0; i < m_rects.size(); ++i) if (m_rects[i].contains(e->position())) { emit actionClicked(i); return; }
+    m_timer->start(1);                                                                      // a click anywhere else dismisses it
+}
+
 // ================= FadeCover =================
 FadeCover::FadeCover(QWidget* parent) : QWidget(parent) {
     setAttribute(Qt::WA_TransparentForMouseEvents);

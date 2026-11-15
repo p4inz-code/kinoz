@@ -92,18 +92,55 @@ void PlayerController::open(const QStringList& paths) {
     }
     if (files.size() == 1 && dirs.isEmpty()) { play(files.first()); return; }
     if (!files.isEmpty()) { setQueue(files, files.first()); return; }
-    if (!dirs.isEmpty()) {
-        const quint64 gen = ++m_gen;
-        auto* w = new QFutureWatcher<QStringList>(this);
-        const QString dir = dirs.first();
-        connect(w, &QFutureWatcher<QStringList>::finished, this, [this, w, gen] {
-            const QStringList l = w->result();
-            w->deleteLater();
-            if (gen != m_gen || l.isEmpty()) { if (l.isEmpty()) emit message(tr("No playable files in that folder")); return; }
-            setQueue(l, l.first());
+    if (!dirs.isEmpty()) playFolders(dirs);                     // a folder means everything inside it
+}
+
+void PlayerController::playFolders(const QStringList& dirs) {
+    if (dirs.isEmpty()) return;
+    playFolders(dirs, FolderScan::optionsFor(m_set, dirs.first()));
+}
+
+void PlayerController::playFolders(const QStringList& dirs, const FolderScan::Options& opts, bool remember) {
+    if (dirs.isEmpty()) return;
+    if (m_scanCancel) *m_scanCancel = true;                       // a scan still running is dropped
+    const quint64 gen = ++m_scanGen;
+    auto cancel = std::make_shared<std::atomic<bool>>(false);
+    m_scanCancel = cancel;
+    m_lastDirs = dirs; m_lastOpts = opts;
+    if (remember && !privateMode()) FolderScan::rememberOptions(m_set, dirs.first(), opts);
+    auto* w = new QFutureWatcher<FolderScan::Result>(this);
+    connect(w, &QFutureWatcher<FolderScan::Result>::finished, this, [this, w, gen, dirs, opts] {
+        FolderScan::Result res = w->result();
+        w->deleteLater();
+        if (gen != m_scanGen) return;
+        if (res.cancelled) return;
+        if (res.files.isEmpty()) {
+            emit message(opts.subfolders ? tr("No videos, GIFs or songs in that folder or below it") : tr("No videos, GIFs or songs directly in that folder"));
+            return;
+        }
+        if (opts.shuffle) FolderScan::shuffle(res.files, 0);
+        const QString first = res.files.first();
+        const QString title = dirs.size() == 1 ? (QFileInfo(dirs.first()).fileName().isEmpty() ? QDir::toNativeSeparators(dirs.first()) : QFileInfo(dirs.first()).fileName()) : tr("%1 folders").arg(dirs.size());
+        const int n = int(res.files.size());
+        const bool cut = res.truncated || res.timedOut;
+        setQueue(res.files, first);
+        emit folderPlayStarted(title, n, cut);
+    });
+    w->setFuture(QtConcurrent::run([this, dirs, opts, gen, cancel] {
+        return FolderScan::scan(dirs, opts, cancel.get(), [this, gen](int n) {
+            QMetaObject::invokeMethod(this, [this, n, gen] { if (gen == m_scanGen) emit message(tr("Looking through the folder… %1 files so far").arg(n)); }, Qt::QueuedConnection);
         });
-        w->setFuture(QtConcurrent::run([dir] { return listMedia(dir, 0); }));
-    }
+    }));
+}
+
+bool PlayerController::reshuffleQueue() {
+    QStringList l = m_queue.stringList();
+    if (l.size() < 2) return false;
+    const int cur = l.indexOf(m_path);
+    if (cur > 0) l.move(cur, 0);
+    FolderScan::shuffle(l, 1);
+    m_queue.setStringList(l);
+    return true;
 }
 
 void PlayerController::setQueue(const QStringList& paths, const QString& playPath) {

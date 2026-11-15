@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
 #pragma once
+#include "library/FolderScan.h"
+#include <atomic>
+#include <memory>
 #include "media/MediaKind.h"
 #include <QElapsedTimer>
 #include <QObject>
@@ -28,6 +31,14 @@ public:
     bool settled() const { return !m_pending.has && m_mpvPath == m_path && m_fileLoaded; }   // the requested file is open in mpv
     int decodeMode() const;                              // 0 auto (fast start, GPU for big video), 1 always GPU, 2 CPU only
     void applyDecode();                                  // re-apply after the setting changes
+    // "A folder means everything inside it": plays every media file in the folders (subfolders too, by the options), in order or shuffled.
+    // Reads the folder's remembered options when none are given. Returns at once; the scan runs in the background (cancel with cancelFolderScan()).
+    void playFolders(const QStringList& dirs);
+    void playFolders(const QStringList& dirs, const FolderScan::Options& opts, bool remember = true);   // remember: keep these options for the folder
+    void cancelFolderScan() { if (m_scanCancel) *m_scanCancel = true; }
+    bool reshuffleQueue();                               // the current file stays first, everything else in a new random order (each once)
+    QStringList lastFolderPlay() const { return m_lastDirs; }
+    FolderScan::Options lastFolderOptions() const { return m_lastOpts; }
     // After an update restart: the file at that second, paused or playing, with its queue. False when the file is gone.
     bool restoreSession(const QString& path, double pos, bool paused, const QStringList& queue);
     int gaplessSwitches() const { return m_gaplessSwitches; }   // songs that followed each other without a gap (tests)
@@ -102,6 +113,7 @@ public:
     void saveResumeNow();
 
 signals:
+    void folderPlayStarted(const QString& title, int count, bool truncated);   // "Playing all of Memes: 312 files"
     void pathChanged();
     void queueChanged();
     void modeChanged();         // shuffle/repeat
@@ -143,6 +155,10 @@ private:
     QString m_warmed;                       // last file whose head/tail we pre-read
     QString m_gaplessNext;                  // the song mpv has been given to play right after this one ("" = none)
     int m_gaplessSwitches = 0;
+    std::shared_ptr<std::atomic<bool>> m_scanCancel;     // one flag per scan, so a new scan can never revive an old one
+    quint64 m_scanGen = 0;
+    QStringList m_lastDirs;                 // the folders of the last Play all, so the options can re-run it
+    FolderScan::Options m_lastOpts;
     int m_loadCount = 0;
     bool m_hwUp = false;                    // this file already switched to the GPU
     bool m_fileLoaded = false;              // mpv reported the current file as loaded

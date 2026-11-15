@@ -36,7 +36,7 @@ Take the file for your system from the [latest release](https://github.com/p4inz
 - Linux on x86-64: `kinoz-<version>-x86_64.AppImage`. Run `chmod +x` on it, then run it.
 - Linux on ARM (a Raspberry Pi 5, ARM laptops): `kinoz-<version>-aarch64.AppImage` (new, same caveat as the Intel Mac build).
 
-> **Status: 0.2, usable every day on Windows.** Windows is the one I test hardest, with an automated self-test of 130 checks and a speed benchmark. The macOS and Linux builds come from CI, which builds them and runs a smoke test, but I haven't used them on real machines yet, so expect rough edges there. What's missing is listed in [Known issues](docs/KNOWN_ISSUES.md) and the [roadmap](ROADMAP.md).
+> **Status: 0.2, usable every day on Windows.** Windows is the one I test hardest, with an automated self-test of 140 checks and a speed benchmark. The macOS and Linux builds come from CI, which builds them and runs a smoke test, but I haven't used them on real machines yet, so expect rough edges there. What's missing is listed in [Known issues](docs/KNOWN_ISSUES.md) and the [roadmap](ROADMAP.md).
 >
 > If you're on macOS or Linux, you're the testers. [Open a test report](https://github.com/p4inz-code/kinoz/issues/new?template=platform_test.md) and tell me what worked and what didn't: moving and resizing the window, fullscreen, media keys, opening your files.
 
@@ -132,6 +132,38 @@ Take the file for your system from the [latest release](https://github.com/p4inz
 </p>
 
 <p align="center"><img src="assets/readme/divider.svg" width="70%" alt=""></p>
+
+## Playing a whole folder
+
+A folder means everything inside it, subfolders too. If `Memes` holds three folders of clips, you can play all of it in one step, or just one of the three.
+
+- **From Windows:** right-click the folder and choose "Play with kinoz", or drag it onto the kinoz window.
+- **From the start screen:** press **Play a folder**, or **Paste a path** when you have copied one. Folders you played before are listed under Recent folders with what is inside each (for example "142 videos, 18 GIFs, 6 subfolders"), so one click starts them again.
+- **In the Library:** every folder row has a play button and a shuffle button. The parent folder plays everything under it, and each subfolder plays just itself.
+
+<p align="center">
+  <img src="assets/screenshots/start-light.png" alt="The start screen: Play a folder, Paste a path, recent folders with what is inside them" width="720">
+  <br><sub>The start screen: play a folder, paste a path, or pick a recent folder.</sub>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/folder-picker-light.png" alt="The folder picker with a pasted path, a clickable path, and what is inside each folder" width="720">
+  <br><sub>In the picker, paste a path such as D:\Videos\Memes (quotes are fine) and press Enter. Each folder shows what is inside it.</sub>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/play-all-light.png" alt="The message Playing all of music: 12 files, with Shuffle and Options" width="720">
+  <br><sub>When it starts, a message says what is playing and offers Shuffle and Options.</sub>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/library-folders-light.png" alt="The Library with a play button and a shuffle button on a folder row" width="720">
+  <br><sub>In the Library, every folder has a play button and a shuffle button.</sub>
+</p>
+
+**Options** lets you leave out the subfolders or choose what to play: videos, GIFs, music and pictures. kinoz remembers the choice for that folder. Folders you play are kept in your Library so the next time is one click, and the message has a **Don't keep** button if you did not want that. In Private mode no folder is remembered.
+
+This is how it moves on: videos and songs go to the next one by themselves, a GIF keeps looping until you press the right arrow, and a picture stays until you move on. Pictures are left out of Play all unless you tick them. Repeat works on top of all of it.
 
 ## A short tour
 

@@ -7,12 +7,14 @@
 #include <QJsonArray>
 #include <QLineEdit>
 #include <QPixmap>
+#include <QTimer>
 #include <QVariantAnimation>
 #include <QVector>
 #include <QWidget>
 #include <functional>
 
 class PlayerController;
+class FolderCounts;
 class MpvPlayer;
 class JsonStore;
 class LibraryIndex;
@@ -127,20 +129,33 @@ class FolderPicker : public QWidget {
 public:
     enum Mode { PickFolder, PickFile };
     FolderPicker(Mode m, const QString& startDir, QWidget* parent = nullptr);
+    void setCounts(FolderCounts* c);                       // what is inside each folder, shown under its name
+    void setPrefill(const QString& path);                  // e.g. a folder path found on the clipboard: filled in, Enter plays it
+    void typePath(const QString& text);                    // (tests, and "paste a path") sets the path box as if it was typed
+    QString currentFolder() const { return m_dir; }
 signals:
-    void chosen(const QString& path);
+    void chosen(const QString& path);                      // a file was picked (file mode, or a file path was pasted)
+    void played(const QString& folder);                    // "Play": everything inside it
+    void added(const QString& folder);                     // "Add to Library": keep it, don't start playing
     void cancelled();
 protected:
     void paintEvent(QPaintEvent*) override;
     void resizeEvent(QResizeEvent*) override;
+    void mousePressEvent(QMouseEvent*) override;
 private:
     void go(const QString& dir);
+    void rebuildRows();
+    void onText();
+    void onEnter();
     Mode m_mode;
-    QString m_dir;
+    QString m_dir, m_note, m_err, m_filter;
     RowList* m_list;
     IconButton* m_up;
-    TextButton *m_ok, *m_cancel;
-    QString m_err;
+    QLineEdit* m_box;
+    TextButton *m_play, *m_add, *m_cancel;
+    FolderCounts* m_counts = nullptr;
+    QTimer m_rowTimer;
+    QVector<QPair<QRectF, QString>> m_crumbs;               // clickable parts of the folder path
 };
 
 // ---------------- Command palette (Ctrl+K) ----------------
@@ -154,6 +169,7 @@ public:
 signals:
     void command(const QString& id);
     void playFile(const QString& path);
+    void playFolder(const QString& path);                  // a folder path was typed or pasted into the palette: play everything inside it
 protected:
     void paintEvent(QPaintEvent*) override;
     void mousePressEvent(QMouseEvent*) override;

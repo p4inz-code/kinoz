@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
 #include "ui/Overlays.h"
+#include "core/PathInput.h"
+#include "library/FolderCounts.h"
 #include "core/JsonStore.h"
 #include "core/Paths.h"
 #include "core/player/MpvPlayer.h"
@@ -219,69 +221,190 @@ void InputBox::paintEvent(QPaintEvent*) {
 FolderPicker::FolderPicker(Mode m, const QString& startDir, QWidget* parent) : QWidget(parent), m_mode(m) {
     m_list = new RowList(this);
     m_up = new IconButton(Icon::ChevronLeft, this, 32);
-    m_ok = new TextButton(m == PickFolder ? tr("Use this folder") : tr("Open"), this, true);
+    m_up->setToolTip(tr("Up one folder"));
+    m_box = new QLineEdit(this);
+    m_box->setPlaceholderText(m == PickFolder ? tr("Paste a folder path and press Enter, or type to filter") : tr("Paste a file path and press Enter, or type to filter"));
+    m_box->setClearButtonEnabled(true);
+    m_box->setAccessibleName(tr("Folder path"));
+    m_play = new TextButton(m == PickFolder ? tr("Play everything here") : tr("Open"), this, true);
+    m_add = new TextButton(tr("Add to Library"), this);
     m_cancel = new TextButton(tr("Cancel"), this);
-    m_ok->setVisible(m == PickFolder);
+    m_play->setVisible(m == PickFolder);
+    m_add->setVisible(m == PickFolder);
+    m_rowTimer.setSingleShot(true); m_rowTimer.setInterval(120);
+    connect(&m_rowTimer, &QTimer::timeout, this, [this] { rebuildRows(); });
+    connect(&Theme::i(), &Theme::changed, this, [this] {
+        const auto& c = pal();
+        m_box->setStyleSheet(QStringLiteral("QLineEdit{background:%1;color:%2;border:1px solid %3;border-radius:8px;padding:0 10px;font-size:14px;selection-background-color:%4;selection-color:%5;}QLineEdit:focus{border:1px solid %4;}")
+                                 .arg(c.sunken.name(), c.text.name(), c.border.name(), c.accent.name(), c.onAccent.name()));
+        m_box->setFont(Theme::i().font(14));
+    });
+    Theme::i().changed();
     connect(m_cancel, &QAbstractButton::clicked, this, &FolderPicker::cancelled);
-    connect(m_ok, &QAbstractButton::clicked, this, [this] { if (!m_dir.isEmpty()) emit chosen(m_dir); });
+    connect(m_play, &QAbstractButton::clicked, this, [this] { if (!m_dir.isEmpty()) emit played(m_dir); else m_err = tr("Open a folder first, or paste its path."); update(); });
+    connect(m_add, &QAbstractButton::clicked, this, [this] { if (!m_dir.isEmpty()) emit added(m_dir); else m_err = tr("Open a folder first, or paste its path."); update(); });
     connect(m_up, &QAbstractButton::clicked, this, [this] {
         QDir d(m_dir); if (m_dir.isEmpty() || !d.cdUp() || d.absolutePath() == QDir(m_dir).absolutePath()) go({}); else go(d.absolutePath());
     });
+    connect(m_box, &QLineEdit::textChanged, this, [this] { onText(); });
+    connect(m_box, &QLineEdit::returnPressed, this, [this] { onEnter(); });
     connect(m_list, &RowList::activated, this, [this](int i) {
         const auto& r = m_list->rows()[i];
         if (r.icon == Icon::File || r.icon == Icon::Video || r.icon == Icon::Music || r.icon == Icon::Image || r.icon == Icon::Gif) emit chosen(r.data);
         else go(r.data);
     });
     go(startDir);
+    m_box->setFocus();
 }
+
+void FolderPicker::setCounts(FolderCounts* c) {
+    m_counts = c;
+    if (c) connect(c, &FolderCounts::ready, this, [this](const QString& dir) { if (QDir::cleanPath(QFileInfo(dir).absolutePath()).compare(QDir::cleanPath(m_dir), Qt::CaseInsensitive) == 0 && !m_rowTimer.isActive()) m_rowTimer.start(); });
+    rebuildRows();
+}
+
+void FolderPicker::setPrefill(const QString& path) {
+    if (path.isEmpty()) return;
+    m_box->setText(QDir::toNativeSeparators(path));
+    m_box->selectAll();
+    m_note = tr("From your clipboard. Press Enter to play it.");
+    update();
+}
+
+void FolderPicker::typePath(const QString& text) { m_box->setText(text); }
+
 void FolderPicker::go(const QString& dir) {
-    m_err.clear();
+    m_err.clear(); m_note.clear(); m_filter.clear();
+    if (m_box) { QSignalBlocker b(m_box); m_box->clear(); }
+    if (!dir.isEmpty()) {
+        QDir d(dir);
+        if (!d.exists() || !QFileInfo(dir).isReadable()) { m_err = tr("Can't open that folder"); update(); return; }
+        m_dir = d.absolutePath();
+    } else m_dir.clear();
+    rebuildRows();
+}
+
+void FolderPicker::rebuildRows() {
     QVector<RowList::Row> rows;
-    if (dir.isEmpty()) {
-        m_dir.clear();
+    const QString f = m_filter.toLower();
+    if (m_dir.isEmpty()) {
         rows.push_back({Icon::Drive, tr("This PC"), {}, {}, {}, true});
         for (const QFileInfo& d : QDir::drives()) rows.push_back({Icon::Drive, QDir::toNativeSeparators(d.absoluteFilePath()), {}, {}, d.absoluteFilePath(), false});
         const QString home = QDir::homePath();
         rows.push_back({Icon::Home, tr("Quick access"), {}, {}, {}, true});
         for (const char* n : {"Videos", "Music", "Pictures", "Downloads", "Desktop"}) {
             const QString p = home + '/' + QString::fromLatin1(n);
-            if (QDir(p).exists()) rows.push_back({Icon::Folder, QString::fromLatin1(n), {}, {}, p, false});
+            if (QDir(p).exists()) rows.push_back({Icon::Folder, QString::fromLatin1(n), m_counts ? m_counts->text(p) : QString(), {}, p, false});
         }
     } else {
-        QDir d(dir);
-        if (!d.exists() || !QFileInfo(dir).isReadable()) { m_err = tr("Can't open that folder"); return; }
-        m_dir = d.absolutePath();
-        QDir::Filters f = QDir::Dirs | QDir::NoDotAndDotDot;
-        if (m_mode == PickFile) f |= QDir::Files;
+        QDir d(m_dir);
+        QDir::Filters fl = QDir::Dirs | QDir::NoDotAndDotDot;
+        if (m_mode == PickFile) fl |= QDir::Files;
         QCollator col; col.setNumericMode(true); col.setCaseSensitivity(Qt::CaseInsensitive);
-        auto list = d.entryInfoList(f, QDir::NoSort);
+        auto list = d.entryInfoList(fl, QDir::NoSort);
         std::sort(list.begin(), list.end(), [&](const QFileInfo& a, const QFileInfo& b) -> bool { if (a.isDir() != b.isDir()) return a.isDir(); return col.compare(a.fileName(), b.fileName()) < 0; });
         for (const QFileInfo& fi : list) {
             if (fi.fileName().startsWith('$')) continue;
-            if (fi.isDir()) rows.push_back({Icon::Folder, fi.fileName(), {}, {}, fi.absoluteFilePath(), false});
+            if (!f.isEmpty() && !fi.fileName().toLower().contains(f)) continue;
+            if (fi.isDir()) rows.push_back({Icon::Folder, fi.fileName(), m_counts ? m_counts->text(fi.absoluteFilePath()) : QString(), {}, fi.absoluteFilePath(), false});
             else { const MediaKind k = Media::kindFor(fi.fileName()); if (k == MediaKind::Unknown) continue;
                 rows.push_back({k == MediaKind::Video ? Icon::Video : k == MediaKind::Audio ? Icon::Music : k == MediaKind::Gif ? Icon::Gif : Icon::Image, fi.completeBaseName(), {}, {}, fi.absoluteFilePath(), false}); }
         }
     }
-    m_list->setEmptyText(m_mode == PickFolder ? tr("No subfolders here") : tr("Nothing playable here"));
-    m_list->setRows(rows);
+    m_list->setEmptyText(!f.isEmpty() ? tr("Nothing here matches “%1”").arg(m_filter) : m_mode == PickFolder ? tr("No subfolders here. “Play everything here” plays the videos in this folder.") : tr("Nothing playable here"));
+    m_list->setRows(rows, true);
     m_up->setEnabled(!m_dir.isEmpty());
+    m_play->setEnabled(!m_dir.isEmpty()); m_add->setEnabled(!m_dir.isEmpty());
+    resizeEvent(nullptr);
     update();
 }
+
+// The box does two jobs: a path (anything that looks like one) takes you there at once; any other text filters this folder's list.
+void FolderPicker::onText() {
+    const QString t = m_box->text().trimmed();
+    m_err.clear(); m_note.clear();
+    if (t.isEmpty()) { m_filter.clear(); rebuildRows(); return; }
+    if (PathInput::looksLikePath(t)) {
+        m_filter.clear();
+        const auto items = PathInput::parse(t);
+        if (!items.isEmpty() && items.first().ok()) {
+            const auto& it = items.first();
+            if (!it.isFile && QDir::cleanPath(it.path).compare(QDir::cleanPath(m_dir), Qt::CaseInsensitive) != 0) {          // show what is in it while the user decides
+                m_dir = QDir(it.path).absolutePath(); rebuildRows();
+            }
+            m_note = it.isFile ? tr("Press Enter to play this file") : tr("Press Enter to play everything in this folder");
+        } else if (!items.isEmpty() && t.size() > 3) m_err = items.first().error;
+    } else { m_filter = t; rebuildRows(); }
+    update();
+}
+
+void FolderPicker::onEnter() {
+    const QString t = m_box->text().trimmed();
+    if (t.isEmpty()) { if (m_mode == PickFolder && !m_dir.isEmpty()) emit played(m_dir); return; }
+    if (PathInput::looksLikePath(t)) {
+        const auto items = PathInput::parse(t);
+        if (items.isEmpty()) return;
+        const auto& it = items.first();
+        if (!it.ok()) { m_err = it.error; update(); return; }
+        if (it.isFile) { emit chosen(it.path); return; }
+        if (m_mode == PickFolder) emit played(it.path); else go(it.path);
+        return;
+    }
+    if (m_list->rows().size() > 0) {                                                      // text that is not a path: open the first match
+        for (int i = 0; i < m_list->rows().size(); ++i) if (!m_list->rows()[i].header) { emit m_list->activated(i); break; }
+    }
+}
+
 void FolderPicker::resizeEvent(QResizeEvent*) {
     m_up->move(16, 14);
-    m_list->setGeometry(8, 62, width() - 16, height() - 62 - 68);
-    m_cancel->setGeometry(width() - 16 - m_cancel->sizeHint().width(), height() - 52, m_cancel->sizeHint().width(), 36);
-    m_ok->setGeometry(m_cancel->x() - 10 - m_ok->sizeHint().width(), height() - 52, m_ok->sizeHint().width(), 36);
+    m_box->setGeometry(16, 64, width() - 32, 36);
+    m_list->setGeometry(8, 124, width() - 16, height() - 124 - 68);
+    m_cancel->setGeometry(16, height() - 52, m_cancel->sizeHint().width(), 36);
+    int x = width() - 16;
+    m_play->setGeometry(x - m_play->sizeHint().width(), height() - 52, m_play->sizeHint().width(), 36); x -= m_play->sizeHint().width() + 10;
+    m_add->setGeometry(x - m_add->sizeHint().width(), height() - 52, m_add->sizeHint().width(), 36);
 }
+
+void FolderPicker::mousePressEvent(QMouseEvent* e) {
+    for (const auto& c : m_crumbs) if (c.first.contains(e->position())) { go(c.second); return; }       // a part of the path in the header
+    QWidget::mousePressEvent(e);
+}
+
 void FolderPicker::paintEvent(QPaintEvent*) {
     QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing);
     const auto& c = pal();
-    p.setPen(c.text); p.setFont(Theme::i().font(15, QFont::DemiBold, true));
-    const QString t = m_dir.isEmpty() ? (m_mode == PickFolder ? tr("Choose a folder") : tr("Open a file")) : QDir::toNativeSeparators(m_dir);
-    p.drawText(QRectF(58, 12, width() - 74, 36), Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(p.font()).elidedText(t, Qt::ElideMiddle, width() - 74));
+    m_crumbs.clear();
+    p.setFont(Theme::i().font(15, QFont::DemiBold, true));
+    const QFontMetrics fm(p.font());
+    const qreal x0 = 58, wmax = width() - 74;
+    if (m_dir.isEmpty()) { p.setPen(c.text); p.drawText(QRectF(x0, 12, wmax, 36), Qt::AlignVCenter | Qt::AlignLeft, m_mode == PickFolder ? tr("Choose a folder") : tr("Open a file")); }
+    else {                                                                                // a clickable path: This PC › C: › Videos › Memes
+        QStringList names, paths;
+        const QString clean = QDir::cleanPath(m_dir);
+        QString acc;
+        for (const QString& part : clean.split('/', Qt::SkipEmptyParts)) {
+            acc += (acc.isEmpty() && !clean.startsWith("//") && !clean.startsWith('/') ? QString() : QStringLiteral("/")) + part;
+            names << part; paths << (acc.size() == 2 && acc.at(1) == ':' ? acc + QStringLiteral("/") : acc);
+        }
+        if (names.isEmpty()) { names << clean; paths << clean; }
+        const QString sep = QStringLiteral("  ›  ");
+        int first = 0;                                                                    // drop the leading parts that do not fit
+        auto width = [&](int from) { int w = 0; for (int i = from; i < names.size(); ++i) w += fm.horizontalAdvance(names[i]) + (i > from ? fm.horizontalAdvance(sep) : 0); return w; };
+        while (first < names.size() - 1 && width(first) + (first > 0 ? 24 : 0) > wmax) ++first;
+        qreal x = x0;
+        if (first > 0) { p.setPen(c.muted); p.drawText(QRectF(x, 12, 24, 36), Qt::AlignVCenter, QStringLiteral("…")); x += 24; }
+        for (int i = first; i < names.size(); ++i) {
+            const qreal w = fm.horizontalAdvance(names[i]);
+            const QRectF r(x, 12, w, 36);
+            p.setPen(i == names.size() - 1 ? c.text : c.accent); p.drawText(r, Qt::AlignVCenter | Qt::AlignLeft, names[i]);
+            if (i < names.size() - 1) { m_crumbs.push_back({r, paths[i]}); x += w; p.setPen(c.muted); p.drawText(QRectF(x, 12, fm.horizontalAdvance(sep), 36), Qt::AlignVCenter, sep); x += fm.horizontalAdvance(sep); }
+        }
+    }
     p.setPen(c.border); p.drawLine(0, 58, width(), 58); p.drawLine(0, height() - 62, width(), height() - 62);
-    if (!m_err.isEmpty()) { p.setPen(c.danger); p.setFont(Theme::i().font(13)); p.drawText(QRectF(16, height() - 52, width() / 2.0, 36), Qt::AlignVCenter, m_err); }
+    p.setFont(Theme::i().font(12));
+    const QString line = !m_err.isEmpty() ? m_err : m_note;                                // one line right under the box: what Enter will do, or what is wrong
+    if (!line.isEmpty()) { p.setPen(m_err.isEmpty() ? c.accent : c.danger); p.drawText(QRectF(18, 102, width() - 36, 20), Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(p.font()).elidedText(line, Qt::ElideRight, width() - 36)); }
 }
 
 // ============================================================ CommandPalette
@@ -304,7 +427,7 @@ const Cmd kCmds[] = {
     {"stop", "Stop", "Ctrl+S", Icon::Stop, ""}, {"shuffle", "Toggle shuffle", "Ctrl+H", Icon::Shuffle, "random"}, {"repeat", "Cycle repeat", "Ctrl+T", Icon::Repeat, "loop"},
     {"mute", "Mute", "M", Icon::Mute, "volume sound"}, {"fullscreen", "Fullscreen", "F", Icon::Fullscreen, "full screen"}, {"mini", "Mini player", "Ctrl+M", Icon::Mini, "pip floating small"},
     {"pin", "Always on top", "Ctrl+Shift+T", Icon::Pin, "float pin"}, {"sidebar", "Toggle library sidebar", "Tab or `",Icon::Sidebar, "library queue"},
-    {"openfolder", "Open folder…", "Ctrl+O", Icon::Folder, "browse add"}, {"openfile", "Open file…", "", Icon::File, "browse"},
+    {"openfolder", "Play a folder…", "Ctrl+O", Icon::Folder, "open browse add watch binge all videos"}, {"pastefolder", "Paste a folder path and play it", "", Icon::Folder, "clipboard path add watch binge"}, {"openfile", "Open file…", "", Icon::File, "browse"},
     {"adjust", "Adjust picture", "Ctrl+J", Icon::Adjust, "brightness contrast saturation gamma hue color"}, {"eq", "Equalizer", "Ctrl+E", Icon::Equalizer, "audio bass treble normalize"},
     {"annotate", "Annotate frame", "A", Icon::Pen, "draw markup highlight text note"}, {"screenshot", "Save frame as image", "Ctrl+Shift+S", Icon::Camera, "screenshot capture"},
     {"theme", "Switch theme", "Ctrl+D", Icon::Moon, "dark light"}, {"settings", "Settings", "Ctrl+,", Icon::Settings, "preferences options"},
@@ -366,6 +489,18 @@ void CommandPalette::refresh() {
         if (++nCmd >= (q.isEmpty() ? 6 : 5)) break;
     }
     QVector<RowList::Row> files;
+    QVector<RowList::Row> pathRows;                                                        // a pasted or typed path comes first: "Play this folder"
+    {
+        const QString raw = m_input->text().trimmed();
+        if (!raw.isEmpty() && PathInput::looksLikePath(raw)) {
+            const auto items = PathInput::parse(raw);
+            if (!items.isEmpty() && items.first().ok()) {
+                const auto& it = items.first();
+                if (it.isFile) pathRows.push_back({Icon::File, tr("Play this file"), QDir::toNativeSeparators(it.path), {}, it.path, false});
+                else pathRows.push_back({Icon::Folder, tr("Play everything in this folder"), QDir::toNativeSeparators(it.path), {}, QStringLiteral("dir:") + it.path, false});
+            } else if (!items.isEmpty()) pathRows.push_back({Icon::Close, items.first().error, {}, {}, {}, false});
+        }
+    }
     if (q.isEmpty()) {
         for (const QString& p : m_ctl->recent().mid(0, 6)) {
             const MediaKind k = Media::kindFor(p);
@@ -376,6 +511,7 @@ void CommandPalette::refresh() {
         rows.push_back({Icon::Settings, tr("Commands"), {}, {}, {}, true});
         rows += cmds;
     } else {
+        rows += pathRows;
         const auto hits = m_idx->search(q, 30);
         for (const auto& e : hits)
             files.push_back({e.kind == MediaKind::Video ? Icon::Video : e.kind == MediaKind::Audio ? Icon::Music : e.kind == MediaKind::Gif ? Icon::Gif : Icon::Image, e.name, QFileInfo(e.path).dir().dirName(), {}, e.path, false});
@@ -428,6 +564,7 @@ void CommandPalette::activate(int row) {
     const QString d = m_list->rows()[row].data;
     closePalette();
     if (d.startsWith("cmd:")) emit command(d.mid(4));
+    else if (d.startsWith("dir:")) emit playFolder(d.mid(4));
     else if (!d.isEmpty()) emit playFile(d);
 }
 

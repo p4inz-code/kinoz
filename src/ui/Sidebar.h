@@ -15,6 +15,7 @@ class MusicIndex;
 class MusicView;
 class Segmented;
 class IconButton;
+class FolderCounts;
 class PopupMenu;
 class QLineEdit;
 
@@ -26,6 +27,7 @@ public:
     void setGrid(bool g);
     bool grid() const { return m_grid; }
 signals:
+    void folderAction(const QModelIndex&, bool shuffle);     // the play or shuffle button on a folder row
     void activatedIndex(const QModelIndex&);
     void contextRequested(const QModelIndex&, const QPoint& globalPos);
 protected:
@@ -43,7 +45,11 @@ public:
     QSize sizeHint(const QStyleOptionViewItem&, const QModelIndex&) const override;
     void setGrid(bool g) { m_grid = g; }
     void setQueueMode(bool q) { m_queue = q; }
+    void setCounts(FolderCounts* c) { m_counts = c; }
+    static QRectF playButton(const QRectF& row);      // "play everything in this folder" on a folder row
+    static QRectF shuffleButton(const QRectF& row);
 private:
+    FolderCounts* m_counts = nullptr;
     PlayerController* m_ctl;
     ThumbService* m_thumbs;
     bool m_grid = false, m_queue = false;
@@ -67,6 +73,8 @@ public:
     void refreshFolder();
     bool isCaptionAt(const QPoint& localPos) const { return localPos.y() < 44; }
     void focusSearch();
+    void debugSelect(int row);              // (screenshots) highlight a row so its buttons show
+    void setCounts(FolderCounts* c);        // what is inside each folder, under its name
     int libraryRows() const;
     QString currentFolder() const;
 signals:
@@ -84,6 +92,7 @@ protected:
 private:
     void relayout();
     void onActivated(const QModelIndex& i);
+    void onFolderAction(const QModelIndex& i, bool shuffle);
     void onContext(const QModelIndex& i, const QPoint& g);
     void applyGrid(bool g);
     void savePlaces(const QStringList& p);

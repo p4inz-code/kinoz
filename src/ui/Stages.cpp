@@ -14,13 +14,19 @@ EmptyState::EmptyState(QWidget* parent) : QWidget(parent) {
 }
 
 void EmptyState::relayout() {
-    m_rows.clear();
-    const qreal cw = qMin<qreal>(520, width() - 48), x = (width() - cw) / 2;
-    qreal y = height() / 2.0 - 70;
-    m_btn = QRectF(x, y + 96, 150, 36);
-    m_btn2 = QRectF(x + 162, y + 96, 210, 36);
+    m_rows.clear(); m_folderRows.clear();
+    const qreal cw = qMin<qreal>(560, width() - 48), x = (width() - cw) / 2;
+    const int nf = qMin(4, int(m_folders.size())), nr = qMin(nf > 0 ? 3 : 5, int(m_recent.size()));
+    qreal y = height() / 2.0 - 70 - (nf + nr) * 14;
+    if (y < 24) y = 24;
+    m_btn = QRectF(x, y + 96, 150, 38);
+    m_btn2 = QRectF(x + 160, y + 96, 170, 38);
+    m_btn3 = QRectF(x + 340, y + 96, qMax<qreal>(100, cw - 340), 38);
     qreal ry = y + 170;
-    for (int i = 0; i < qMin(5, m_recent.size()); ++i) { m_rows << QRectF(x, ry, cw, 34); ry += 36; }
+    if (nf > 0) ry += 22;
+    for (int i = 0; i < nf; ++i) { m_folderRows << QRectF(x, ry, cw, 38); ry += 40; }
+    if (nr > 0) ry += (nf > 0 ? 28 : 22);
+    for (int i = 0; i < nr; ++i) { m_rows << QRectF(x, ry, cw, 34); ry += 36; }
 }
 
 void EmptyState::paintEvent(QPaintEvent*) {
@@ -28,26 +34,41 @@ void EmptyState::paintEvent(QPaintEvent*) {
     p.setRenderHint(QPainter::Antialiasing);
     const auto& c = pal();
     p.fillRect(rect(), c.bg);
-    const qreal cw = qMin<qreal>(520, width() - 48), x = (width() - cw) / 2, y = height() / 2.0 - 70;
+    const qreal cw = qMin<qreal>(560, width() - 48), x = (width() - cw) / 2;
+    const int nf = qMin(4, int(m_folders.size()));
+    qreal y = height() / 2.0 - 70 - (nf + int(m_rows.size())) * 14;
+    if (y < 24) y = 24;
     drawIcon(&p, Icon::Video, QRectF(x, y - 6, 34, 34), c.accent, 1.5);
     p.setPen(c.text); p.setFont(Theme::i().font(26, QFont::DemiBold, true));
-    p.drawText(QRectF(x + 46, y - 8, cw, 40), Qt::AlignVCenter, tr("Drop something to play"));
+    p.drawText(QRectF(x + 46, y - 8, cw, 40), Qt::AlignVCenter, tr("Drop a folder to play it"));
     p.setPen(c.muted); p.setFont(Theme::i().font(14));
-    p.drawText(QRectF(x, y + 42, cw, 44), Qt::AlignTop | Qt::TextWordWrap, tr("Videos, music, images and GIFs. Drop files or a folder here, or browse your library in the sidebar."));
-    const bool hb = m_hover == 100;
-    p.setPen(Qt::NoPen); p.setBrush(hb ? c.accent.lighter(110) : c.accent);
-    p.drawRoundedRect(m_btn, 8, 8);
-    p.setPen(c.onAccent); p.setFont(Theme::i().font(14, QFont::DemiBold));
-    p.drawText(m_btn, Qt::AlignCenter, tr("Add a folder"));
-    const bool hb2 = m_hover == 101;                                           // quiet, always there, never nags
-    p.setPen(QPen(hb2 ? c.accent : c.border, 1)); p.setBrush(hb2 ? c.accentSubtle : Qt::transparent);
-    p.drawRoundedRect(m_btn2.adjusted(0.5, 0.5, -0.5, -0.5), 8, 8);
-    p.setPen(c.text); p.setFont(Theme::i().font(14, QFont::DemiBold));
-    p.drawText(m_btn2, Qt::AlignCenter, tr("Make kinoz your default"));
-    if (!m_recent.isEmpty()) {
-        p.setPen(c.muted); p.setFont(Theme::i().font(11, QFont::DemiBold));
-        p.drawText(QRectF(x, y + 146, cw, 20), Qt::AlignVCenter, tr("RECENT"));
+    p.drawText(QRectF(x, y + 42, cw, 48), Qt::AlignTop | Qt::TextWordWrap, tr("Everything inside plays, subfolders too. Or drop files, paste a folder path, or browse your library in the sidebar."));
+    auto button = [&](const QRectF& r, int id, const QString& text, bool primary) {
+        const bool hot = m_hover == id;
+        if (primary) { p.setPen(Qt::NoPen); p.setBrush(hot ? c.accent.lighter(110) : c.accent); p.drawRoundedRect(r, 8, 8); p.setPen(c.onAccent); }
+        else { p.setPen(QPen(hot ? c.accent : c.border, 1)); p.setBrush(hot ? c.accentSubtle : Qt::transparent); p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), 8, 8); p.setPen(c.text); }
+        p.setFont(Theme::i().font(14, QFont::DemiBold)); p.drawText(r, Qt::AlignCenter, text);
+    };
+    button(m_btn, 100, tr("Play a folder"), true);
+    button(m_btn2, 101, tr("Paste a path"), false);
+    button(m_btn3, 102, tr("Make default"), false);
+    auto heading = [&](qreal ty, const QString& t) { p.setPen(c.muted); p.setFont(Theme::i().font(11, QFont::DemiBold)); p.drawText(QRectF(x, ty, cw, 20), Qt::AlignVCenter, t); };
+    if (!m_folderRows.isEmpty()) heading(m_folderRows.first().top() - 24, tr("RECENT FOLDERS"));
+    for (int i = 0; i < m_folderRows.size(); ++i) {
+        const QRectF r = m_folderRows[i];
+        if (m_hover == 200 + i) { p.setPen(Qt::NoPen); p.setBrush(c.surface); p.drawRoundedRect(r, 8, 8); }
+        drawIcon(&p, Icon::Folder, QRectF(r.left() + 10, r.center().y() - 10, 20, 20), c.accent, 1.5);
+        const QString name = QFileInfo(m_folders[i].path).fileName().isEmpty() ? m_folders[i].path : QFileInfo(m_folders[i].path).fileName();
+        p.setPen(c.text); p.setFont(Theme::i().font(14, QFont::Medium));
+        const qreal tw = r.width() - 48;
+        if (m_folders[i].counts.isEmpty()) p.drawText(QRectF(r.left() + 42, r.top(), tw, r.height()), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(name, Qt::ElideRight, int(tw)));
+        else {
+            p.drawText(QRectF(r.left() + 42, r.top() + 2, tw, 20), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(name, Qt::ElideRight, int(tw)));
+            p.setPen(c.muted); p.setFont(Theme::i().font(12));
+            p.drawText(QRectF(r.left() + 42, r.top() + 20, tw, 16), Qt::AlignVCenter, QFontMetrics(p.font()).elidedText(m_folders[i].counts, Qt::ElideRight, int(tw)));
+        }
     }
+    if (!m_rows.isEmpty()) heading(m_rows.first().top() - 24, tr("RECENT FILES"));
     for (int i = 0; i < m_rows.size(); ++i) {
         const QRectF r = m_rows[i];
         if (i == m_hover) { p.setPen(Qt::NoPen); p.setBrush(c.surface); p.drawRoundedRect(r, 8, 8); }
@@ -61,12 +82,16 @@ void EmptyState::mouseMoveEvent(QMouseEvent* e) {
     int h = -1;
     if (m_btn.contains(e->position())) h = 100;
     if (m_btn2.contains(e->position())) h = 101;
+    if (m_btn3.contains(e->position())) h = 102;
+    for (int i = 0; i < m_folderRows.size(); ++i) if (m_folderRows[i].contains(e->position())) h = 200 + i;
     for (int i = 0; i < m_rows.size(); ++i) if (m_rows[i].contains(e->position())) h = i;
     if (h != m_hover) { m_hover = h; setCursor(h >= 0 ? Qt::PointingHandCursor : Qt::ArrowCursor); update(); }
 }
 void EmptyState::mousePressEvent(QMouseEvent* e) {
     if (m_btn.contains(e->position())) { emit openFolderRequested(); return; }
-    if (m_btn2.contains(e->position())) { emit defaultPlayerRequested(); return; }
+    if (m_btn2.contains(e->position())) { emit pastePathRequested(); return; }
+    if (m_btn3.contains(e->position())) { emit defaultPlayerRequested(); return; }
+    for (int i = 0; i < m_folderRows.size(); ++i) if (m_folderRows[i].contains(e->position())) { emit folderClicked(m_folders[i].path); return; }
     for (int i = 0; i < m_rows.size(); ++i) if (m_rows[i].contains(e->position())) { emit recentClicked(m_recent[i]); return; }
 }
 

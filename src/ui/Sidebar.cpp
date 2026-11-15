@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Atharva Patil, P4inz Interactive Labs. Free software: see LICENSE and ADDITIONAL_TERMS.md (the credit must be kept).
 #include "ui/Sidebar.h"
+#include "library/FolderScan.h"
+#include "library/FolderCounts.h"
 #include "core/JsonStore.h"
 #include "core/player/PlayerController.h"
 #include "library/LibraryModel.h"
@@ -76,6 +78,11 @@ void MediaView::keyPressEvent(QKeyEvent* e) {
 }
 void MediaView::mouseReleaseEvent(QMouseEvent* e) {
     const QModelIndex i = indexAt(e->pos());
+    if (e->button() == Qt::LeftButton && i.isValid() && !m_grid && i.data(LibraryModel::IsDirRole).toBool()) {
+        const QRectF row = QRectF(visualRect(i)).adjusted(6, 2, -6, -2);
+        if (MediaDelegate::playButton(row).contains(e->position())) { emit folderAction(i, false); return; }
+        if (MediaDelegate::shuffleButton(row).contains(e->position())) { emit folderAction(i, true); return; }
+    }
     QListView::mouseReleaseEvent(e);
     if (e->button() == Qt::LeftButton && i.isValid() && state() != DraggingState) emit activatedIndex(i);
 }
@@ -85,6 +92,8 @@ void MediaView::contextMenuEvent(QContextMenuEvent* e) {
 }
 
 // ================= Delegate =================
+QRectF MediaDelegate::playButton(const QRectF& r) { return QRectF(r.right() - 66, r.center().y() - 13, 26, 26); }
+QRectF MediaDelegate::shuffleButton(const QRectF& r) { return QRectF(r.right() - 34, r.center().y() - 13, 26, 26); }
 namespace { enum { LibraryMark_Keep = 1, LibraryMark_Reject = 2, LibraryMark_Seen = 4 }; }   // = PlayerController::Mark*
 QSize MediaDelegate::sizeHint(const QStyleOptionViewItem&, const QModelIndex&) const {
     return m_grid ? QSize(140, 120) : QSize(0, Theme::i().rowH() + 18);
@@ -168,11 +177,24 @@ void MediaDelegate::paint(QPainter* p, const QStyleOptionViewItem& opt, const QM
     p->setFont(Theme::i().font(12));
     p->setPen(c.muted);
     QString sub;
-    if (place) sub = QFileInfo(path).absolutePath();
-    else if (dir) sub = QObject::tr("Folder");
-    else { sub = kindLabel(kind); if (size >= 0) sub += QStringLiteral(" · ") + QLocale().formattedDataSize(size, 1); else if (m_queue) sub += QStringLiteral(" · ") + QFileInfo(path).dir().dirName(); }
+    if (dir) { sub = m_counts ? m_counts->text(path) : QString(); if (sub.isEmpty()) sub = place ? QFileInfo(path).absolutePath() : QObject::tr("Folder"); }
+    else {
+        sub = kindLabel(kind);
+        if (size >= 0) sub += QStringLiteral(" · ") + QLocale().formattedDataSize(size, 1);
+        else if (m_queue) {                                                                 // the subfolder it came from, relative to the folder being played
+            const QString root = QDir::cleanPath(m_ctl->lastFolderPlay().value(0)), here = QFileInfo(path).absolutePath();
+            const QString rel = (!root.isEmpty() && here.size() > root.size() && here.startsWith(root + QLatin1Char('/'), Qt::CaseInsensitive)) ? here.mid(root.size() + 1) : QFileInfo(path).dir().dirName();
+            sub += QStringLiteral(" · ") + rel;
+        }
+    }
     p->drawText(QRectF(tx, r.top() + 24, r.right() - tx - 26, 18), Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics(p->font()).elidedText(sub, Qt::ElideMiddle, int(r.right() - tx - 26)));
-    if (dir) drawIcon(p, Icon::ChevronRight, QRectF(r.right() - 24, r.center().y() - 8, 16, 16), c.muted);
+    if (dir && (hover || sel)) {                                                         // play everything / shuffle everything in this folder
+        const QRectF pb = playButton(r), sb = shuffleButton(r);
+        p->setPen(Qt::NoPen); p->setBrush(c.accent); p->drawRoundedRect(pb, 7, 7);
+        drawIcon(p, Icon::Play, pb.adjusted(5, 5, -5, -5), c.onAccent, 1.6);
+        p->setBrush(c.surface); p->setPen(QPen(c.border, 1)); p->drawRoundedRect(sb.adjusted(0.5, 0.5, -0.5, -0.5), 7, 7);
+        drawIcon(p, Icon::Shuffle, sb.adjusted(5, 5, -5, -5), c.text, 1.6);
+    } else if (dir) drawIcon(p, Icon::ChevronRight, QRectF(r.right() - 24, r.center().y() - 8, 16, 16), c.muted);
     else if (playing && (kind == MediaKind::Audio || kind == MediaKind::Video)) drawIcon(p, Icon::Audio, QRectF(r.right() - 26, r.center().y() - 8, 16, 16), c.accent);
     p->restore();
 }
@@ -212,6 +234,7 @@ Sidebar::Sidebar(PlayerController* ctl, ThumbService* thumbs, JsonStore* setting
     m_libDel = new MediaDelegate(ctl, thumbs, this);
     m_queueDel = new MediaDelegate(ctl, thumbs, this);
     m_queueDel->setQueueMode(true);
+    connect(m_list, &MediaView::folderAction, this, [this](const QModelIndex& i, bool shuffle) { onFolderAction(i, shuffle); });
     m_list->setModel(m_model);
     m_list->setItemDelegate(m_libDel);
     m_queueView->setModel(ctl->queue());
@@ -342,6 +365,21 @@ void Sidebar::applyGrid(bool g) {
 
 void Sidebar::focusSearch() { showQueue(false); m_search->setFocus(); m_search->selectAll(); }
 
+void Sidebar::debugSelect(int row) { if (m_list->model()) m_list->setCurrentIndex(m_list->model()->index(row, 0)); }
+
+void Sidebar::setCounts(FolderCounts* c) {
+    m_libDel->setCounts(c); m_queueDel->setCounts(c);
+    if (c) connect(c, &FolderCounts::ready, this, [this] { if (!m_repaint.isActive()) m_repaint.start(); });
+}
+
+void Sidebar::onFolderAction(const QModelIndex& i, bool shuffle) {
+    const QString path = i.data(LibraryModel::PathRole).toString();
+    if (!QDir(path).exists()) { emit toast(tr("That folder is gone")); m_model->refresh(); return; }
+    FolderScan::Options o = FolderScan::optionsFor(m_set, path);
+    if (shuffle) { o.shuffle = true; m_ctl->playFolders({path}, o, false); }               // shuffle from the button is for this play only
+    else m_ctl->playFolders({path}, o);
+}
+
 void Sidebar::onActivated(const QModelIndex& i) {
     const QString path = i.data(LibraryModel::PathRole).toString();
     if (i.data(LibraryModel::IsDirRole).toBool()) { navigate(path); return; }
@@ -357,7 +395,7 @@ void Sidebar::onContext(const QModelIndex& i, const QPoint& g) {
     const bool dir = i.data(LibraryModel::IsDirRole).toBool();
     const bool place = i.data(LibraryModel::IsPlaceRole).toBool();
     auto* m = new PopupMenu(this);
-    if (dir) { m->addItem("open", tr("Open")); m->addItem("playall", tr("Play everything in this folder")); if (!place) m->addItem("addplace", tr("Add to places")); else m->addItem("rmplace", tr("Remove from places")); }
+    if (dir) { m->addItem("open", tr("Open")); m->addItem("playall", tr("Play everything in this folder")); m->addItem("shuffleall", tr("Shuffle everything in this folder")); if (!place) m->addItem("addplace", tr("Add to places")); else m->addItem("rmplace", tr("Remove from places")); }
     else { m->addItem("play", tr("Play")); m->addItem("queue", tr("Add to queue")); }
     if (!dir) m->addItem("forget", tr("Forget this file"));
     m->addItem("newwin", tr("Open in new window"));
@@ -366,6 +404,7 @@ void Sidebar::onContext(const QModelIndex& i, const QPoint& g) {
     connect(m, &PopupMenu::triggered, this, [this, path, i](const QString& id) {
         if (id == "open") navigate(path);
         else if (id == "playall") m_ctl->open({path});
+        else if (id == "shuffleall") onFolderAction(i, true);
         else if (id == "addplace") { addPlace(path); emit toast(tr("Added to your places")); }
         else if (id == "rmplace") removePlace(path);
         else if (id == "play") onActivated(i);

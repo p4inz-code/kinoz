@@ -17,6 +17,8 @@ class VideoWidget;
 class ControlBar;
 class TopBar;
 class Toast;
+class NoticeBar;
+class FolderCounts;
 class EmptyState;
 class AudioStage;
 class Sidebar;
@@ -79,6 +81,8 @@ private:
     void setSidebarOpen(bool open, bool animate = true, bool automatic = false);
     bool m_selfOk = false;                     // self-test scratch
     int m_selfLoads = 0;
+    int m_selfCount = 0;
+    QString m_selfMsg;
     double m_selfPos = 0;                      // self-test scratch
     QString m_selfPath;                        // self-test scratch
     bool m_muteRestored = false;               // the saved mute state has been applied; from here on changes are remembered
@@ -96,6 +100,13 @@ private:
     void openSettings();
     void privacyAction(const QString& id);
     void cleanIdentity(bool announce);
+    void playFolderNow(const QStringList& dirs);   // a folder means everything inside it: play it, and keep it in the Library
+    void pastePath();                          // play the folder or file path on the clipboard
+    void noteFolderPlayed(const QStringList& dirs);
+    void refreshStartFolders();
+    void showPlayNotice(const QString& title, int count, bool truncated);
+    void showPlayOptions(const QRect& anchor);
+    QStringList recentFolders() const;
     bool saveHandoff();                        // before an update restart: remember the open file, second and queue (false when privacy says no)
     void restoreHandoff();                     // first start after an update: go back there
     void wipeLogs();
@@ -134,6 +145,10 @@ private:
     ControlBar* m_bar = nullptr;
     TopBar* m_top = nullptr;
     Toast* m_toast = nullptr;
+    NoticeBar* m_notice = nullptr;
+    FolderCounts* m_counts = nullptr;
+    QStringList m_noticeActions;               // what the buttons of the "Playing all of ..." message do, by index
+    QStringList m_keptNow;                     // folders the last Play added to the Library (for "Don't keep")
     EmptyState* m_empty = nullptr;
     AudioStage* m_audio = nullptr;
     Sidebar* m_side = nullptr;
